@@ -29,6 +29,9 @@ export function ResolveScheduleTime(local: string, timezone: string): $Cancellab
     return $Call.ByID(537429147, local, timezone);
 }
 
+/**
+ * ResumeSessions 由用户恢复重启后保留的会话队列
+ */
 export function ResumeSessions(): $CancellablePromise<void> {
     return $Call.ByID(80372407);
 }
@@ -53,10 +56,16 @@ export function StopRun(id: string): $CancellablePromise<void> {
     return $Call.ByID(575014234, id);
 }
 
+/**
+ * StopSession 停止指定会话请求
+ */
 export function StopSession(id: string): $CancellablePromise<void> {
     return $Call.ByID(3997408743, id);
 }
 
+/**
+ * SubmitSession 向专用会话提交用户请求
+ */
 export function SubmitSession(input: $models.SessionInput): $CancellablePromise<$models.SessionRequest> {
     return $Call.ByID(4193303399, input);
 }

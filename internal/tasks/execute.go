@@ -16,6 +16,7 @@ type turnOutcome struct {
 	result string
 	err    error
 }
+
 type turnWaiter struct {
 	turnID string
 	items  map[string]string
@@ -23,129 +24,8 @@ type turnWaiter struct {
 	done   chan turnOutcome
 }
 
-func executionPrompt(execution Execution) string {
-	context := execution.Context
-	parts := []string{"# 正式步骤执行", "## 项目：" + context.ProjectName, context.SharedContext, context.ProjectPrompt, context.Structure, "## 版本：" + context.VersionName, "## 功能：" + context.FeatureTitle, context.FeatureDescription, context.FeatureContext, context.FeaturePrompt, "## 步骤：" + context.Step.Title, context.Step.Description, context.Step.Prompt, "## 本次执行指令", execution.Instruction}
-	if execution.CompletionCriteria != "" {
-		parts = append(parts, "## 完成标准", execution.CompletionCriteria)
-	}
-	if len(context.Documents) > 0 {
-		parts = append(parts, "## 知识文档索引（需要正文时调用 read_knowledge）")
-		for _, document := range context.Documents {
-			parts = append(parts, fmt.Sprintf("- %s (documentId: %s)", document.Title, document.ID))
-		}
-	}
-	return strings.Join(parts, "\n\n")
-}
-
-func (s *Service) execute(ctx context.Context, execution Execution) (string, string, error) {
-	current, err := s.work.GetStepContext(execution.StepID)
-	if err != nil {
-		return "error", "", err
-	}
-	threadID := current.Step.ThreadID
-	if threadID == "" {
-		var tools []codex.DynamicToolSpec
-		if s.toolSpecs != nil {
-			tools = s.toolSpecs("step")
-		}
-		thread, err := s.runtime.CreateToolThread(execution.Context.Directory, execution.Model, execution.Permission, "step", stepInstructions, tools)
-		if err != nil {
-			return "error", "", err
-		}
-		threadID = thread.ID
-		if err = ctx.Err(); err != nil {
-			return "interrupted", "", err
-		}
-		if err = s.work.BindStepThread(execution.StepID, threadID); err != nil {
-			return "error", "", err
-		}
-	} else {
-		if _, err = s.runtime.OpenThread(threadID); err != nil {
-			return "error", "", err
-		}
-	}
-	if err = ctx.Err(); err != nil {
-		return "interrupted", "", err
-	}
-	waiter := &turnWaiter{items: map[string]string{}, done: make(chan turnOutcome, 1)}
-	s.mu.Lock()
-	if err := ctx.Err(); err != nil {
-		s.mu.Unlock()
-		return "interrupted", "", err
-	}
-	s.turns[threadID] = waiter
-	for i := range s.state.Executions {
-		if s.state.Executions[i].ID == execution.ID {
-			s.state.Executions[i].ThreadID = threadID
-			break
-		}
-	}
-	err = s.persistLocked()
-	s.mu.Unlock()
-	defer func() {
-		s.mu.Lock()
-		if s.turns[threadID] == waiter {
-			delete(s.turns, threadID)
-		}
-		s.mu.Unlock()
-	}()
-	if err != nil {
-		return "error", "", err
-	}
-	s.changed()
-	turn, err := s.runtime.StartManagedTurn(threadID, executionPrompt(execution), execution.Model, execution.Effort, execution.Permission, execution.Context.Directory, execution.ID, nil)
-	if err != nil {
-		return "error", "", err
-	}
-	s.mu.Lock()
-	if err := s.ctx.Err(); err != nil {
-		s.mu.Unlock()
-		s.runtime.StopTurn(threadID)
-		return "interrupted", "", err
-	}
-	waiter.turnID = turn.ID
-	for i := range s.state.Executions {
-		if s.state.Executions[i].ID == execution.ID {
-			s.state.Executions[i].TurnID = turn.ID
-			break
-		}
-	}
-	err = s.persistLocked()
-	s.mu.Unlock()
-	s.changed()
-	if err != nil {
-		s.runtime.StopTurn(threadID)
-		return "error", "", err
-	}
-	return s.awaitTurn(ctx, waiter, threadID)
-}
-
-func (s *Service) awaitTurn(ctx context.Context, waiter *turnWaiter, threadID string) (string, string, error) {
-	select {
-	case outcome := <-waiter.done:
-		return outcome.status, outcome.result, outcome.err
-	case <-ctx.Done():
-		interruptErr := s.runtime.StopTurn(threadID)
-		select {
-		case outcome := <-waiter.done:
-			if outcome.status == "completed" {
-				return outcome.status, outcome.result, outcome.err
-			}
-			return "interrupted", outcome.result, ctx.Err()
-		case <-time.After(15 * time.Second):
-			s.mu.Lock()
-			s.state.Paused = true
-			s.persistLocked()
-			s.mu.Unlock()
-			if interruptErr != nil {
-				return "interrupted", "", fmt.Errorf("停止请求失败，队列已暂停：%w", interruptErr)
-			}
-			return "interrupted", "", errors.New("未收到停止完成事件，队列已暂停；请检查连接后手动恢复")
-		}
-	}
-}
-
+// OnCodexEvent 处理上游事件并同步所属任务状态
+//
 //wails:ignore
 func (s *Service) OnCodexEvent(event codex.Event) {
 	if event.Method == "host/status" {
@@ -223,6 +103,8 @@ func (s *Service) OnCodexEvent(event codex.Event) {
 	}
 }
 
+// ScopeForThread 由活动线程确定宿主工具的任务范围
+//
 //wails:ignore
 func (s *Service) ScopeForThread(threadID string) (Scope, error) {
 	s.mu.Lock()
@@ -238,4 +120,138 @@ func (s *Service) ScopeForThread(threadID string) (Scope, error) {
 		}
 	}
 	return Scope{}, errors.New("此线程没有活动的工作对象")
+}
+
+// executionPrompt 组合冻结的步骤上下文和执行要求
+func executionPrompt(execution Execution) string {
+	context := execution.Context
+	parts := []string{"# 正式步骤执行", "## 项目：" + context.ProjectName, context.SharedContext, context.ProjectPrompt, context.Structure, "## 版本：" + context.VersionName, "## 功能：" + context.FeatureTitle, context.FeatureDescription, context.FeatureContext, context.FeaturePrompt, "## 步骤：" + context.Step.Title, context.Step.Description, context.Step.Prompt, "## 本次执行指令", execution.Instruction}
+	if execution.CompletionCriteria != "" {
+		parts = append(parts, "## 完成标准", execution.CompletionCriteria)
+	}
+	if len(context.Documents) > 0 {
+		parts = append(parts, "## 知识文档索引（需要正文时调用 read_knowledge）")
+		for _, document := range context.Documents {
+			parts = append(parts, fmt.Sprintf("- %s (documentId: %s)", document.Title, document.ID))
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// execute 执行当前任务并保存动作或轮次结果
+func (s *Service) execute(ctx context.Context, execution Execution) (string, string, error) {
+	current, err := s.work.GetStepContext(execution.StepID)
+	if err != nil {
+		return "error", "", err
+	}
+	threadID := current.Step.ThreadID
+	if threadID == "" {
+		var tools []codex.DynamicToolSpec
+		if s.toolSpecs != nil {
+			tools = s.toolSpecs("step")
+		}
+		thread, err := s.runtime.CreateToolThread(execution.Context.Directory, execution.Model, execution.Permission, "step", stepInstructions, tools)
+		if err != nil {
+			return "error", "", err
+		}
+		threadID = thread.ID
+		if err = ctx.Err(); err != nil {
+			return "interrupted", "", err
+		}
+		if err = s.work.BindStepThread(execution.StepID, threadID); err != nil {
+			return "error", "", err
+		}
+	} else {
+		if err = s.runtime.EnsureOpen(threadID); err != nil {
+			return "error", "", err
+		}
+	}
+	if err = ctx.Err(); err != nil {
+		return "interrupted", "", err
+	}
+	waiter := &turnWaiter{items: map[string]string{}, done: make(chan turnOutcome, 1)}
+	s.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return "interrupted", "", err
+	}
+	s.turns[threadID] = waiter
+	for i := range s.state.Executions {
+		if s.state.Executions[i].ID == execution.ID {
+			s.state.Executions[i].ThreadID = threadID
+			break
+		}
+	}
+	err = s.persistLocked()
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		if s.turns[threadID] == waiter {
+			delete(s.turns, threadID)
+		}
+		s.mu.Unlock()
+	}()
+	if err != nil {
+		return "error", "", err
+	}
+	s.changed()
+	attachmentRequestID := execution.AttachmentRequestID
+	if attachmentRequestID == "" {
+		attachmentRequestID = execution.RequestID
+	}
+	attachments, err := s.files.CopyRequestInputs(attachmentRequestID, threadID, execution.ID, execution.StepID)
+	if err != nil {
+		return "error", "", err
+	}
+	turn, err := s.runtime.StartManagedTurn(threadID, executionPrompt(execution), execution.Model, execution.Effort, execution.Permission, execution.Context.Directory, execution.ID, attachments)
+	if err != nil {
+		return "error", "", err
+	}
+	s.mu.Lock()
+	if err := s.ctx.Err(); err != nil {
+		s.mu.Unlock()
+		s.runtime.StopTurn(threadID)
+		return "interrupted", "", err
+	}
+	waiter.turnID = turn.ID
+	for i := range s.state.Executions {
+		if s.state.Executions[i].ID == execution.ID {
+			s.state.Executions[i].TurnID = turn.ID
+			break
+		}
+	}
+	err = s.persistLocked()
+	s.mu.Unlock()
+	s.changed()
+	if err != nil {
+		s.runtime.StopTurn(threadID)
+		return "error", "", err
+	}
+	return s.awaitTurn(ctx, waiter, threadID)
+}
+
+// awaitTurn 等待最终消息或中断并收集结果
+func (s *Service) awaitTurn(ctx context.Context, waiter *turnWaiter, threadID string) (string, string, error) {
+	select {
+	case outcome := <-waiter.done:
+		return outcome.status, outcome.result, outcome.err
+	case <-ctx.Done():
+		interruptErr := s.runtime.StopTurn(threadID)
+		select {
+		case outcome := <-waiter.done:
+			if outcome.status == "completed" {
+				return outcome.status, outcome.result, outcome.err
+			}
+			return "interrupted", outcome.result, ctx.Err()
+		case <-time.After(15 * time.Second):
+			s.mu.Lock()
+			s.state.Paused = true
+			s.persistLocked()
+			s.mu.Unlock()
+			if interruptErr != nil {
+				return "interrupted", "", fmt.Errorf("停止请求失败，队列已暂停：%w", interruptErr)
+			}
+			return "interrupted", "", errors.New("未收到停止完成事件，队列已暂停；请检查连接后手动恢复")
+		}
+	}
 }

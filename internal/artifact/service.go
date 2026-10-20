@@ -48,6 +48,7 @@ type Service struct {
 	previews map[string]string
 }
 
+// NewService 初始化服务并读取本地记录
 func NewService(dataDirectory string) (*Service, error) {
 	s := &Service{root: filepath.Join(dataDirectory, "attachments"), items: make(map[string]Attachment), previews: make(map[string]string)}
 	if err := os.MkdirAll(s.root, 0700); err != nil {
@@ -72,55 +73,8 @@ func NewService(dataDirectory string) (*Service, error) {
 	return s, nil
 }
 
-func (s *Service) persist() error {
-	return appdata.WriteJSON(filepath.Join(s.root, "index.json"), s.items)
-}
-
-func (s *Service) save(threadID, name, source, mediaType string, input io.Reader) (Attachment, error) {
-	if threadID == "" {
-		return Attachment{}, errors.New("请先打开一个会话")
-	}
-	name = filepath.Base(name)
-	if name == "" || name == "." {
-		return Attachment{}, errors.New("文件名不能为空")
-	}
-	id := rand.Text()
-	directory := filepath.Join(s.root, id)
-	if err := os.MkdirAll(directory, 0700); err != nil {
-		return Attachment{}, err
-	}
-	item := Attachment{ID: id, Name: name, MediaType: mediaType, Status: "pending", ThreadID: threadID, Kind: "input", Source: source,
-		LocalPath: filepath.Join(directory, name), URL: "/agentor/attachments/" + id, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
-	s.mu.Lock()
-	s.items[id] = item
-	err := s.persist()
-	s.mu.Unlock()
-	if err != nil {
-		return item, err
-	}
-	file, err := os.OpenFile(item.LocalPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err == nil {
-		item.Size, err = io.Copy(file, input)
-		closeErr := file.Close()
-		if err == nil {
-			err = closeErr
-		}
-	}
-	if err != nil {
-		item.Status, item.Error = "failed", err.Error()
-	} else {
-		item.Status = "ready"
-	}
-	s.mu.Lock()
-	s.items[id] = item
-	saveErr := s.persist()
-	s.mu.Unlock()
-	if err != nil {
-		return item, err
-	}
-	return item, saveErr
-}
-
+// ImportFile 复制本地文件至应用附件目录
+//
 //wails:ignore
 func (s *Service) ImportFile(threadID, path string) (Attachment, error) {
 	file, err := os.Open(path)
@@ -146,6 +100,7 @@ func (s *Service) ImportFile(threadID, path string) (Attachment, error) {
 	return s.save(threadID, filepath.Base(path), "local", http.DetectContentType(header[:count]), file)
 }
 
+// ChooseFiles 通过原生对话框选择会话输入文件
 func (s *Service) ChooseFiles(threadID string) ([]Attachment, error) {
 	app := application.Get()
 	paths, err := app.Dialog.OpenFile().AttachToWindow(app.Window.Current()).CanChooseFiles(true).CanChooseDirectories(false).PromptForMultipleSelection()
@@ -163,6 +118,7 @@ func (s *Service) ChooseFiles(threadID string) ([]Attachment, error) {
 	return items, nil
 }
 
+// SavePastedImage 解码并保存 WebView 粘贴的图片
 func (s *Service) SavePastedImage(threadID, name, encoded string) (Attachment, error) {
 	data, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
@@ -175,6 +131,7 @@ func (s *Service) SavePastedImage(threadID, name, encoded string) (Attachment, e
 	return s.save(threadID, name, "clipboard", mediaType, bytes.NewReader(data))
 }
 
+// GetAttachments 按创建顺序读取当前会话附件
 func (s *Service) GetAttachments(threadID string) []Attachment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -188,6 +145,8 @@ func (s *Service) GetAttachments(threadID string) []Attachment {
 	return items
 }
 
+// ResolveInputs 核验输入附件属于当前会话且已经可用
+//
 //wails:ignore
 func (s *Service) ResolveInputs(threadID string, ids []string) ([]Attachment, error) {
 	s.mu.Lock()
@@ -206,6 +165,8 @@ func (s *Service) ResolveInputs(threadID string, ids []string) ([]Attachment, er
 	return items, nil
 }
 
+// BindTurn 将附件绑定到实际发送的用户消息
+//
 //wails:ignore
 func (s *Service) BindTurn(threadID, turnID, messageID string, ids []string) error {
 	if len(ids) == 0 {
@@ -224,6 +185,7 @@ func (s *Service) BindTurn(threadID, turnID, messageID string, ids []string) err
 	return s.persist()
 }
 
+// OpenAttachment 通过系统应用打开附件
 func (s *Service) OpenAttachment(id string) error {
 	s.mu.Lock()
 	item, found := s.items[id]
@@ -234,6 +196,7 @@ func (s *Service) OpenAttachment(id string) error {
 	return application.Get().Browser.OpenFile(item.LocalPath)
 }
 
+// LocateAttachment 在文件管理器定位附件
 func (s *Service) LocateAttachment(id string) error {
 	s.mu.Lock()
 	item, found := s.items[id]
@@ -244,6 +207,8 @@ func (s *Service) LocateAttachment(id string) error {
 	return application.Get().Env.OpenFileManager(item.LocalPath, true)
 }
 
+// Middleware 向 WebView 提供已登记的附件资源
+//
 //wails:ignore
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -282,4 +247,61 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		}
 		http.ServeContent(w, request, item.Name, info.ModTime(), file)
 	})
+}
+
+// persist 保存附件索引
+func (s *Service) persist() error {
+	return appdata.WriteJSON(filepath.Join(s.root, "index.json"), s.items)
+}
+
+// save 保存会话输入附件
+func (s *Service) save(threadID, name, source, mediaType string, input io.Reader) (Attachment, error) {
+	return s.saveOwned(Attachment{ThreadID: threadID, Source: source, Kind: "input"}, name, mediaType, input)
+}
+
+// saveOwned 保存已有业务归属的托管附件
+func (s *Service) saveOwned(owner Attachment, name, mediaType string, input io.Reader) (Attachment, error) {
+	if owner.ThreadID == "" && owner.RequestID == "" {
+		return Attachment{}, errors.New("附件缺少会话或请求归属")
+	}
+	name = filepath.Base(name)
+	if name == "" || name == "." {
+		return Attachment{}, errors.New("文件名不能为空")
+	}
+	id := rand.Text()
+	directory := filepath.Join(s.root, id)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		return Attachment{}, err
+	}
+	item := owner
+	item.ID, item.Name, item.MediaType, item.Status = id, name, mediaType, "pending"
+	item.LocalPath, item.URL, item.CreatedAt = filepath.Join(directory, name), "/agentor/attachments/"+id, time.Now().UTC().Format(time.RFC3339Nano)
+	s.mu.Lock()
+	s.items[id] = item
+	err := s.persist()
+	s.mu.Unlock()
+	if err != nil {
+		return item, err
+	}
+	file, err := os.OpenFile(item.LocalPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err == nil {
+		item.Size, err = io.Copy(file, input)
+		closeErr := file.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}
+	if err != nil {
+		item.Status, item.Error = "failed", err.Error()
+	} else {
+		item.Status = "ready"
+	}
+	s.mu.Lock()
+	s.items[id] = item
+	saveErr := s.persist()
+	s.mu.Unlock()
+	if err != nil {
+		return item, err
+	}
+	return item, saveErr
 }

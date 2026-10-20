@@ -18,6 +18,10 @@ export interface ControllerInput {
 }
 
 export interface DispatchInput {
+    /**
+     * 附件原始请求，独立于完成汇报请求
+     */
+    "attachmentRequestId": string;
     "pipelineRunId": string;
     "stepId": string;
     "instruction": string;
@@ -30,6 +34,10 @@ export interface DispatchInput {
 }
 
 export interface Execution {
+    /**
+     * 附件原始请求，独立于完成汇报请求
+     */
+    "attachmentRequestId": string;
     "pipelineRunId": string;
     "id": string;
     "stepId": string;
@@ -71,6 +79,25 @@ export interface Notification {
 }
 
 export interface NotificationPart {
+    /**
+     * 上游实际消息标识
+     */
+    "messageId": string;
+
+    /**
+     * 已上传资源标识
+     */
+    "uploadKey": string;
+
+    /**
+     * 实际尝试发送的时间
+     */
+    "attemptedAt": string;
+
+    /**
+     * 官方卡片消息内容
+     */
+    "payloadJSON": string;
     "id": string;
     "kind": string;
     "channel": string;
@@ -103,10 +130,18 @@ export interface Request {
 }
 
 export interface Source {
+    /**
+     * 单聊或群聊
+     */
+    "chatType"?: string;
     "type": string;
     "appId": string;
     "chatId": string;
     "senderId": string;
+
+    /**
+     * 上游实际消息标识
+     */
     "messageId": string;
     "replyToMessageId": string;
 }

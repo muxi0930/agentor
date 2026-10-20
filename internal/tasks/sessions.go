@@ -6,8 +6,7 @@ import (
 	"errors"
 )
 
-// RunReadOnlyTurn shares the same event correlation, final-message collection
-// and interrupt handling as formal steps. The caller owns its request record.
+// RunReadOnlyTurn 复用正式执行的事件归属和中断逻辑运行只读轮次
 //
 //wails:ignore
 func (s *Service) RunReadOnlyTurn(ctx context.Context, threadID, text, model, effort, cwd, id string, started func(string)) (string, string, error) {
@@ -40,6 +39,8 @@ func (s *Service) RunReadOnlyTurn(ctx context.Context, threadID, text, model, ef
 	return s.awaitTurn(ctx, waiter, threadID)
 }
 
+// RecordNotification 持久化业务结果后通知发送入口
+//
 //wails:ignore
 func (s *Service) RecordNotification(notification Notification) error {
 	if s.ctx.Err() != nil {
@@ -63,9 +64,14 @@ func (s *Service) RecordNotification(notification Notification) error {
 	err := s.persistLocked()
 	s.mu.Unlock()
 	s.changed()
+	if err == nil {
+		s.notify(notification)
+	}
 	return err
 }
 
+// ReportExternalResult 将外部业务结果交还原始控制器请求
+//
 //wails:ignore
 func (s *Service) ReportExternalResult(requestID, kind, resultID, projectID, text string) error {
 	if requestID == "" {

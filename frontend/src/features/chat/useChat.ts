@@ -239,7 +239,7 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
   return { threads, listCursor, models, selected, conversation: conversations[selected], loading, error, setError,
     attachments: attachments[selected] || [],
     draftFiles: (attachments[selected] || []).filter(file => draftAttachments[selected]?.includes(file.id)),
-    removeDraftFile: (id: string) => setDraftAttachments(old => ({ ...old, [selected]: (old[selected] || []).filter(existing => existing !== id) })),
+    removeDraftFile: (id: string) => {const threadId=selected;void Files.DiscardDraftAttachment(id).then(()=>{setDraftAttachments(old=>({...old,[threadId]:(old[threadId]||[]).filter(existing=>existing!==id)}));setAttachments(old=>({...old,[threadId]:(old[threadId]||[]).filter(file=>file.id!==id)}));}).catch(error=>setError(errorText(error)));},
     uploading: (uploading[selected] || 0) > 0, chooseFiles, pasteImages,
     draft: drafts[selected] || "", setDraft: (text: string) => setDrafts(old => ({ ...old, [selected]: text })),
     sending: sending[selected] || false, openThread, createThread, clearSelection, send, loadEarlier, refreshThreads };

@@ -3,61 +3,68 @@ package tasks
 import "agentor/internal/workspace"
 
 type Source struct {
+	ChatType         string `json:"chatType,omitempty"` // 单聊或群聊
 	Type             string `json:"type"`
 	AppID            string `json:"appId"`
 	ChatID           string `json:"chatId"`
 	SenderID         string `json:"senderId"`
-	MessageID        string `json:"messageId"`
+	MessageID        string `json:"messageId"` // 上游实际消息标识
 	ReplyToMessageID string `json:"replyToMessageId"`
 }
 
 type DispatchInput struct {
-	PipelineRunID      string `json:"pipelineRunId"`
-	StepID             string `json:"stepId"`
-	Instruction        string `json:"instruction"`
-	CompletionCriteria string `json:"completionCriteria"`
-	Model              string `json:"model"`
-	Effort             string `json:"effort"`
-	Source             Source `json:"source"`
-	RequestID          string `json:"requestId"`
-	TimeoutSeconds     int    `json:"timeoutSeconds"`
+	AttachmentRequestID string `json:"attachmentRequestId"` // 附件原始请求，独立于完成汇报请求
+	PipelineRunID       string `json:"pipelineRunId"`
+	StepID              string `json:"stepId"`
+	Instruction         string `json:"instruction"`
+	CompletionCriteria  string `json:"completionCriteria"`
+	Model               string `json:"model"`
+	Effort              string `json:"effort"`
+	Source              Source `json:"source"`
+	RequestID           string `json:"requestId"`
+	TimeoutSeconds      int    `json:"timeoutSeconds"`
 }
 
 type Execution struct {
-	PipelineRunID      string                `json:"pipelineRunId"`
-	ID                 string                `json:"id"`
-	StepID             string                `json:"stepId"`
-	ProjectID          string                `json:"projectId"`
-	FeatureID          string                `json:"featureId"`
-	Instruction        string                `json:"instruction"`
-	CompletionCriteria string                `json:"completionCriteria"`
-	Model              string                `json:"model"`
-	Effort             string                `json:"effort"`
-	Permission         string                `json:"permission"`
-	Source             Source                `json:"source"`
-	RequestID          string                `json:"requestId"`
-	Context            workspace.StepContext `json:"context"`
-	Status             string                `json:"status"`
-	ThreadID           string                `json:"threadId"`
-	TurnID             string                `json:"turnId"`
-	Result             string                `json:"result"`
-	Error              string                `json:"error"`
-	CreatedAt          string                `json:"createdAt"`
-	StartedAt          string                `json:"startedAt"`
-	CompletedAt        string                `json:"completedAt"`
-	StopRequested      bool                  `json:"stopRequested"`
-	TimeoutSeconds     int                   `json:"timeoutSeconds"`
+	AttachmentRequestID string                `json:"attachmentRequestId"` // 附件原始请求，独立于完成汇报请求
+	PipelineRunID       string                `json:"pipelineRunId"`
+	ID                  string                `json:"id"`
+	StepID              string                `json:"stepId"`
+	ProjectID           string                `json:"projectId"`
+	FeatureID           string                `json:"featureId"`
+	Instruction         string                `json:"instruction"`
+	CompletionCriteria  string                `json:"completionCriteria"`
+	Model               string                `json:"model"`
+	Effort              string                `json:"effort"`
+	Permission          string                `json:"permission"`
+	Source              Source                `json:"source"`
+	RequestID           string                `json:"requestId"`
+	Context             workspace.StepContext `json:"context"`
+	Status              string                `json:"status"`
+	ThreadID            string                `json:"threadId"`
+	TurnID              string                `json:"turnId"`
+	Result              string                `json:"result"`
+	Error               string                `json:"error"`
+	CreatedAt           string                `json:"createdAt"`
+	StartedAt           string                `json:"startedAt"`
+	CompletedAt         string                `json:"completedAt"`
+	StopRequested       bool                  `json:"stopRequested"`
+	TimeoutSeconds      int                   `json:"timeoutSeconds"`
 }
 
 type NotificationPart struct {
-	ID         string `json:"id"`
-	Kind       string `json:"kind"`
-	Channel    string `json:"channel"`
-	Target     string `json:"target"`
-	Status     string `json:"status"`
-	Error      string `json:"error"`
-	Content    string `json:"content"`
-	ArtifactID string `json:"artifactId"`
+	MessageID   string `json:"messageId"`   // 上游实际消息标识
+	UploadKey   string `json:"uploadKey"`   // 已上传资源标识
+	AttemptedAt string `json:"attemptedAt"` // 实际尝试发送的时间
+	PayloadJSON string `json:"payloadJSON"` // 官方卡片消息内容
+	ID          string `json:"id"`
+	Kind        string `json:"kind"`
+	Channel     string `json:"channel"`
+	Target      string `json:"target"`
+	Status      string `json:"status"`
+	Error       string `json:"error"`
+	Content     string `json:"content"`
+	ArtifactID  string `json:"artifactId"`
 }
 
 type Notification struct {

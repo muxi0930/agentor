@@ -9,14 +9,23 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+/**
+ * Dispatch 冻结步骤参数并加入正式执行队列
+ */
 export function Dispatch(input: $models.DispatchInput): $CancellablePromise<$models.Execution> {
     return $Call.ByID(1837082755, input);
 }
 
+/**
+ * GetState 返回不包含密钥的状态快照
+ */
 export function GetState(): $CancellablePromise<$models.State> {
     return $Call.ByID(1870479024);
 }
 
+/**
+ * MarkNotificationRead 保存通知已读状态
+ */
 export function MarkNotificationRead(id: string): $CancellablePromise<void> {
     return $Call.ByID(3727566219, id);
 }
@@ -29,22 +38,37 @@ export function RebuildStepContext(stepID: string): $CancellablePromise<void> {
     return $Call.ByID(3746385509, stepID);
 }
 
+/**
+ * ResumeQueue 由用户恢复重启后保留的任务队列
+ */
 export function ResumeQueue(): $CancellablePromise<void> {
     return $Call.ByID(2965323125);
 }
 
+/**
+ * SteerExecution 向当前执行追加指令
+ */
 export function SteerExecution(id: string, text: string): $CancellablePromise<void> {
     return $Call.ByID(2956850900, id, text);
 }
 
+/**
+ * StopExecution 取消排队或正在运行的执行
+ */
 export function StopExecution(id: string): $CancellablePromise<void> {
     return $Call.ByID(922428077, id);
 }
 
+/**
+ * StopRequest 取消排队或正在处理的控制器请求
+ */
 export function StopRequest(id: string): $CancellablePromise<void> {
     return $Call.ByID(4279013546, id);
 }
 
+/**
+ * SubmitRequest 将用户指令加入控制器队列
+ */
 export function SubmitRequest(input: $models.ControllerInput): $CancellablePromise<$models.Request> {
     return $Call.ByID(3848601978, input);
 }

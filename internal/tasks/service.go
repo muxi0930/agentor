@@ -18,30 +18,30 @@ import (
 )
 
 type Service struct {
-	mu               sync.Mutex
-	data             *appdata.Service
-	runtime          *codex.Service
-	work             *workspace.Service
-	files            *artifact.Service
-	path             string
-	state            State
-	ctx              context.Context
-	cancel           context.CancelFunc
-	workers          map[string]bool
-	cancellations    map[string]context.CancelFunc
-	turns            map[string]*turnWaiter
-	completed        map[string][]chan Execution
-	toolSpecs        func(string) []codex.DynamicToolSpec
-	runExecution     func(context.Context, Execution) (string, string, error)
-	controllerWorker bool
-	runRequest       func(context.Context, Request) (string, string, error)
-	deleting         map[string]bool
+	mu                  sync.Mutex
+	data                *appdata.Service
+	runtime             *codex.Service
+	work                *workspace.Service
+	files               *artifact.Service
+	path                string
+	state               State
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	workers             map[string]bool
+	cancellations       map[string]context.CancelFunc
+	turns               map[string]*turnWaiter
+	completed           map[string][]chan Execution
+	toolSpecs           func(string) []codex.DynamicToolSpec
+	runExecution        func(context.Context, Execution) (string, string, error)
+	controllerWorker    bool
+	runRequest          func(context.Context, Request) (string, string, error)
+	deleting            map[string]bool
+	notificationHandler func(Notification)
 }
 
 type Changed struct{}
 
-func init() { application.RegisterEvent[Changed]("tasks:changed") }
-
+// NewService 初始化服务并读取本地记录
 func NewService(data *appdata.Service, runtime *codex.Service, work *workspace.Service, files *artifact.Service) (*Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{data: data, runtime: runtime, work: work, files: files, path: filepath.Join(data.GetInfo().DataDirectory, "tasks.json"), ctx: ctx, cancel: cancel, workers: map[string]bool{}, cancellations: map[string]context.CancelFunc{}, turns: map[string]*turnWaiter{}, completed: map[string][]chan Execution{}, state: State{Executions: []Execution{}, Notifications: []Notification{}}}
@@ -87,27 +87,16 @@ func NewService(data *appdata.Service, runtime *codex.Service, work *workspace.S
 	return s, nil
 }
 
-func now() string { return time.Now().UTC().Format(time.RFC3339Nano) }
-func copyState(state State) State {
-	raw, _ := json.Marshal(state)
-	var result State
-	json.Unmarshal(raw, &result)
-	return result
-}
-func (s *Service) persistLocked() error { return appdata.WriteJSON(s.path, s.state) }
-func (s *Service) GetState() State      { s.mu.Lock(); defer s.mu.Unlock(); return copyState(s.state) }
-func (s *Service) changed() {
-	if s.ctx.Err() != nil {
-		return
-	}
-	if app := application.Get(); app != nil {
-		app.Event.Emit("tasks:changed", Changed{})
-	}
-}
+// GetState 返回不包含密钥的状态快照
+func (s *Service) GetState() State { s.mu.Lock(); defer s.mu.Unlock(); return copyState(s.state) }
 
+// ConfigureTools 配置各业务角色可用的宿主工具
+//
 //wails:ignore
 func (s *Service) ConfigureTools(specs func(string) []codex.DynamicToolSpec) { s.toolSpecs = specs }
 
+// SelectModel 核验模型与推理强度并返回有效选择
+//
 //wails:ignore
 func (s *Service) SelectModel(model, effort string) (string, string, error) {
 	settings := s.data.GetSettings()
@@ -138,6 +127,7 @@ func (s *Service) SelectModel(model, effort string) (string, string, error) {
 	return model, effort, nil
 }
 
+// Dispatch 冻结步骤参数并加入正式执行队列
 func (s *Service) Dispatch(input DispatchInput) (Execution, error) {
 	if s.runtime.GetStatus().Phase != "ready" {
 		return Execution{}, errors.New("Codex 尚未就绪")
@@ -163,7 +153,7 @@ func (s *Service) Dispatch(input DispatchInput) (Execution, error) {
 	if input.Source.Type == "" {
 		input.Source.Type = "desktop"
 	}
-	execution := Execution{PipelineRunID: input.PipelineRunID, ID: rand.Text(), StepID: input.StepID, ProjectID: context.ProjectID, FeatureID: context.FeatureID, Instruction: input.Instruction, CompletionCriteria: input.CompletionCriteria, Model: model, Effort: effort, Permission: permission, Source: input.Source, RequestID: input.RequestID, Context: context, Status: "queued", CreatedAt: now(), TimeoutSeconds: input.TimeoutSeconds}
+	execution := Execution{AttachmentRequestID: input.AttachmentRequestID, PipelineRunID: input.PipelineRunID, ID: rand.Text(), StepID: input.StepID, ProjectID: context.ProjectID, FeatureID: context.FeatureID, Instruction: input.Instruction, CompletionCriteria: input.CompletionCriteria, Model: model, Effort: effort, Permission: permission, Source: input.Source, RequestID: input.RequestID, Context: context, Status: "queued", CreatedAt: now(), TimeoutSeconds: input.TimeoutSeconds}
 	s.mu.Lock()
 	if err := s.ctx.Err(); err != nil {
 		s.mu.Unlock()
@@ -198,6 +188,207 @@ func (s *Service) Dispatch(input DispatchInput) (Execution, error) {
 	return execution, nil
 }
 
+// StopExecution 取消排队或正在运行的执行
+func (s *Service) StopExecution(id string) error {
+	s.mu.Lock()
+	for i := range s.state.Executions {
+		execution := &s.state.Executions[i]
+		if execution.ID != id {
+			continue
+		}
+		if execution.Status == "queued" {
+			execution.Status, execution.CompletedAt = "interrupted", now()
+			execution.Error = "用户取消排队"
+			for _, channel := range s.completed[id] {
+				channel <- *execution
+				close(channel)
+			}
+			delete(s.completed, id)
+			err := s.persistLocked()
+			s.mu.Unlock()
+			s.changed()
+			return err
+		}
+		if execution.Status != "running" {
+			s.mu.Unlock()
+			return nil
+		}
+		execution.StopRequested = true
+		cancel := s.cancellations[id]
+		err := s.persistLocked()
+		s.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+		s.changed()
+		return err
+	}
+	s.mu.Unlock()
+	return errors.New("执行记录不存在")
+}
+
+// SteerExecution 向当前执行追加指令
+func (s *Service) SteerExecution(id, text string) error {
+	s.mu.Lock()
+	threadID := ""
+	for _, execution := range s.state.Executions {
+		if execution.ID == id && execution.Status == "running" {
+			threadID = execution.ThreadID
+			break
+		}
+	}
+	s.mu.Unlock()
+	if threadID == "" {
+		return errors.New("任务尚未建立活动会话")
+	}
+	return s.runtime.SteerTurn(threadID, text, rand.Text(), nil)
+}
+
+// ResumeQueue 由用户恢复重启后保留的任务队列
+func (s *Service) ResumeQueue() error {
+	if s.runtime.GetStatus().Phase != "ready" {
+		return errors.New("请先连接 Codex")
+	}
+	s.mu.Lock()
+	s.state.Paused = false
+	err := s.persistLocked()
+	steps := map[string]bool{}
+	for _, execution := range s.state.Executions {
+		if execution.Status == "queued" {
+			steps[execution.StepID] = true
+		}
+	}
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	for id := range steps {
+		s.kick(id)
+	}
+	s.kickController()
+	s.changed()
+	return nil
+}
+
+// WaitExecution 等待指定执行达到终态
+//
+//wails:ignore
+func (s *Service) WaitExecution(ctx context.Context, id string) (Execution, error) {
+	s.mu.Lock()
+	for _, execution := range s.state.Executions {
+		if execution.ID == id {
+			if execution.Status != "queued" && execution.Status != "running" {
+				s.mu.Unlock()
+				return execution, nil
+			}
+			channel := make(chan Execution, 1)
+			s.completed[id] = append(s.completed[id], channel)
+			s.mu.Unlock()
+			select {
+			case result := <-channel:
+				return result, nil
+			case <-ctx.Done():
+				return Execution{}, ctx.Err()
+			}
+		}
+	}
+	s.mu.Unlock()
+	return Execution{}, errors.New("执行记录不存在")
+}
+
+// MarkNotificationRead 保存通知已读状态
+func (s *Service) MarkNotificationRead(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.state.Notifications {
+		if s.state.Notifications[i].ID == id {
+			s.state.Notifications[i].Read = true
+			return s.persistLocked()
+		}
+	}
+	return errors.New("通知不存在")
+}
+
+// RegisterArtifact 将当前执行生成的文件登记为产物
+//
+//wails:ignore
+func (s *Service) RegisterArtifact(executionID, path string) (artifact.Attachment, error) {
+	s.mu.Lock()
+	var found *Execution
+	for _, execution := range s.state.Executions {
+		if execution.ID == executionID && execution.Status == "running" {
+			copy := execution
+			found = &copy
+			break
+		}
+	}
+	s.mu.Unlock()
+	if found == nil {
+		return artifact.Attachment{}, errors.New("此任务没有活动执行")
+	}
+	item, err := s.files.RegisterProduced(artifact.ProducedOwner{ThreadID: found.ThreadID, ExecutionID: found.ID, StepID: found.StepID, ProjectID: found.ProjectID, RequestID: found.RequestID}, path, found.Context.Directory)
+	if err == nil {
+		s.changed()
+	}
+	return item, err
+}
+
+// ServiceShutdown 取消活动请求并关闭服务连接
+func (s *Service) ServiceShutdown() error {
+	s.cancel()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, cancel := range s.cancellations {
+		cancel()
+	}
+	for i := range s.state.Executions {
+		execution := &s.state.Executions[i]
+		if execution.Status == "running" {
+			execution.Status, execution.Error, execution.CompletedAt = "interrupted", "应用退出，未自动重放", now()
+			for _, channel := range s.completed[execution.ID] {
+				channel <- *execution
+				close(channel)
+			}
+			delete(s.completed, execution.ID)
+		}
+	}
+	for i := range s.state.Requests {
+		request := &s.state.Requests[i]
+		if request.Status == "running" {
+			request.Status, request.Error, request.CompletedAt = "interrupted", "应用退出，未自动重放", now()
+		}
+	}
+	return s.persistLocked()
+}
+
+// init 注册业务变更事件
+func init() { application.RegisterEvent[Changed]("tasks:changed") }
+
+// now 返回当前 UTC 时间
+func now() string { return time.Now().UTC().Format(time.RFC3339Nano) }
+
+// copyState 复制任务状态以隔离调用方
+func copyState(state State) State {
+	raw, _ := json.Marshal(state)
+	var result State
+	json.Unmarshal(raw, &result)
+	return result
+}
+
+// persistLocked 在持有状态锁时保存记录
+func (s *Service) persistLocked() error { return appdata.WriteJSON(s.path, s.state) }
+
+// changed 发布状态变更事件
+func (s *Service) changed() {
+	if s.ctx.Err() != nil {
+		return
+	}
+	if app := application.Get(); app != nil {
+		app.Event.Emit("tasks:changed", Changed{})
+	}
+}
+
+// kick 启动尚未运行的步骤队列
 func (s *Service) kick(stepID string) {
 	s.mu.Lock()
 	if s.state.Paused || s.workers[stepID] || s.ctx.Err() != nil {
@@ -209,6 +400,7 @@ func (s *Service) kick(stepID string) {
 	go s.runStepQueue(stepID)
 }
 
+// runStepQueue 按顺序执行同一步骤的排队任务
 func (s *Service) runStepQueue(stepID string) {
 	for {
 		s.mu.Lock()
@@ -249,7 +441,9 @@ func (s *Service) runStepQueue(stepID string) {
 	}
 }
 
+// finish 保存执行终态并通知等待者和原请求
 func (s *Service) finish(id, status, result string, err error) {
+	var notification Notification
 	s.mu.Lock()
 	delete(s.cancellations, id)
 	if s.ctx.Err() != nil {
@@ -270,7 +464,8 @@ func (s *Service) finish(id, status, result string, err error) {
 			if body == "" {
 				body = "任务已结束"
 			}
-			s.state.Notifications = append(s.state.Notifications, Notification{ID: rand.Text(), Title: execution.Context.Step.Title + " · " + status, Body: body, Source: execution.Source, ProjectID: execution.ProjectID, PipelineRunID: execution.PipelineRunID, ExecutionID: id, RequestID: execution.RequestID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}})
+			notification = Notification{ID: rand.Text(), Title: execution.Context.Step.Title + " · " + status, Body: body, Source: execution.Source, ProjectID: execution.ProjectID, PipelineRunID: execution.PipelineRunID, ExecutionID: id, RequestID: execution.RequestID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}}
+			s.state.Notifications = append(s.state.Notifications, notification)
 			for _, channel := range s.completed[id] {
 				channel <- *execution
 				close(channel)
@@ -285,169 +480,6 @@ func (s *Service) finish(id, status, result string, err error) {
 	}
 	s.mu.Unlock()
 	s.changed()
+	s.notify(notification)
 	s.reportExecution(id)
-}
-
-func (s *Service) StopExecution(id string) error {
-	s.mu.Lock()
-	for i := range s.state.Executions {
-		execution := &s.state.Executions[i]
-		if execution.ID != id {
-			continue
-		}
-		if execution.Status == "queued" {
-			execution.Status, execution.CompletedAt = "interrupted", now()
-			execution.Error = "用户取消排队"
-			for _, channel := range s.completed[id] {
-				channel <- *execution
-				close(channel)
-			}
-			delete(s.completed, id)
-			err := s.persistLocked()
-			s.mu.Unlock()
-			s.changed()
-			return err
-		}
-		if execution.Status != "running" {
-			s.mu.Unlock()
-			return nil
-		}
-		execution.StopRequested = true
-		cancel := s.cancellations[id]
-		err := s.persistLocked()
-		s.mu.Unlock()
-		if cancel != nil {
-			cancel()
-		}
-		s.changed()
-		return err
-	}
-	s.mu.Unlock()
-	return errors.New("执行记录不存在")
-}
-
-func (s *Service) SteerExecution(id, text string) error {
-	s.mu.Lock()
-	threadID := ""
-	for _, execution := range s.state.Executions {
-		if execution.ID == id && execution.Status == "running" {
-			threadID = execution.ThreadID
-			break
-		}
-	}
-	s.mu.Unlock()
-	if threadID == "" {
-		return errors.New("任务尚未建立活动会话")
-	}
-	return s.runtime.SteerTurn(threadID, text, rand.Text(), nil)
-}
-
-func (s *Service) ResumeQueue() error {
-	if s.runtime.GetStatus().Phase != "ready" {
-		return errors.New("请先连接 Codex")
-	}
-	s.mu.Lock()
-	s.state.Paused = false
-	err := s.persistLocked()
-	steps := map[string]bool{}
-	for _, execution := range s.state.Executions {
-		if execution.Status == "queued" {
-			steps[execution.StepID] = true
-		}
-	}
-	s.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	for id := range steps {
-		s.kick(id)
-	}
-	s.kickController()
-	s.changed()
-	return nil
-}
-
-//wails:ignore
-func (s *Service) WaitExecution(ctx context.Context, id string) (Execution, error) {
-	s.mu.Lock()
-	for _, execution := range s.state.Executions {
-		if execution.ID == id {
-			if execution.Status != "queued" && execution.Status != "running" {
-				s.mu.Unlock()
-				return execution, nil
-			}
-			channel := make(chan Execution, 1)
-			s.completed[id] = append(s.completed[id], channel)
-			s.mu.Unlock()
-			select {
-			case result := <-channel:
-				return result, nil
-			case <-ctx.Done():
-				return Execution{}, ctx.Err()
-			}
-		}
-	}
-	s.mu.Unlock()
-	return Execution{}, errors.New("执行记录不存在")
-}
-
-func (s *Service) MarkNotificationRead(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i := range s.state.Notifications {
-		if s.state.Notifications[i].ID == id {
-			s.state.Notifications[i].Read = true
-			return s.persistLocked()
-		}
-	}
-	return errors.New("通知不存在")
-}
-
-//wails:ignore
-func (s *Service) RegisterArtifact(executionID, path string) (artifact.Attachment, error) {
-	s.mu.Lock()
-	var found *Execution
-	for _, execution := range s.state.Executions {
-		if execution.ID == executionID && execution.Status == "running" {
-			copy := execution
-			found = &copy
-			break
-		}
-	}
-	s.mu.Unlock()
-	if found == nil {
-		return artifact.Attachment{}, errors.New("此任务没有活动执行")
-	}
-	item, err := s.files.RegisterProduced(artifact.ProducedOwner{ThreadID: found.ThreadID, ExecutionID: found.ID, StepID: found.StepID, ProjectID: found.ProjectID, RequestID: found.RequestID}, path, found.Context.Directory)
-	if err == nil {
-		s.changed()
-	}
-	return item, err
-}
-
-func (s *Service) ServiceShutdown() error {
-	s.cancel()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, cancel := range s.cancellations {
-		cancel()
-	}
-	for i := range s.state.Executions {
-		execution := &s.state.Executions[i]
-		if execution.Status == "running" {
-			execution.Status, execution.Error, execution.CompletedAt = "interrupted", "应用退出，未自动重放", now()
-			for _, channel := range s.completed[execution.ID] {
-				channel <- *execution
-				close(channel)
-			}
-			delete(s.completed, execution.ID)
-		}
-	}
-	for i := range s.state.Requests {
-		request := &s.state.Requests[i]
-		if request.Status == "running" {
-			request.Status, request.Error, request.CompletedAt = "interrupted", "应用退出，未自动重放", now()
-		}
-	}
-	return s.persistLocked()
 }

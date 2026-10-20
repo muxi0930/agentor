@@ -10,6 +10,9 @@ import type { Events } from "@wailsio/runtime";
 import type * as codex$0 from "../../../../../agentor/internal/codex/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as lark$0 from "../../../../../agentor/internal/lark/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as pipeline$0 from "../../../../../agentor/internal/pipeline/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -20,6 +23,7 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "codex:event": codex$0.Event;
             "codex:status": codex$0.Status;
+            "lark:changed": lark$0.Changed;
             "pipeline:changed": pipeline$0.Changed;
             "tasks:changed": tasks$0.Changed;
         }

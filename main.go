@@ -7,6 +7,7 @@ import (
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
+	"agentor/internal/lark"
 	"agentor/internal/pipeline"
 	"agentor/internal/tasks"
 	"agentor/internal/workspace"
@@ -38,16 +39,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	router := &toolRouter{tasks: executions, work: work, pipeline: pipelines}
+	remote, err := lark.NewService(data.GetInfo().DataDirectory, executions, work, files, runtime, pipelines)
+	if err != nil {
+		log.Fatal(err)
+	}
+	router := &toolRouter{tasks: executions, work: work, pipeline: pipelines, lark: remote}
 	executions.ConfigureTools(router.specs)
 	pipelines.ConfigureTools(router.specs)
 	runtime.SetToolHandler(router.call)
-	runtime.SetEventHandler(executions.OnCodexEvent)
+	runtime.SetEventHandler(func(event codex.Event) { executions.OnCodexEvent(event); remote.OnCodexEvent(event) })
+	executions.SetNotificationHandler(remote.OnNotification)
 	work.SetDeleteGuard(executions.PrepareDelete)
 	var window *application.WebviewWindow
 	app := application.New(application.Options{
 		Name: "agentor", Description: "Codex 对话与工作编排",
-		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(runtime), application.NewService(work), application.NewService(executions), application.NewService(pipelines)},
+		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(runtime), application.NewService(work), application.NewService(executions), application.NewService(pipelines), application.NewService(remote)},
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: files.Middleware},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 		SingleInstance: &application.SingleInstanceOptions{

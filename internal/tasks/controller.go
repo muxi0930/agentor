@@ -11,20 +11,98 @@ import (
 	"agentor/internal/codex"
 )
 
+// SubmitRequest 将用户指令加入控制器队列
+func (s *Service) SubmitRequest(input ControllerInput) (Request, error) {
+	return s.submitRequest(input, "instruction", "")
+}
+
+// StopRequest 取消排队或正在处理的控制器请求
+func (s *Service) StopRequest(id string) error {
+	s.mu.Lock()
+	for i := range s.state.Requests {
+		request := &s.state.Requests[i]
+		if request.ID == id {
+			if request.Status == "queued" {
+				request.Status, request.Error, request.CompletedAt = "interrupted", "用户取消排队", now()
+				err := s.persistLocked()
+				s.mu.Unlock()
+				s.changed()
+				return err
+			}
+			if request.Status != "running" {
+				s.mu.Unlock()
+				return errors.New("请求已结束")
+			}
+			cancel := s.cancellations[id]
+			s.mu.Unlock()
+			if cancel != nil {
+				cancel()
+			}
+			return nil
+		}
+	}
+	s.mu.Unlock()
+	return errors.New("请求不存在")
+}
+
+// CurrentRequest 查找线程当前处理的控制器请求
+//
+//wails:ignore
+func (s *Service) CurrentRequest(threadID string) (Request, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, request := range s.state.Requests {
+		if request.ThreadID == threadID && request.Status == "running" {
+			return request, nil
+		}
+	}
+	return Request{}, errors.New("此线程没有活动控制器请求")
+}
+
+// DispatchFromController 从当前控制器范围派发正式步骤
+//
+//wails:ignore
+func (s *Service) DispatchFromController(threadID, stepID, instruction, criteria string) (Execution, error) {
+	request, err := s.CurrentRequest(threadID)
+	if err != nil {
+		return Execution{}, err
+	}
+	if request.Kind != "instruction" {
+		return Execution{}, errors.New("完成汇报不能重新派发任务")
+	}
+	if request.NeedsTarget {
+		return Execution{}, errors.New("当前来源没有明确目标，请先询问用户")
+	}
+	if stepID == "" {
+		stepID = request.StepID
+	}
+	if request.LockedTarget && request.StepID != "" && stepID != request.StepID {
+		return Execution{}, errors.New("本次请求已明确指定步骤，请勿派发其他目标")
+	}
+	context, err := s.work.GetStepContext(stepID)
+	if err != nil {
+		return Execution{}, err
+	}
+	if request.ProjectID != "" && request.ProjectID != context.ProjectID {
+		return Execution{}, errors.New("步骤不属于本次请求的项目范围")
+	}
+	return s.Dispatch(DispatchInput{StepID: stepID, Instruction: instruction, CompletionCriteria: criteria, Model: request.Model, Effort: request.Effort, Source: request.Source, RequestID: request.ID})
+}
+
+// sourceKey 区分来源应用会话与发送者
 func sourceKey(source Source) string {
 	raw, _ := json.Marshal([]string{source.Type, source.AppID, source.ChatID, source.SenderID})
 	return string(raw)
 }
+
+// isContinue 识别需要沿用原任务目标的继续请求
 func isContinue(text string) bool {
 	text = strings.Trim(strings.ToLower(strings.TrimSpace(text)), "。.!！?？ ")
 	return text == "继续" || text == "continue"
 }
 
-func (s *Service) SubmitRequest(input ControllerInput) (Request, error) {
-	return s.submitRequest(input, "instruction", "")
-}
-
-func (s *Service) submitRequest(input ControllerInput, kind, completionID string) (Request, error) {
+// submitRequest 保留来源并登记去重后的控制器请求
+func (s *Service) submitRequest(input ControllerInput, kind, completionID string, reservedID ...string) (Request, error) {
 	if strings.TrimSpace(input.Text) == "" {
 		return Request{}, errors.New("请填写控制器请求")
 	}
@@ -56,6 +134,9 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 		return Request{}, err
 	}
 	request := Request{ID: rand.Text(), Kind: kind, Text: input.Text, ProjectID: input.ProjectID, StepID: input.StepID, Model: model, Effort: effort, Source: input.Source, Status: "queued", CreatedAt: now(), CompletionID: completionID, NeedsTarget: needsTarget, LockedTarget: lockedTarget}
+	if len(reservedID) > 0 {
+		request.ID = reservedID[0]
+	}
 	s.mu.Lock()
 	// Two deliveries can pass the initial read while model selection is in flight.
 	if err := s.ctx.Err(); err != nil {
@@ -85,6 +166,7 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 	return request, nil
 }
 
+// kickController 启动尚未运行的控制器队列
 func (s *Service) kickController() {
 	s.mu.Lock()
 	if s.controllerWorker || s.state.Paused || s.ctx.Err() != nil {
@@ -96,6 +178,7 @@ func (s *Service) kickController() {
 	go s.runControllerQueue()
 }
 
+// runControllerQueue 按顺序处理控制器请求
 func (s *Service) runControllerQueue() {
 	for {
 		s.mu.Lock()
@@ -128,6 +211,7 @@ func (s *Service) runControllerQueue() {
 			status, result, err = s.runRequest(ctx, request)
 		}
 		cancel()
+		var notification Notification
 		s.mu.Lock()
 		delete(s.cancellations, request.ID)
 		if s.ctx.Err() != nil {
@@ -146,7 +230,8 @@ func (s *Service) runControllerQueue() {
 				if body == "" {
 					body = current.Error
 				}
-				s.state.Notifications = append(s.state.Notifications, Notification{ID: rand.Text(), Title: "控制器 · " + status, Body: body, Source: request.Source, ProjectID: request.ProjectID, RequestID: request.ID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}})
+				notification = Notification{ID: rand.Text(), Title: "控制器 · " + status, Body: body, Source: request.Source, ProjectID: request.ProjectID, RequestID: request.ID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}}
+				s.state.Notifications = append(s.state.Notifications, notification)
 				break
 			}
 		}
@@ -155,9 +240,11 @@ func (s *Service) runControllerQueue() {
 		}
 		s.mu.Unlock()
 		s.changed()
+		s.notify(notification)
 	}
 }
 
+// executeController 恢复控制器线程并处理当前请求
 func (s *Service) executeController(ctx context.Context, request Request) (string, string, error) {
 	cwd := s.data.GetInfo().DataDirectory
 	if request.ProjectID != "" {
@@ -185,7 +272,7 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 		s.state.ControllerThreadID = threadID
 		s.mu.Unlock()
 	} else {
-		if _, err := s.runtime.OpenThread(threadID); err != nil {
+		if err := s.runtime.EnsureOpen(threadID); err != nil {
 			return "error", "", err
 		}
 	}
@@ -219,7 +306,11 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 	}
 	s.changed()
 	prompt := fmt.Sprintf("请求类型：%s\n请求 ID：%s\n项目范围：%s（空表示用户允许查询整个工作区）\n明确步骤目标：%s\n需要用户明确目标：%t\n\n用户请求或宿主完成事件：\n%s", request.Kind, request.ID, request.ProjectID, request.StepID, request.NeedsTarget, request.Text)
-	turn, err := s.runtime.StartManagedTurn(threadID, prompt, request.Model, request.Effort, "read-only", cwd, request.ID, nil)
+	attachments, err := s.files.CopyRequestInputs(request.ID, threadID, "", "")
+	if err != nil {
+		return "error", "", err
+	}
+	turn, err := s.runtime.StartManagedTurn(threadID, prompt, request.Model, request.Effort, "read-only", cwd, request.ID, attachments)
 	if err != nil {
 		return "error", "", err
 	}
@@ -246,74 +337,7 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 	return s.awaitTurn(ctx, waiter, threadID)
 }
 
-func (s *Service) StopRequest(id string) error {
-	s.mu.Lock()
-	for i := range s.state.Requests {
-		request := &s.state.Requests[i]
-		if request.ID == id {
-			if request.Status == "queued" {
-				request.Status, request.Error, request.CompletedAt = "interrupted", "用户取消排队", now()
-				err := s.persistLocked()
-				s.mu.Unlock()
-				s.changed()
-				return err
-			}
-			if request.Status != "running" {
-				s.mu.Unlock()
-				return errors.New("请求已结束")
-			}
-			cancel := s.cancellations[id]
-			s.mu.Unlock()
-			if cancel != nil {
-				cancel()
-			}
-			return nil
-		}
-	}
-	s.mu.Unlock()
-	return errors.New("请求不存在")
-}
-
-//wails:ignore
-func (s *Service) CurrentRequest(threadID string) (Request, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, request := range s.state.Requests {
-		if request.ThreadID == threadID && request.Status == "running" {
-			return request, nil
-		}
-	}
-	return Request{}, errors.New("此线程没有活动控制器请求")
-}
-
-//wails:ignore
-func (s *Service) DispatchFromController(threadID, stepID, instruction, criteria string) (Execution, error) {
-	request, err := s.CurrentRequest(threadID)
-	if err != nil {
-		return Execution{}, err
-	}
-	if request.Kind != "instruction" {
-		return Execution{}, errors.New("完成汇报不能重新派发任务")
-	}
-	if request.NeedsTarget {
-		return Execution{}, errors.New("当前来源没有明确目标，请先询问用户")
-	}
-	if stepID == "" {
-		stepID = request.StepID
-	}
-	if request.LockedTarget && request.StepID != "" && stepID != request.StepID {
-		return Execution{}, errors.New("本次请求已明确指定步骤，请勿派发其他目标")
-	}
-	context, err := s.work.GetStepContext(stepID)
-	if err != nil {
-		return Execution{}, err
-	}
-	if request.ProjectID != "" && request.ProjectID != context.ProjectID {
-		return Execution{}, errors.New("步骤不属于本次请求的项目范围")
-	}
-	return s.Dispatch(DispatchInput{StepID: stepID, Instruction: instruction, CompletionCriteria: criteria, Model: request.Model, Effort: request.Effort, Source: request.Source, RequestID: request.ID})
-}
-
+// reportExecution 将步骤结果交还原始控制器请求
 func (s *Service) reportExecution(id string) {
 	s.mu.Lock()
 	var execution Execution

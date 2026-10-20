@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"agentor/internal/codex"
+	"agentor/internal/lark"
 	"agentor/internal/pipeline"
 	"agentor/internal/tasks"
 	"agentor/internal/workspace"
@@ -14,6 +15,7 @@ type toolRouter struct {
 	tasks    *tasks.Service
 	work     *workspace.Service
 	pipeline *pipeline.Service
+	lark     *lark.Service
 }
 
 func tool(name, description string, properties map[string]any, required ...string) codex.DynamicToolSpec {
@@ -45,6 +47,7 @@ func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
 			tool("request_pipeline_session", "给项目专用管理/配置会话提交请求。管理会话运行已有任务，配置会话维护 JSON 和调度。", map[string]any{"projectId": stringField("当前范围内的项目 ID"), "role": stringField("pipeline_manager / pipeline_config"), "text": stringField("会话请求")}, "projectId", "role", "text"),
 			tool("set_schedule_enabled", "启用或停用当前项目的调度。", map[string]any{"scheduleId": stringField("调度 ID"), "enabled": map[string]any{"type": "boolean"}}, "scheduleId", "enabled"),
 			tool("trigger_schedule", "手动触发已有调度，同任务不重入。", map[string]any{"scheduleId": stringField("调度 ID")}, "scheduleId"),
+			tool("share_artifact", "将当前项目的已登记产物发送到原始飞书会话；桌面任务使用已配对接收者。", map[string]any{"artifactId": stringField("产物 ID")}, "artifactId"),
 		}
 	}
 	if role != "step" {
@@ -58,6 +61,7 @@ func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
 		tool("bind_knowledge_document", "将当前项目内的文档绑定至当前功能。", map[string]any{"documentId": stringField("当前项目内的文档 ID")}, "documentId"),
 		tool("sync_knowledge_document", "更新当前步骤可访问的托管 Markdown 正文，不修改原始导入文件。", map[string]any{"documentId": stringField("托管文档 ID"), "content": stringField("完整 Markdown 正文")}, "documentId", "content"),
 		tool("register_artifact", "登记当前项目内由本次执行产生的文件，供用户查看或分享。", map[string]any{"path": stringField("项目内文件的相对或绝对路径")}, "path"),
+		tool("share_artifact", "显式分享本次执行登记的产物，发往原始飞书会话或桌面已配对接收者。", map[string]any{"artifactId": stringField("register_artifact 返回的 ID")}, "artifactId"),
 	}
 }
 
@@ -90,6 +94,7 @@ func (r *toolRouter) call(call codex.ToolCall) (any, error) {
 		Title      string `json:"title"`
 		Content    string `json:"content"`
 		Path       string `json:"path"`
+		ArtifactID string `json:"artifactId"`
 	}
 	if err = json.Unmarshal(call.Arguments, &args); err != nil {
 		return nil, err
@@ -110,6 +115,14 @@ func (r *toolRouter) call(call codex.ToolCall) (any, error) {
 		return r.work.SyncKnowledge(scope.ProjectID, scope.FeatureID, args.DocumentID, args.Content)
 	case "register_artifact":
 		return r.tasks.RegisterArtifact(scope.ExecutionID, args.Path)
+	case "share_artifact":
+		for _, execution := range r.tasks.GetState().Executions {
+			if execution.ID == scope.ExecutionID {
+				err := r.lark.ShareArtifactFor(args.ArtifactID, scope.ProjectID, scope.ExecutionID, execution.Source)
+				return map[string]bool{"queued": err == nil}, err
+			}
+		}
+		return nil, errors.New("当前执行不存在")
 	}
 	return nil, errors.New("未知工具")
 }
@@ -122,6 +135,16 @@ func (r *toolRouter) controllerCall(scope tasks.Scope, call codex.ToolCall) (any
 	readOnly := call.Tool == "list_workspaces" || call.Tool == "get_work_item" || call.Tool == "list_executions" || call.Tool == "list_pipeline_tasks"
 	if !readOnly && (request.NeedsTarget || request.Kind != "instruction") {
 		return nil, errors.New("此请求需要明确目标或仅用于完成汇报，不能修改或再次派发")
+	}
+	if call.Tool == "share_artifact" {
+		var args struct {
+			ArtifactID string `json:"artifactId"`
+		}
+		if err := json.Unmarshal(call.Arguments, &args); err != nil {
+			return nil, err
+		}
+		err := r.lark.ShareArtifactFor(args.ArtifactID, scope.ProjectID, "", request.Source)
+		return map[string]bool{"queued": err == nil}, err
 	}
 	if r.pipeline != nil {
 		switch call.Tool {

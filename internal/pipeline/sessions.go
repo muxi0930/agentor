@@ -11,10 +11,73 @@ import (
 	"agentor/internal/tasks"
 )
 
-func sessionKey(projectID, role string) string { return projectID + ":" + role }
+// SubmitSession 向专用会话提交用户请求
 func (s *Service) SubmitSession(input SessionInput) (SessionRequest, error) {
 	return s.submitSession(input, "instruction", "")
 }
+
+// StopSession 停止指定会话请求
+func (s *Service) StopSession(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.state.Requests {
+		request := &s.state.Requests[i]
+		if request.ID == id {
+			if request.Status == "queued" {
+				request.Status, request.Error, request.CompletedAt = "interrupted", "用户取消排队", now()
+				err := s.persistLocked()
+				s.changed()
+				return err
+			}
+			if cancel := s.cancellations[id]; cancel != nil {
+				cancel()
+			}
+			return nil
+		}
+	}
+	return errors.New("会话请求不存在")
+}
+
+// ResumeSessions 由用户恢复重启后保留的会话队列
+func (s *Service) ResumeSessions() error {
+	if s.runtime.GetStatus().Phase != "ready" {
+		return errors.New("请先连接 Codex")
+	}
+	s.mu.Lock()
+	s.state.Paused = false
+	err := s.persistLocked()
+	pending := append([]SessionRequest{}, s.state.Requests...)
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	for _, request := range pending {
+		if request.Status == "queued" {
+			s.kickSession(request.Input.ProjectID, request.Input.Role)
+		}
+	}
+	s.changed()
+	return nil
+}
+
+// ActiveSession 查找线程当前处理的专用会话请求
+//
+//wails:ignore
+func (s *Service) ActiveSession(threadID string) (SessionRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, request := range s.state.Requests {
+		if request.ThreadID == threadID && request.Status == "running" {
+			return clone(request), nil
+		}
+	}
+	return SessionRequest{}, errors.New("此线程没有活动流水线会话")
+}
+
+// sessionKey 区分同项目的管理与配置会话
+func sessionKey(projectID, role string) string { return projectID + ":" + role }
+
+// submitSession 冻结参数并登记会话请求
 func (s *Service) submitSession(input SessionInput, kind, runID string) (SessionRequest, error) {
 	if input.Role != "pipeline_manager" && input.Role != "pipeline_config" {
 		return SessionRequest{}, errors.New("请选择管理会话或配置会话")
@@ -58,6 +121,8 @@ func (s *Service) submitSession(input SessionInput, kind, runID string) (Session
 	s.kickSession(input.ProjectID, input.Role)
 	return request, nil
 }
+
+// kickSession 启动尚未运行的专用会话队列
 func (s *Service) kickSession(projectID, role string) {
 	key := sessionKey(projectID, role)
 	s.mu.Lock()
@@ -69,6 +134,8 @@ func (s *Service) kickSession(projectID, role string) {
 	s.mu.Unlock()
 	go s.sessionQueue(projectID, role)
 }
+
+// sessionQueue 按顺序处理同一专用会话的请求
 func (s *Service) sessionQueue(projectID, role string) {
 	key := sessionKey(projectID, role)
 	for {
@@ -132,6 +199,8 @@ func (s *Service) sessionQueue(projectID, role string) {
 		s.tasks.ReportExternalResult(request.Input.RequestID, "pipeline_session_result", request.ID, projectID, body)
 	}
 }
+
+// runSession 恢复专用线程并等待实际运行结果
 func (s *Service) runSession(ctx context.Context, request SessionRequest) (string, string, error) {
 	input := request.Input
 	project, err := s.project(input.ProjectID)
@@ -157,7 +226,7 @@ func (s *Service) runSession(ctx context.Context, request SessionRequest) (strin
 		}
 		threadID = thread.ID
 	} else {
-		if _, err = s.runtime.OpenThread(threadID); err != nil {
+		if err = s.runtime.EnsureOpen(threadID); err != nil {
 			return "error", "", err
 		}
 	}
@@ -198,59 +267,8 @@ func (s *Service) runSession(ctx context.Context, request SessionRequest) (strin
 		s.changed()
 	})
 }
-func (s *Service) StopSession(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i := range s.state.Requests {
-		request := &s.state.Requests[i]
-		if request.ID == id {
-			if request.Status == "queued" {
-				request.Status, request.Error, request.CompletedAt = "interrupted", "用户取消排队", now()
-				err := s.persistLocked()
-				s.changed()
-				return err
-			}
-			if cancel := s.cancellations[id]; cancel != nil {
-				cancel()
-			}
-			return nil
-		}
-	}
-	return errors.New("会话请求不存在")
-}
-func (s *Service) ResumeSessions() error {
-	if s.runtime.GetStatus().Phase != "ready" {
-		return errors.New("请先连接 Codex")
-	}
-	s.mu.Lock()
-	s.state.Paused = false
-	err := s.persistLocked()
-	pending := append([]SessionRequest{}, s.state.Requests...)
-	s.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	for _, request := range pending {
-		if request.Status == "queued" {
-			s.kickSession(request.Input.ProjectID, request.Input.Role)
-		}
-	}
-	s.changed()
-	return nil
-}
 
-//wails:ignore
-func (s *Service) ActiveSession(threadID string) (SessionRequest, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, request := range s.state.Requests {
-		if request.ThreadID == threadID && request.Status == "running" {
-			return clone(request), nil
-		}
-	}
-	return SessionRequest{}, errors.New("此线程没有活动流水线会话")
-}
-
+// reportRun 将流水线结果交还原始请求来源
 func (s *Service) reportRun(run Run, text string) {
 	if run.SessionRequestID == "" || s.ctx.Err() != nil {
 		return

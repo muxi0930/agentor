@@ -9,6 +9,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+/**
+ * ChooseFiles 通过原生对话框选择会话输入文件
+ */
 export function ChooseFiles(threadID: string): $CancellablePromise<$models.Attachment[] | null> {
     return $Call.ByID(4137277275, threadID);
 }
@@ -21,6 +24,16 @@ export function CreateHTMLPreview(threadID: string, source: string): $Cancellabl
     return $Call.ByID(4101920568, threadID, source);
 }
 
+/**
+ * DiscardDraftAttachment 只清理尚未发送的应用托管附件副本
+ */
+export function DiscardDraftAttachment(id: string): $CancellablePromise<void> {
+    return $Call.ByID(3897778961, id);
+}
+
+/**
+ * GetAttachments 按创建顺序读取当前会话附件
+ */
 export function GetAttachments(threadID: string): $CancellablePromise<$models.Attachment[] | null> {
     return $Call.ByID(358559999, threadID);
 }
@@ -33,10 +46,23 @@ export function GetPipelineArtifacts(runID: string): $CancellablePromise<$models
     return $Call.ByID(134736112, runID);
 }
 
+/**
+ * GetRequestAttachments 按接收顺序读取请求原始附件
+ */
+export function GetRequestAttachments(requestID: string): $CancellablePromise<$models.Attachment[] | null> {
+    return $Call.ByID(7770214, requestID);
+}
+
+/**
+ * LocateAttachment 在文件管理器定位附件
+ */
 export function LocateAttachment(id: string): $CancellablePromise<void> {
     return $Call.ByID(2826396334, id);
 }
 
+/**
+ * OpenAttachment 通过系统应用打开附件
+ */
 export function OpenAttachment(id: string): $CancellablePromise<void> {
     return $Call.ByID(3446878856, id);
 }
@@ -45,6 +71,9 @@ export function ReleaseHTMLPreview(url: string): $CancellablePromise<void> {
     return $Call.ByID(157870321, url);
 }
 
+/**
+ * SavePastedImage 解码并保存 WebView 粘贴的图片
+ */
 export function SavePastedImage(threadID: string, name: string, encoded: string): $CancellablePromise<$models.Attachment> {
     return $Call.ByID(3184721910, threadID, name, encoded);
 }

@@ -16,7 +16,7 @@ func (r *toolRouter) pipelineSpecs(role string) []codex.DynamicToolSpec {
 		tool("validate_pipeline_task", "只读验证 JSON 任务，不执行动作。任务字段为 id（新建可空）、name、inputs、actions。", map[string]any{"json": stringField("完整 JSON 配置")}, "json"),
 	}
 	if role == "pipeline_manager" {
-		return append(specs, tool("run_pipeline", "运行当前项目已有任务；模型和来源沿用此会话请求。", map[string]any{"taskId": stringField("任务 ID"), "inputs": map[string]any{"type": "object"}}, "taskId", "inputs"))
+		return append(specs, tool("run_pipeline", "运行当前项目已有任务；模型和来源沿用此会话请求。", map[string]any{"taskId": stringField("任务 ID"), "inputs": map[string]any{"type": "object"}}, "taskId", "inputs"), tool("share_artifact", "显式分享当前项目的报告或步骤产物到原飞书会话。", map[string]any{"artifactId": stringField("已登记产物 ID")}, "artifactId"))
 	}
 	return append(specs,
 		tool("save_pipeline_task", "验证并保存当前项目 JSON 任务；新建 ID 留空，修改保留 ID。", map[string]any{"json": stringField("完整 JSON 配置")}, "json"),
@@ -64,6 +64,7 @@ func (r *toolRouter) pipelineCall(request pipeline.SessionRequest, call codex.To
 		TaskID     string         `json:"taskId"`
 		ScheduleID string         `json:"scheduleId"`
 		Inputs     map[string]any `json:"inputs"`
+		ArtifactID string         `json:"artifactId"`
 	}
 	if err := json.Unmarshal(call.Arguments, &args); err != nil {
 		return nil, err
@@ -72,6 +73,9 @@ func (r *toolRouter) pipelineCall(request pipeline.SessionRequest, call codex.To
 	switch call.Tool {
 	case "list_actions":
 		return r.pipeline.GetActions(), nil
+	case "share_artifact":
+		err := r.lark.ShareArtifactFor(args.ArtifactID, projectID, "", request.Input.Source)
+		return map[string]bool{"queued": err == nil}, err
 	case "list_pipeline_tasks":
 		return r.pipelineState(projectID), nil
 	case "validate_pipeline_task":

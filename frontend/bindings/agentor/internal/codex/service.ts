@@ -13,6 +13,9 @@ export function AnswerElicitation(id: string, action: string, contentJSON: strin
     return $Call.ByID(1000786857, id, action, contentJSON);
 }
 
+/**
+ * AnswerQuestions 将结构化答案回复原问答请求
+ */
 export function AnswerQuestions(id: string, answers: { [_ in string]?: $models.QuestionAnswer } | null): $CancellablePromise<void> {
     return $Call.ByID(2594495821, id, answers);
 }
@@ -37,6 +40,9 @@ export function GetAccount(): $CancellablePromise<$models.AccountInfo> {
     return $Call.ByID(1671499933);
 }
 
+/**
+ * GetApprovals 返回审批和问答记录
+ */
 export function GetApprovals(): $CancellablePromise<$models.Approval[] | null> {
     return $Call.ByID(3207137798);
 }
@@ -65,10 +71,16 @@ export function RenameThread(threadID: string, name: string): $CancellablePromis
     return $Call.ByID(1247852160, threadID, name);
 }
 
+/**
+ * RespondApproval 校验上游选项后回复命令或文件审批
+ */
 export function RespondApproval(id: string, decision: string): $CancellablePromise<void> {
     return $Call.ByID(1563117452, id, decision);
 }
 
+/**
+ * RespondPermissions 仅按原请求范围回复权限审批
+ */
 export function RespondPermissions(id: string, allow: boolean, scope: string): $CancellablePromise<void> {
     return $Call.ByID(1545420697, id, allow, scope);
 }

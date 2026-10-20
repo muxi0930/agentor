@@ -10,6 +10,7 @@ import (
 	"agentor/internal/tasks"
 )
 
+// execute 执行当前任务并保存动作或轮次结果
 func (s *Service) execute(ctx context.Context, run Run) {
 	err := s.updateRun(run.ID, func(record *Run) { record.Status = "running" })
 	s.changed()
@@ -95,6 +96,7 @@ func (s *Service) execute(ctx context.Context, run Run) {
 	s.reportRun(run, summary.String())
 }
 
+// perform 调用当前固定动作并返回其结果
 func (s *Service) perform(ctx context.Context, run Run, kind string, params map[string]any) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -148,7 +150,7 @@ func (s *Service) perform(ctx context.Context, run Run, kind string, params map[
 		if err = ctx.Err(); err != nil {
 			return nil, err
 		}
-		execution, err := s.tasks.Dispatch(tasks.DispatchInput{StepID: stepContext.Step.ID, Instruction: stringParam(params, "instruction"), CompletionCriteria: stringParam(params, "completionCriteria"), Model: run.Model, Effort: run.Effort, Source: run.Source, PipelineRunID: run.ID})
+		execution, err := s.tasks.Dispatch(tasks.DispatchInput{AttachmentRequestID: run.RequestID, StepID: stepContext.Step.ID, Instruction: stringParam(params, "instruction"), CompletionCriteria: stringParam(params, "completionCriteria"), Model: run.Model, Effort: run.Effort, Source: run.Source, PipelineRunID: run.ID})
 		if err != nil {
 			return nil, err
 		}
