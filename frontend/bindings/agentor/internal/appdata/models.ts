@@ -29,4 +29,5 @@ export interface Settings {
     "pinnedThreads": { [_ in string]?: boolean } | null;
     "chatOrder": { [_ in string]?: string[] | null } | null;
     "projectOrder": string[] | null;
+    "managedThreads": { [_ in string]?: string } | null;
 }

@@ -28,6 +28,7 @@ type Settings struct {
 	PinnedThreads      map[string]bool     `json:"pinnedThreads"`
 	ChatOrder          map[string][]string `json:"chatOrder"`
 	ProjectOrder       []string            `json:"projectOrder"`
+	ManagedThreads     map[string]string   `json:"managedThreads"`
 }
 
 type Info struct {
@@ -151,6 +152,25 @@ func (s *Service) RememberThread(threadID, cwd string) (Settings, error) {
 		threads[threadID] = cwd
 		settings.ChatThreads = threads
 	})
+}
+
+//wails:ignore
+func (s *Service) RememberManagedThread(threadID, cwd, role string) error {
+	_, err := s.update(func(settings *Settings) {
+		threads := map[string]string{}
+		for id, path := range settings.ChatThreads {
+			threads[id] = path
+		}
+		threads[threadID] = cwd
+		settings.ChatThreads = threads
+		managed := map[string]string{}
+		for id, value := range settings.ManagedThreads {
+			managed[id] = value
+		}
+		managed[threadID] = role
+		settings.ManagedThreads = managed
+	})
+	return err
 }
 
 func (s *Service) SetProjectAlias(cwd, name string) (Settings, error) {

@@ -7,6 +7,7 @@ import (
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
+	"agentor/internal/tasks"
 	"agentor/internal/workspace"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -27,10 +28,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	runtime := codex.NewService(data, files)
+	executions, err := tasks.NewService(data, runtime, work, files)
+	if err != nil {
+		log.Fatal(err)
+	}
+	router := &toolRouter{tasks: executions, work: work}
+	executions.ConfigureTools(router.specs)
+	runtime.SetToolHandler(router.call)
+	runtime.SetEventHandler(executions.OnCodexEvent)
+	work.SetDeleteGuard(executions.PrepareDelete)
 	var window *application.WebviewWindow
 	app := application.New(application.Options{
 		Name: "agentor", Description: "Codex 对话与工作编排",
-		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(codex.NewService(data, files)), application.NewService(work)},
+		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(runtime), application.NewService(work), application.NewService(executions)},
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: files.Middleware},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 		SingleInstance: &application.SingleInstanceOptions{

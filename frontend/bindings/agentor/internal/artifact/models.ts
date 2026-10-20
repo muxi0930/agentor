@@ -16,4 +16,8 @@ export interface Attachment {
     "localPath": string;
     "url": string;
     "createdAt": string;
+    "executionId": string;
+    "stepId": string;
+    "projectId": string;
+    "requestId": string;
 }

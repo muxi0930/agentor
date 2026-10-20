@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { Events } from "@wailsio/runtime";
 import { ArrowDown, ArrowUp, ChevronRight, Folder, Layers3, Pencil, Plus, RefreshCw, Tags, Trash2 } from "lucide-react";
 import * as Work from "../../../bindings/agentor/internal/workspace/service";
 import type { State, StepContext } from "../../../bindings/agentor/internal/workspace/models";
 import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
+import type { Status } from "../../../bindings/agentor/internal/codex/models";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +20,7 @@ import { errorText } from "@/app/errors";
 import { EntityEditor, makeDraft, nodeLabels, type EntityDraft } from "./EntityEditor";
 import { TagEditor } from "./TagEditor";
 import { locate, nodeIdentity, type NodeKind, type Selection } from "./selection";
+import { ExecutionPanel } from "./ExecutionPanel";
 
 function NavNode({id,title,selected,open,onOpen,onSelect,disabled,children}:{id:string;title:string;selected:string;open:boolean;onOpen:(id:string,open:boolean)=>void;onSelect:(id:string)=>void;disabled:boolean;children?:ReactNode}){
   return <Collapsible open={open} onOpenChange={value=>onOpen(id,value)}><div className={`flex items-center rounded-md ${selected===id?"bg-accent":"hover:bg-muted"}`}>
@@ -38,7 +41,7 @@ function ContextPreview({stepId,state,onError}:{stepId:string;state:State;onErro
   return <Collapsible><CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium"><ChevronRight className="size-4"/>查看当前步骤完整上下文</CollapsibleTrigger><CollapsibleContent className="mt-3 rounded-lg border p-4"><MarkdownView text={text} onError={onError}/></CollapsibleContent></Collapsible>;
 }
 
-export function WorkspacePage({settings}:{settings:Settings}){
+export function WorkspacePage({settings,status,focusExecutionId}:{settings:Settings;status?:Status;focusExecutionId?:string}){
   const [state,setState]=useState<State>();
   const [busy,setBusy]=useState(false),[error,setError]=useState("");
   const [expanded,setExpanded]=useState<Record<string,boolean>>({});
@@ -47,6 +50,7 @@ export function WorkspacePage({settings}:{settings:Settings}){
   const [removing,setRemoving]=useState<Selection>();
   async function run(action:()=>Promise<State>){setBusy(true);setError("");try{setState(await action());}catch(error){setError(errorText(error));}finally{setBusy(false);}}
   useEffect(()=>{void run(()=>Work.GetState());},[]);
+  useEffect(()=>Events.On("tasks:changed",()=>{void Work.GetState().then(setState).catch(error=>setError(errorText(error)));}),[]);
   useEffect(()=>{if(!state)return;const selected=locate(state,state.selectedId);if(selected)setExpanded(old=>({...old,[selected.project.id]:true,...(selected.version?{[selected.version.id]:true}:{}),...(selected.feature?{[selected.feature.id]:true}:{})}));},[state?.selectedId]);
   const selected=state&&(locate(state,state.selectedId)||(state.projects?.[0]?{kind:"project" as const,project:state.projects[0]}:undefined));
   const identity=selected&&nodeIdentity(selected);
@@ -73,6 +77,7 @@ export function WorkspacePage({settings}:{settings:Settings}){
         {selected.kind==="version"&&<><div className="flex gap-2"><Button onClick={()=>newEntity("feature")}><Plus/>新建功能</Button></div><TextCard title="版本说明" text={selected.version!.description} onError={setError}/><div className="grid gap-4 sm:grid-cols-2">{selected.version!.features?.map(feature=><Card key={feature.id}><CardHeader><CardTitle><Button variant="link" className="h-auto p-0 text-base" onClick={()=>select(feature.id)}>{feature.title}</Button></CardTitle><CardDescription>{feature.description||"暂无说明"}</CardDescription></CardHeader><CardContent><Badge variant="secondary">{feature.steps?.length||0} 个步骤</Badge></CardContent></Card>)}</div></>}
         {selected.kind==="feature"&&<><div className="flex flex-wrap gap-2"><Button onClick={()=>newEntity("step")}><Plus/>新建步骤</Button><NativeSelect aria-label="功能所在版本" value={selected.version!.id} disabled={busy} onChange={event=>void run(()=>Work.MoveFeature(selected.project.id,selected.feature!.id,event.target.value))}>{selected.project.versions?.map(version=><NativeSelectOption key={version.id} value={version.id}>{version.name}</NativeSelectOption>)}</NativeSelect></div><TextCard title="功能说明" text={selected.feature!.description} onError={setError}/><div className="space-y-2">{selected.feature!.steps?.map((step,index)=><Button key={step.id} variant="outline" className="h-auto w-full justify-start gap-3 px-4 py-3" onClick={()=>select(step.id)}><span className="text-xs text-muted-foreground">{index+1}</span><span className="min-w-0 flex-1 truncate text-left">{step.title}</span><Badge variant="secondary">{step.threadId?"已绑定会话":"未绑定会话"}</Badge></Button>)}</div><TextCard title="功能上下文" text={selected.feature!.context} onError={setError}/><TextCard title="功能提示词" text={selected.feature!.prompt} onError={setError}/></>}
         {selected.kind==="step"&&<><div className="flex flex-wrap gap-2"><Badge variant="outline">{selected.step!.threadId?"会话已绑定":"未绑定会话"}</Badge><Badge variant="outline">权限：{selected.step!.permissionMode?permissionLabels[selected.step!.permissionMode]:"继承项目与账号"}</Badge></div><TextCard title="步骤说明" text={selected.step!.description} onError={setError}/><TextCard title="步骤提示词" text={selected.step!.prompt} onError={setError}/><ContextPreview stepId={selected.step!.id} state={state} onError={setError}/></>}
+        {selected.step&&<ExecutionPanel key={selected.step.id} step={selected.step} settings={settings} status={status} onError={setError} focusExecutionId={focusExecutionId}/>}
         <KnowledgePanel key={selected.project.id} project={selected.project} feature={selected.feature} documents={state.documents||[]} onSaved={setState} onError={setError}/>
       </div>}
     </section>

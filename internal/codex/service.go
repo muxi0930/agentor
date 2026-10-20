@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -46,6 +47,8 @@ type Service struct {
 	files          *artifact.Service
 	usage          map[string]*TokenUsage
 	pendingChanges map[string]map[string][]FileChange
+	toolHandler    func(ToolCall) (any, error)
+	eventHandler   func(Event)
 }
 
 func init() {
@@ -87,6 +90,7 @@ func (s *Service) setStatus(generation uint64, phase, message string) Status {
 	s.status.Revision++
 	status := s.status
 	s.mu.Unlock()
+	s.observe(Event{Generation: generation, Method: "host/status", Params: mustJSON(status)})
 	if app := application.Get(); app != nil {
 		app.Event.Emit("codex:status", status)
 	}
@@ -157,6 +161,7 @@ func (s *Service) Connect() (Status, error) {
 			return
 		}
 		s.trackNotification(generation, message)
+		s.observe(Event{Generation: generation, Method: message.Method, Params: string(message.Params)})
 		if !strings.HasPrefix(message.Method, "thread/") && !strings.HasPrefix(message.Method, "turn/") && !strings.HasPrefix(message.Method, "item/") && !strings.HasPrefix(message.Method, "account/") && message.Method != "serverRequest/resolved" && message.Method != "error" {
 			return
 		}
@@ -205,6 +210,31 @@ func (s *Service) Connect() (Status, error) {
 	return status, nil
 }
 
+func mustJSON(value any) string { raw, _ := json.Marshal(value); return string(raw) }
+
+func (s *Service) observe(event Event) {
+	s.mu.Lock()
+	handler := s.eventHandler
+	s.mu.Unlock()
+	if handler != nil {
+		handler(event)
+	}
+}
+
+//wails:ignore
+func (s *Service) SetEventHandler(handler func(Event)) {
+	s.mu.Lock()
+	s.eventHandler = handler
+	s.mu.Unlock()
+}
+
+//wails:ignore
+func (s *Service) SetToolHandler(handler func(ToolCall) (any, error)) {
+	s.mu.Lock()
+	s.toolHandler = handler
+	s.mu.Unlock()
+}
+
 func (s *Service) connectionError(err error) (Status, error) {
 	return s.setStatus(s.GetStatus().Generation, "error", err.Error()), err
 }
@@ -246,7 +276,9 @@ func (s *Service) ServiceShutdown() error {
 	s.status.Generation++
 	c := s.client
 	s.client = nil
+	generation := s.status.Generation
 	s.mu.Unlock()
+	s.setStatus(generation, "stopped", "应用正在退出")
 	if c != nil {
 		c.close()
 	}

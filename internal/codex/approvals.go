@@ -65,6 +65,10 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 	if c == nil {
 		return
 	}
+	if message.Method == "item/tool/call" {
+		s.handleToolRequest(generation, message, c)
+		return
+	}
 	if message.Method == "currentTime/read" {
 		c.write(map[string]any{"id": message.ID, "result": map[string]int64{"currentTimeAt": time.Now().Unix()}})
 		return

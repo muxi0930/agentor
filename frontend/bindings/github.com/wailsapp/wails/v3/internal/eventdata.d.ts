@@ -8,12 +8,16 @@ import type { Events } from "@wailsio/runtime";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as codex$0 from "../../../../../agentor/internal/codex/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as tasks$0 from "../../../../../agentor/internal/tasks/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "codex:event": codex$0.Event;
             "codex:status": codex$0.Status;
+            "tasks:changed": tasks$0.Changed;
         }
     }
 }

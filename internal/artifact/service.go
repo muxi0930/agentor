@@ -20,20 +20,24 @@ import (
 )
 
 type Attachment struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	MediaType string `json:"mediaType"`
-	Size      int64  `json:"size"`
-	Status    string `json:"status"`
-	Error     string `json:"error"`
-	ThreadID  string `json:"threadId"`
-	TurnID    string `json:"turnId"`
-	MessageID string `json:"messageId"`
-	Kind      string `json:"kind"`
-	Source    string `json:"source"`
-	LocalPath string `json:"localPath"`
-	URL       string `json:"url"`
-	CreatedAt string `json:"createdAt"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	MediaType   string `json:"mediaType"`
+	Size        int64  `json:"size"`
+	Status      string `json:"status"`
+	Error       string `json:"error"`
+	ThreadID    string `json:"threadId"`
+	TurnID      string `json:"turnId"`
+	MessageID   string `json:"messageId"`
+	Kind        string `json:"kind"`
+	Source      string `json:"source"`
+	LocalPath   string `json:"localPath"`
+	URL         string `json:"url"`
+	CreatedAt   string `json:"createdAt"`
+	ExecutionID string `json:"executionId"`
+	StepID      string `json:"stepId"`
+	ProjectID   string `json:"projectId"`
+	RequestID   string `json:"requestId"`
 }
 
 type Service struct {

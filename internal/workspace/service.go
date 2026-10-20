@@ -14,10 +14,14 @@ import (
 )
 
 type Service struct {
-	mu    sync.Mutex
-	root  string
-	state State
+	mu          sync.Mutex
+	root        string
+	state       State
+	deleteGuard func([]string) (func(), error)
 }
+
+//wails:ignore
+func (s *Service) SetDeleteGuard(guard func([]string) (func(), error)) { s.deleteGuard = guard }
 
 func NewService(root string) (*Service, error) {
 	s := &Service{root: root, state: State{Projects: []Project{}, Documents: []Document{}}}

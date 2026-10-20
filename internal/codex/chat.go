@@ -111,10 +111,26 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 	if result.Data == nil {
 		result.Data = []Thread{}
 	}
+	regular := make([]Thread, 0, len(result.Data))
+	for _, thread := range result.Data {
+		if settings.ManagedThreads[thread.ID] == "" {
+			regular = append(regular, thread)
+		}
+	}
+	result.Data = regular
 	return result, err
 }
 
 func (s *Service) CreateThread(cwd, model string) (Thread, error) {
+	return s.createThread(cwd, model, s.data.EffectivePermission("", cwd), "", "", nil)
+}
+
+//wails:ignore
+func (s *Service) CreateToolThread(cwd, model, permission, role, instructions string, tools []DynamicToolSpec) (Thread, error) {
+	return s.createThread(cwd, model, permission, role, instructions, tools)
+}
+
+func (s *Service) createThread(cwd, model, permission, role, instructions string, tools []DynamicToolSpec) (Thread, error) {
 	if cwd == "" {
 		return Thread{}, errors.New("请先选择项目目录")
 	}
@@ -129,7 +145,16 @@ func (s *Service) CreateThread(cwd, model string) (Thread, error) {
 	if err != nil {
 		return Thread{}, err
 	}
-	params := map[string]any{"cwd": cwd, "sandbox": s.data.EffectivePermission("", cwd), "approvalPolicy": "on-request", "approvalsReviewer": "user", "historyMode": "paginated"}
+	params := map[string]any{"cwd": cwd, "sandbox": permission, "approvalPolicy": "on-request", "approvalsReviewer": "user", "historyMode": "paginated"}
+	if role != "" && role != "step" {
+		params["approvalPolicy"] = "never"
+	}
+	if len(tools) > 0 {
+		params["dynamicTools"] = tools
+	}
+	if instructions != "" {
+		params["developerInstructions"] = instructions
+	}
 	if model != "" {
 		params["model"] = model
 	}
@@ -141,7 +166,11 @@ func (s *Service) CreateThread(cwd, model string) (Thread, error) {
 		s.mu.Lock()
 		s.opened[result.Thread.ID] = true
 		s.mu.Unlock()
-		_, err = s.data.RememberThread(result.Thread.ID, result.Thread.Cwd)
+		if role != "" {
+			err = s.data.RememberManagedThread(result.Thread.ID, result.Thread.Cwd, role)
+		} else {
+			_, err = s.data.RememberThread(result.Thread.ID, result.Thread.Cwd)
+		}
 	}
 	return result.Thread, err
 }
@@ -296,6 +325,17 @@ func (s *Service) ListTurns(threadID, cursor string) (TurnPage, error) {
 }
 
 func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (Turn, error) {
+	settings := s.data.GetSettings()
+	cwd := settings.ChatThreads[threadID]
+	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd)
+}
+
+//wails:ignore
+func (s *Service) StartManagedTurn(threadID, text, model, effort, permission, cwd, clientMessageID string, attachmentIDs []string) (Turn, error) {
+	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, permission, cwd)
+}
+
+func (s *Service) startTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string, permission, cwd string) (Turn, error) {
 	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
 		return Turn{}, errors.New("请输入消息")
 	}
@@ -315,10 +355,12 @@ func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID strin
 	s.active[threadID] = "starting"
 	s.mu.Unlock()
 	params := map[string]any{"threadId": threadID, "input": input, "clientUserMessageId": clientMessageID}
-	settings := s.data.GetSettings()
-	cwd := settings.ChatThreads[threadID]
-	params["sandboxPolicy"] = sandboxPolicy(s.data.EffectivePermission(threadID, cwd), cwd)
+	params["sandboxPolicy"] = sandboxPolicy(permission, cwd)
+	params["cwd"] = cwd
 	params["approvalPolicy"], params["approvalsReviewer"] = "on-request", "user"
+	if role := s.data.GetSettings().ManagedThreads[threadID]; role != "" && role != "step" {
+		params["approvalPolicy"] = "never"
+	}
 	if len(additionalContext) > 0 {
 		params["additionalContext"] = additionalContext
 	}
@@ -412,6 +454,13 @@ func (s *Service) StopTurn(threadID string) error {
 		return errors.New("当前会话没有可停止的活动轮次")
 	}
 	return s.call("turn/interrupt", map[string]string{"threadId": threadID, "turnId": turnID}, nil)
+}
+
+//wails:ignore
+func (s *Service) IsThreadActive(threadID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.active[threadID] != ""
 }
 
 func (s *Service) RenameThread(threadID, name string) error {

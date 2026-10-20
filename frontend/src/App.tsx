@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Command, FolderOpen, Layers3, MessageSquare, Moon, Settings2, Sun, Unplug } from "lucide-react";
+import { Command, FolderOpen, Layers3, ListTodo, MessageSquare, Moon, Settings2, Sun, Unplug } from "lucide-react";
 import * as Data from "../bindings/agentor/internal/appdata/service";
 import type { Info, Settings } from "../bindings/agentor/internal/appdata/models";
 import * as Codex from "../bindings/agentor/internal/codex/service";
@@ -14,6 +14,9 @@ import { SettingsPage } from "@/app/SettingsPage";
 import { ChatPage } from "@/features/chat/ChatPage";
 import { ApprovalCenter } from "@/features/approvals/ApprovalCenter";
 import { WorkspacePage } from "@/features/workspace/WorkspacePage";
+import { ControllerPage } from "@/features/controller/ControllerPage";
+import { NotificationCenter, type NotificationTarget } from "@/features/notifications/NotificationCenter";
+import * as Work from "../bindings/agentor/internal/workspace/service";
 import { errorText } from "@/app/errors";
 
 export default function App() {
@@ -22,6 +25,9 @@ export default function App() {
   const [status, setStatus] = useState<Status>();
   const acceptStatus = useCallback((next: Status) => setStatus(current => current && (next.generation < current.generation || (next.generation === current.generation && next.revision < current.revision)) ? current : next), []);
   const [page, setPage] = useState("home");
+  const [workspaceKey,setWorkspaceKey]=useState(0);
+  const [focusExecution,setFocusExecution]=useState("");
+  const [focusRequest,setFocusRequest]=useState("");
   const [error, setError] = useState("");
 
   async function load() {
@@ -49,6 +55,10 @@ export default function App() {
       if (directory) setSettings(await Data.SetProjectDirectory(directory));
     } catch (error) { setError(errorText(error)); }
   }
+  async function openSource(target:NotificationTarget){
+    if(target.stepId){await Work.GetStepContext(target.stepId);await Work.Select(target.stepId);setFocusExecution(target.executionId||"");setWorkspaceKey(key=>key+1);setSettings(await Data.SetMode("workspace"));setPage("home");}
+    else if(target.requestId){setFocusRequest(target.requestId);setSettings(await Data.SetMode("workspace"));setPage("controller");}
+  }
 
   if (!settings || !info) return <main className="flex min-h-dvh items-center justify-center p-8">
     {error ? <Alert variant="destructive" className="max-w-lg"><AlertDescription>{error}<Button variant="outline" onClick={() => void load()}>重试</Button></AlertDescription></Alert>
@@ -65,6 +75,7 @@ export default function App() {
         <SidebarGroup><SidebarGroupLabel>工作模式</SidebarGroupLabel><SidebarMenu>
           <SidebarMenuItem><SidebarMenuButton tooltip="Codex 对话" isActive={settings.mode === "chat" && page === "home"} onClick={() => void changeMode("chat")}><MessageSquare /><span>Codex 对话</span></SidebarMenuButton></SidebarMenuItem>
           <SidebarMenuItem><SidebarMenuButton tooltip="工作区" isActive={settings.mode === "workspace" && page === "home"} onClick={() => void changeMode("workspace")}><Layers3 /><span>工作区</span></SidebarMenuButton></SidebarMenuItem>
+          <SidebarMenuItem><SidebarMenuButton tooltip="工作控制器" isActive={page==="controller"} onClick={()=>void Data.SetMode("workspace").then(value=>{setSettings(value);setPage("controller");}).catch(error=>setError(errorText(error)))}><ListTodo/><span>工作控制器</span></SidebarMenuButton></SidebarMenuItem>
         </SidebarMenu></SidebarGroup>
         <SidebarSeparator />
         <SidebarGroup><SidebarGroupLabel>项目</SidebarGroupLabel><SidebarMenu>
@@ -80,16 +91,17 @@ export default function App() {
     </Sidebar>
     <SidebarInset className="min-w-0 overflow-hidden">
       <header className="flex h-16 shrink-0 items-center gap-3 border-b px-5">
-        <SidebarTrigger /><span className="text-sm font-medium">{page === "settings" ? "设置" : settings.mode === "chat" ? "Codex 对话" : "工作区"}</span>
-        <div className="ml-auto flex items-center gap-3"><ApprovalCenter status={status} /><Badge variant="outline" className="gap-1.5 text-muted-foreground"><Unplug className="size-3" />{status?.phase === "ready" ? "Codex 已连接" : status?.phase === "starting" ? "正在连接" : status?.phase === "error" ? "连接失败" : "尚未连接"}</Badge></div>
+        <SidebarTrigger /><span className="text-sm font-medium">{page === "settings" ? "设置" : page==="controller"?"工作控制器":settings.mode === "chat" ? "Codex 对话" : "工作区"}</span>
+        <div className="ml-auto flex items-center gap-3"><NotificationCenter onOpenSource={openSource}/><ApprovalCenter status={status} /><Badge variant="outline" className="gap-1.5 text-muted-foreground"><Unplug className="size-3" />{status?.phase === "ready" ? "Codex 已连接" : status?.phase === "starting" ? "正在连接" : status?.phase === "error" ? "连接失败" : "尚未连接"}</Badge></div>
       </header>
       {error && <div className="p-4"><Alert variant="destructive"><AlertDescription className="flex justify-between">{error}<Button variant="ghost" size="sm" onClick={() => setError("")}>关闭</Button></AlertDescription></Alert></div>}
       <main className="relative flex min-h-0 flex-1 overflow-hidden">
         {page === "settings" && <div className="size-full overflow-y-auto"><SettingsPage info={info} settings={settings} onSettings={setSettings} status={status} onStatus={acceptStatus} /></div>}
+        {page==="controller"&&<div className="size-full overflow-y-auto"><ControllerPage settings={settings} status={status} focusRequestId={focusRequest}/></div>}
         <div className={page === "home" && settings.mode === "chat" ? "flex size-full min-h-0" : "hidden"}>
           <ChatPage settings={settings} onSettings={setSettings} status={status} openSettings={() => setPage("settings")} />
         </div>
-        {page === "home" && settings.mode === "workspace" && <WorkspacePage settings={settings} />}
+        {page === "home" && settings.mode === "workspace" && <WorkspacePage key={workspaceKey} settings={settings} status={status} focusExecutionId={focusExecution}/>}
       </main>
     </SidebarInset>
   </SidebarProvider>;

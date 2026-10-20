@@ -25,6 +25,10 @@ export function GetAttachments(threadID: string): $CancellablePromise<$models.At
     return $Call.ByID(358559999, threadID);
 }
 
+export function GetExecutionArtifacts(executionID: string): $CancellablePromise<$models.Attachment[] | null> {
+    return $Call.ByID(806563538, executionID);
+}
+
 export function LocateAttachment(id: string): $CancellablePromise<void> {
     return $Call.ByID(2826396334, id);
 }

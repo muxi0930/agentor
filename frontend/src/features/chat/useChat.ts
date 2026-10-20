@@ -121,7 +121,6 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
       const method = event.data.method;
       let params: Notification;
       try { params = JSON.parse(event.data.params); } catch { return; }
-      if (params.thread && method === "thread/started") setThreads(old => [params.thread!, ...old.filter(thread => thread.id !== params.thread!.id)]);
       if (method === "thread/name/updated") setThreads(old => old.map(thread => thread.id === params.threadId ? { ...thread, name: params.threadName || "" } : thread));
       if (params.threadId && (params.turn || params.item || params.delta !== undefined || params.tokenUsage || params.diff !== undefined || params.error)) {
         pending.push({ generation: event.data.generation, method, params });

@@ -203,3 +203,68 @@ func (s *Service) DeleteKnowledge(projectID, documentID string) (State, error) {
 		return nil
 	})
 }
+
+//wails:ignore
+func (s *Service) PrepareKnowledge(projectID, featureID, title string) (Document, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Document{}, errors.New("请填写文档标题")
+	}
+	id := rand.Text()
+	document := Document{ID: id, ProjectID: projectID, Title: title, ManagedPath: filepath.Join(s.root, "knowledge", id+".md"), UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	_, err := s.mutate(func(state *State) error {
+		project := findProject(state, projectID)
+		if project == nil {
+			return errors.New("项目不存在")
+		}
+		_, feature := findFeature(project, featureID)
+		if featureID != "" && feature == nil {
+			return errors.New("功能不属于当前项目")
+		}
+		if err := os.WriteFile(document.ManagedPath, []byte("# "+title+"\n"), 0600); err != nil {
+			return err
+		}
+		state.Documents = append(state.Documents, document)
+		if feature != nil {
+			feature.DocumentIDs = append(feature.DocumentIDs, id)
+		} else {
+			project.DocumentIDs = append(project.DocumentIDs, id)
+		}
+		return nil
+	})
+	return document, err
+}
+
+//wails:ignore
+func (s *Service) SyncKnowledge(projectID, featureID, documentID, content string) (Document, error) {
+	current, err := s.ReadKnowledge(projectID, featureID, documentID)
+	if err != nil {
+		return Document{}, err
+	}
+	document := current.Document
+	_, err = s.mutate(func(state *State) error {
+		index := slices.IndexFunc(state.Documents, func(v Document) bool { return v.ID == documentID && v.ProjectID == projectID })
+		if index < 0 {
+			return errors.New("文档不存在")
+		}
+		file, err := os.CreateTemp(filepath.Dir(document.ManagedPath), ".knowledge-*.tmp")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(file.Name())
+		if _, err = file.WriteString(content); err != nil {
+			file.Close()
+			return err
+		}
+		if err = file.Close(); err != nil {
+			return err
+		}
+		if err = os.Rename(file.Name(), document.ManagedPath); err != nil {
+			return err
+		}
+		document.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		state.Documents[index] = document
+		return nil
+	})
+	return document, err
+}

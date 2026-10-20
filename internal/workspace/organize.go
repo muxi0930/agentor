@@ -68,6 +68,29 @@ func (s *Service) MoveFeature(projectID, featureID, targetVersionID string) (Sta
 }
 
 func (s *Service) DeleteNode(kind, id string) (State, error) {
+	if s.deleteGuard != nil && kind != "tag" {
+		steps := []string{}
+		for _, project := range s.GetState().Projects {
+			for _, version := range project.Versions {
+				for _, feature := range version.Features {
+					for _, step := range feature.Steps {
+						if kind == "project" && project.ID == id || kind == "version" && version.ID == id || kind == "feature" && feature.ID == id || kind == "step" && step.ID == id {
+							steps = append(steps, step.ID)
+						}
+					}
+				}
+			}
+		}
+		if len(steps) > 0 {
+			release, err := s.deleteGuard(steps)
+			if err != nil {
+				return State{}, err
+			}
+			if release != nil {
+				defer release()
+			}
+		}
+	}
 	return s.mutate(func(state *State) error {
 		found := false
 		if kind == "project" {
