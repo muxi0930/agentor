@@ -8,12 +8,12 @@ import { Events } from "@wailsio/runtime";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
 import { SettingsPage } from "@/app/SettingsPage";
 import { ChatPage } from "@/features/chat/ChatPage";
 import { ApprovalCenter } from "@/features/approvals/ApprovalCenter";
+import { WorkspacePage } from "@/features/workspace/WorkspacePage";
 import { errorText } from "@/app/errors";
 
 export default function App() {
@@ -89,7 +89,7 @@ export default function App() {
         <div className={page === "home" && settings.mode === "chat" ? "flex size-full min-h-0" : "hidden"}>
           <ChatPage settings={settings} onSettings={setSettings} status={status} openSettings={() => setPage("settings")} />
         </div>
-        {page === "home" && settings.mode === "workspace" && <div className="m-auto w-full max-w-2xl p-10"><Empty><EmptyHeader><EmptyMedia variant="icon"><Layers3 /></EmptyMedia><EmptyTitle>工作区尚未建立</EmptyTitle><EmptyDescription>项目、版本、功能和步骤将在工作区阶段接入。您现在可以选择项目目录。</EmptyDescription></EmptyHeader><EmptyContent><Button variant="outline" onClick={() => void chooseDirectory()}><FolderOpen />选择项目目录</Button></EmptyContent></Empty></div>}
+        {page === "home" && settings.mode === "workspace" && <WorkspacePage settings={settings} />}
       </main>
     </SidebarInset>
   </SidebarProvider>;
