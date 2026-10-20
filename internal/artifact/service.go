@@ -37,13 +37,14 @@ type Attachment struct {
 }
 
 type Service struct {
-	mu    sync.Mutex
-	root  string
-	items map[string]Attachment
+	mu       sync.Mutex
+	root     string
+	items    map[string]Attachment
+	previews map[string]string
 }
 
 func NewService(dataDirectory string) (*Service, error) {
-	s := &Service{root: filepath.Join(dataDirectory, "attachments"), items: make(map[string]Attachment)}
+	s := &Service{root: filepath.Join(dataDirectory, "attachments"), items: make(map[string]Attachment), previews: make(map[string]string)}
 	if err := os.MkdirAll(s.root, 0700); err != nil {
 		return nil, err
 	}
@@ -241,6 +242,10 @@ func (s *Service) LocateAttachment(id string) error {
 //wails:ignore
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if strings.HasPrefix(request.URL.Path, "/agentor/previews/") {
+			s.servePreview(w, request)
+			return
+		}
 		const prefix = "/agentor/attachments/"
 		if !strings.HasPrefix(request.URL.Path, prefix) {
 			next.ServeHTTP(w, request)

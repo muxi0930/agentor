@@ -13,6 +13,14 @@ export function ChooseFiles(threadID: string): $CancellablePromise<$models.Attac
     return $Call.ByID(4137277275, threadID);
 }
 
+/**
+ * Preview resources exist only while their message view is mounted. The original
+ * source remains in Codex history; no second HTML history is stored here.
+ */
+export function CreateHTMLPreview(threadID: string, source: string): $CancellablePromise<string> {
+    return $Call.ByID(4101920568, threadID, source);
+}
+
 export function GetAttachments(threadID: string): $CancellablePromise<$models.Attachment[] | null> {
     return $Call.ByID(358559999, threadID);
 }
@@ -23,6 +31,10 @@ export function LocateAttachment(id: string): $CancellablePromise<void> {
 
 export function OpenAttachment(id: string): $CancellablePromise<void> {
     return $Call.ByID(3446878856, id);
+}
+
+export function ReleaseHTMLPreview(url: string): $CancellablePromise<void> {
+    return $Call.ByID(157870321, url);
 }
 
 export function SavePastedImage(threadID: string, name: string, encoded: string): $CancellablePromise<$models.Attachment> {

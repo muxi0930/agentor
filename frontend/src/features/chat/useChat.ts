@@ -66,6 +66,8 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
         const loaded = fromConversation(value);
         // Notifications may have arrived while history was loading.
         const live = old[threadId];
+        loaded.tokenUsage = value.tokenUsage || live?.tokenUsage;
+        loaded.turnDiffs = live?.turnDiffs;
         if (live) for (const turn of live.turns) {
           const saved = loaded.turns.find(saved => saved.id === turn.id);
           if (!saved || (saved.status === "inProgress" && turn.status !== "inProgress")) loaded.turns = mergeTurn(loaded.turns, turn);
@@ -121,7 +123,7 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
       try { params = JSON.parse(event.data.params); } catch { return; }
       if (params.thread && method === "thread/started") setThreads(old => [params.thread!, ...old.filter(thread => thread.id !== params.thread!.id)]);
       if (method === "thread/name/updated") setThreads(old => old.map(thread => thread.id === params.threadId ? { ...thread, name: params.threadName || "" } : thread));
-      if (params.threadId && (params.turn || params.item || params.delta !== undefined)) {
+      if (params.threadId && (params.turn || params.item || params.delta !== undefined || params.tokenUsage || params.diff !== undefined || params.error)) {
         pending.push({ generation: event.data.generation, method, params });
         if (params.delta !== undefined) { if (!frame) frame = requestAnimationFrame(flush); } else flush();
       }

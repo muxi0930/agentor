@@ -26,18 +26,68 @@ export interface Approval {
     "questions": Question[] | null;
     "status": string;
     "generation": number;
+    "decisionOptions": DecisionOption[] | null;
+    "permissionsJSON": string;
+    "details": string;
+    "serverName": string;
+    "mode": string;
+    "message": string;
+    "url": string;
+    "schemaJSON": string;
+    "fields": ElicitationField[] | null;
+    "changes": FileChange[] | null;
 }
 
 export interface Conversation {
     "thread": Thread;
     "turns": TurnPage;
     "activeTurnId": string;
+    "tokenUsage"?: TokenUsage | null;
+}
+
+export interface DecisionOption {
+    "value": string;
+    "label": string;
+    "details": string;
+}
+
+export interface ElicitationField {
+    "name": string;
+    "type": string;
+    "title": string;
+    "description": string;
+    "format": string;
+    "required": boolean;
+    "minimum": number | null;
+    "maximum": number | null;
+    "minLength": number | null;
+    "maxLength": number | null;
+    "minItems": number | null;
+    "maxItems": number | null;
+    "defaultJSON": string;
+    "options": ElicitationOption[] | null;
+}
+
+export interface ElicitationOption {
+    "value": string;
+    "label": string;
 }
 
 export interface Event {
     "generation": number;
     "method": string;
     "params": string;
+}
+
+export interface FileChange {
+    "path": string;
+    "kind": FileChangeKind;
+    "diff": string;
+}
+
+export interface FileChangeKind {
+    "type": string;
+    "move_path"?: string;
 }
 
 export interface Input {
@@ -59,6 +109,13 @@ export interface Item {
     "exitCode": number | null;
     "summary": string[] | null;
     "reasoningContent": string[] | null;
+    "durationMs"?: number | null;
+    "changes"?: FileChange[] | null;
+    "path"?: string;
+    "query"?: string;
+    "server"?: string;
+    "tool"?: string;
+    "details"?: string;
 }
 
 export interface Model {
@@ -128,11 +185,29 @@ export interface ThreadStatus {
     "type": string;
 }
 
+export interface TokenBreakdown {
+    "inputTokens": number;
+    "outputTokens": number;
+    "cachedInputTokens": number;
+    "cacheWriteInputTokens": number;
+    "reasoningOutputTokens": number;
+    "totalTokens": number;
+}
+
+export interface TokenUsage {
+    "total": TokenBreakdown;
+    "last": TokenBreakdown;
+    "modelContextWindow": number | null;
+}
+
 export interface Turn {
     "id": string;
     "status": string;
     "items": Item[] | null;
     "error": TurnError | null;
+    "startedAt"?: number | null;
+    "completedAt"?: number | null;
+    "durationMs"?: number | null;
 }
 
 export interface TurnError {

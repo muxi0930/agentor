@@ -11,17 +11,23 @@ import (
 )
 
 type Settings struct {
-	Theme            string            `json:"theme"`
-	Mode             string            `json:"mode"`
-	ProjectDirectory string            `json:"projectDirectory"`
-	CodexPath        string            `json:"codexPath"`
-	ReuseCLI         bool              `json:"reuseCLI"`
-	Model            string            `json:"model"`
-	Effort           string            `json:"effort"`
-	LastThreadID     string            `json:"lastThreadId"`
-	ChatThreads      map[string]string `json:"chatThreads"`
-	ProjectAliases   map[string]string `json:"projectAliases"`
-	HiddenProjects   []string          `json:"hiddenProjects"`
+	Theme              string              `json:"theme"`
+	Mode               string              `json:"mode"`
+	ProjectDirectory   string              `json:"projectDirectory"`
+	CodexPath          string              `json:"codexPath"`
+	ReuseCLI           bool                `json:"reuseCLI"`
+	Model              string              `json:"model"`
+	Effort             string              `json:"effort"`
+	LastThreadID       string              `json:"lastThreadId"`
+	ChatThreads        map[string]string   `json:"chatThreads"`
+	ProjectAliases     map[string]string   `json:"projectAliases"`
+	HiddenProjects     []string            `json:"hiddenProjects"`
+	PermissionMode     string              `json:"permissionMode"`
+	ProjectPermissions map[string]string   `json:"projectPermissions"`
+	ThreadPermissions  map[string]string   `json:"threadPermissions"`
+	PinnedThreads      map[string]bool     `json:"pinnedThreads"`
+	ChatOrder          map[string][]string `json:"chatOrder"`
+	ProjectOrder       []string            `json:"projectOrder"`
 }
 
 type Info struct {
@@ -56,7 +62,7 @@ func NewService() (*Service, error) {
 	if err := os.MkdirAll(filepath.Join(root, "codex"), 0700); err != nil {
 		return nil, err
 	}
-	s := &Service{root: root, settings: Settings{Theme: "light", Mode: "chat", ReuseCLI: true}}
+	s := &Service{root: root, settings: Settings{Theme: "light", Mode: "chat", ReuseCLI: true, PermissionMode: "read-only"}}
 	if err := ReadJSON(filepath.Join(root, "settings.json"), &s.settings); err != nil {
 		return nil, err
 	}
@@ -185,6 +191,10 @@ func (s *Service) ChooseFile() (string, error) {
 
 func (s *Service) OpenDirectory(path string) error {
 	return application.Get().Env.OpenFileManager(path, false)
+}
+
+func (s *Service) OpenFile(path string) error {
+	return application.Get().Browser.OpenFile(filepath.Clean(path))
 }
 
 func (s *Service) OpenURL(url string) error {

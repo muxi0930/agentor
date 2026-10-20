@@ -10,8 +10,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Questionnaire, QuestionnaireActions, QuestionnaireChoice, QuestionnaireChoices, QuestionnaireDescription, QuestionnaireError, QuestionnaireInput, QuestionnaireItem, QuestionnaireNext, QuestionnairePrevious, QuestionnaireProgress, QuestionnaireSubmit, QuestionnaireTitle } from "@/components/ui/questionnaire";
 import { errorText } from "@/app/errors";
+import { ElicitationForm } from "./ElicitationForm";
+import { CodeView } from "@/features/chat/CodeView";
+import { DiffView } from "@/features/chat/DiffView";
 
-const labels: Record<string, string> = { accept: "允许本次", acceptForSession: "本会话允许", decline: "拒绝", cancel: "拒绝并停止" };
+const titles: Record<string, string> = { "item/tool/requestUserInput":"Codex 需要您的回答", "item/fileChange/requestApproval":"文件修改审批", "item/commandExecution/requestApproval":"命令执行审批", "item/permissions/requestApproval":"额外权限审批", "mcpServer/elicitation/request":"MCP 请求" };
 
 function ApprovalCard({ approval, refresh }: { approval: Approval; refresh: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -23,7 +26,7 @@ function ApprovalCard({ approval, refresh }: { approval: Approval; refresh: () =
   }
   const pending = approval.status === "pending";
   return <Card>
-    <CardHeader className="gap-2"><CardTitle className="flex items-center justify-between gap-2 text-sm">{approval.method === "item/tool/requestUserInput" ? "Codex 需要您的回答" : approval.method === "item/fileChange/requestApproval" ? "文件修改审批" : "命令执行审批"}<Badge variant="outline">{pending ? "待处理" : approval.status === "resolved" ? "已处理" : "已失效"}</Badge></CardTitle>
+    <CardHeader className="gap-2"><CardTitle className="flex items-center justify-between gap-2 text-sm">{titles[approval.method] || approval.method}<Badge variant="outline">{pending ? "待处理" : approval.status === "resolved" ? "已处理" : "已失效"}</Badge></CardTitle>
       <p className="break-all text-xs text-muted-foreground">会话 {approval.threadId}<br />轮次 {approval.turnId}</p>
     </CardHeader>
     <CardContent className="space-y-3 text-sm">
@@ -31,8 +34,11 @@ function ApprovalCard({ approval, refresh }: { approval: Approval; refresh: () =
       {approval.command && <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 text-xs">{approval.command}</pre>}
       {approval.cwd && <p className="break-all text-xs text-muted-foreground">工作目录：{approval.cwd}</p>}
       {approval.grantRoot && <p className="break-all text-xs">请求写入：{approval.grantRoot}</p>}
+      {approval.details && <CodeView code={approval.details} language="请求详情" />}
+      {approval.permissionsJSON && <CodeView code={approval.permissionsJSON} language="请求的权限" />}
+      {!!approval.changes?.length && <DiffView changes={approval.changes} />}
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      {pending && approval.method === "item/tool/requestUserInput" ? <Questionnaire key={approval.id} items={(approval.questions || []).map(question => ({ name: question.id, required: true }))} onSubmit={event => {
+      {pending && approval.method === "mcpServer/elicitation/request" ? <ElicitationForm approval={approval} busy={busy} respond={respond} /> : pending && approval.method === "item/permissions/requestApproval" ? <div className="flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void respond(() => Codex.RespondPermissions(approval.id, true, "turn"))}>允许本轮</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => void respond(() => Codex.RespondPermissions(approval.id, true, "session"))}>本会话允许</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => void respond(() => Codex.RespondPermissions(approval.id, false, "turn"))}>拒绝</Button></div> : pending && approval.method === "item/tool/requestUserInput" ? <Questionnaire key={approval.id} items={(approval.questions || []).map(question => ({ name: question.id, required: true }))} onSubmit={event => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
         const answers = Object.fromEntries((approval.questions || []).map(question => [question.id, { answers: data.getAll(question.id).map(String).filter(Boolean) }]));
@@ -46,7 +52,7 @@ function ApprovalCard({ approval, refresh }: { approval: Approval; refresh: () =
           <QuestionnaireError>请填写答案。</QuestionnaireError>
         </QuestionnaireItem>)}
         <QuestionnaireActions><QuestionnairePrevious disabled={busy}>上一步</QuestionnairePrevious><QuestionnaireNext disabled={busy}>下一步</QuestionnaireNext><QuestionnaireSubmit disabled={busy}>提交回答</QuestionnaireSubmit></QuestionnaireActions>
-      </Questionnaire> : pending && <div className="flex flex-wrap gap-2">{(approval.availableDecisions || []).filter(decision => labels[decision]).map(decision => <Button key={decision} disabled={busy} size="sm" variant={decision === "accept" ? "default" : "outline"} onClick={() => void respond(() => Codex.RespondApproval(approval.id, decision))}>{labels[decision]}</Button>)}</div>}
+      </Questionnaire> : pending && <div className="space-y-2">{(approval.decisionOptions || []).map(option => <div key={option.value}>{option.details && <CodeView code={option.details} language="将保存的规则" />}<Button disabled={busy} size="sm" variant={option.value === "accept" ? "default" : "outline"} onClick={() => void respond(() => Codex.RespondApproval(approval.id, option.value))}>{option.label}</Button></div>)}</div>}
     </CardContent>
   </Card>;
 }

@@ -129,7 +129,7 @@ func (s *Service) CreateThread(cwd, model string) (Thread, error) {
 	if err != nil {
 		return Thread{}, err
 	}
-	params := map[string]any{"cwd": cwd, "sandbox": "read-only", "approvalPolicy": "on-request", "historyMode": "paginated"}
+	params := map[string]any{"cwd": cwd, "sandbox": s.data.EffectivePermission("", cwd), "approvalPolicy": "on-request", "approvalsReviewer": "user", "historyMode": "paginated"}
 	if model != "" {
 		params["model"] = model
 	}
@@ -153,18 +153,35 @@ type Input struct {
 }
 
 type Item struct {
-	ID               string   `json:"id"`
-	ClientID         string   `json:"clientId"`
-	Type             string   `json:"type"`
-	Text             string   `json:"text"`
-	Phase            string   `json:"phase"`
-	Content          []Input  `json:"content"`
-	Command          string   `json:"command"`
-	AggregatedOutput string   `json:"aggregatedOutput"`
-	Status           string   `json:"status"`
-	ExitCode         *int     `json:"exitCode"`
-	Summary          []string `json:"summary"`
-	ReasoningContent []string `json:"reasoningContent"`
+	ID               string       `json:"id"`
+	ClientID         string       `json:"clientId"`
+	Type             string       `json:"type"`
+	Text             string       `json:"text"`
+	Phase            string       `json:"phase"`
+	Content          []Input      `json:"content"`
+	Command          string       `json:"command"`
+	AggregatedOutput string       `json:"aggregatedOutput"`
+	Status           string       `json:"status"`
+	ExitCode         *int         `json:"exitCode"`
+	Summary          []string     `json:"summary"`
+	ReasoningContent []string     `json:"reasoningContent"`
+	DurationMs       *int64       `json:"durationMs,omitempty"`
+	Changes          []FileChange `json:"changes,omitempty"`
+	Path             string       `json:"path,omitempty"`
+	Query            string       `json:"query,omitempty"`
+	Server           string       `json:"server,omitempty"`
+	Tool             string       `json:"tool,omitempty"`
+	Details          string       `json:"details,omitempty"`
+}
+
+type FileChangeKind struct {
+	Type     string `json:"type"`
+	MovePath string `json:"move_path,omitempty"`
+}
+type FileChange struct {
+	Path string         `json:"path"`
+	Kind FileChangeKind `json:"kind"`
+	Diff string         `json:"diff"`
 }
 
 func (item *Item) UnmarshalJSON(data []byte) error {
@@ -185,6 +202,10 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 		if len(payload.Content) > 0 {
 			return json.Unmarshal(payload.Content, &item.ReasoningContent)
 		}
+	default:
+		if item.Type != "agentMessage" && item.Type != "commandExecution" && item.Type != "fileChange" {
+			item.Details = string(data)
+		}
 	}
 	return nil
 }
@@ -194,10 +215,13 @@ type TurnError struct {
 }
 
 type Turn struct {
-	ID     string     `json:"id"`
-	Status string     `json:"status"`
-	Items  []Item     `json:"items"`
-	Error  *TurnError `json:"error"`
+	ID          string     `json:"id"`
+	Status      string     `json:"status"`
+	Items       []Item     `json:"items"`
+	Error       *TurnError `json:"error"`
+	StartedAt   *int64     `json:"startedAt,omitempty"`
+	CompletedAt *int64     `json:"completedAt,omitempty"`
+	DurationMs  *int64     `json:"durationMs,omitempty"`
 }
 
 type TurnPage struct {
@@ -206,9 +230,25 @@ type TurnPage struct {
 }
 
 type Conversation struct {
-	Thread       Thread   `json:"thread"`
-	Turns        TurnPage `json:"turns"`
-	ActiveTurnID string   `json:"activeTurnId"`
+	Thread       Thread      `json:"thread"`
+	Turns        TurnPage    `json:"turns"`
+	ActiveTurnID string      `json:"activeTurnId"`
+	TokenUsage   *TokenUsage `json:"tokenUsage,omitempty"`
+}
+
+type TokenBreakdown struct {
+	InputTokens           int64 `json:"inputTokens"`
+	OutputTokens          int64 `json:"outputTokens"`
+	CachedInputTokens     int64 `json:"cachedInputTokens"`
+	CacheWriteInputTokens int64 `json:"cacheWriteInputTokens"`
+	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
+	TotalTokens           int64 `json:"totalTokens"`
+}
+
+type TokenUsage struct {
+	Total              TokenBreakdown `json:"total"`
+	Last               TokenBreakdown `json:"last"`
+	ModelContextWindow *int64         `json:"modelContextWindow"`
 }
 
 func (s *Service) OpenThread(threadID string) (Conversation, error) {
@@ -237,6 +277,7 @@ func (s *Service) OpenThread(threadID string) (Conversation, error) {
 	}
 	s.mu.Lock()
 	result.ActiveTurnID = s.active[threadID]
+	result.TokenUsage = s.usage[threadID]
 	s.mu.Unlock()
 	return result, err
 }
@@ -274,6 +315,10 @@ func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID strin
 	s.active[threadID] = "starting"
 	s.mu.Unlock()
 	params := map[string]any{"threadId": threadID, "input": input, "clientUserMessageId": clientMessageID}
+	settings := s.data.GetSettings()
+	cwd := settings.ChatThreads[threadID]
+	params["sandboxPolicy"] = sandboxPolicy(s.data.EffectivePermission(threadID, cwd), cwd)
+	params["approvalPolicy"], params["approvalsReviewer"] = "on-request", "user"
 	if len(additionalContext) > 0 {
 		params["additionalContext"] = additionalContext
 	}
@@ -421,6 +466,45 @@ func (s *Service) ArchiveProject(cwd string) (int, error) {
 }
 
 func (s *Service) trackNotification(generation uint64, message packet) {
+	if message.Method == "item/started" || message.Method == "item/completed" {
+		var params struct {
+			ThreadID string `json:"threadId"`
+			Item     Item   `json:"item"`
+		}
+		if json.Unmarshal(message.Params, &params) != nil || params.Item.Type != "fileChange" {
+			return
+		}
+		s.mu.Lock()
+		if s.status.Generation == generation {
+			if s.pendingChanges[params.ThreadID] == nil {
+				s.pendingChanges[params.ThreadID] = make(map[string][]FileChange)
+			}
+			s.pendingChanges[params.ThreadID][params.Item.ID] = params.Item.Changes
+			for id, approval := range s.approvals {
+				if approval.ThreadID == params.ThreadID && approval.ItemID == params.Item.ID {
+					approval.Changes = params.Item.Changes
+					s.approvals[id] = approval
+				}
+			}
+		}
+		s.mu.Unlock()
+		return
+	}
+	if message.Method == "thread/tokenUsage/updated" {
+		var params struct {
+			ThreadID   string     `json:"threadId"`
+			TokenUsage TokenUsage `json:"tokenUsage"`
+		}
+		if json.Unmarshal(message.Params, &params) != nil {
+			return
+		}
+		s.mu.Lock()
+		if s.status.Generation == generation {
+			s.usage[params.ThreadID] = &params.TokenUsage
+		}
+		s.mu.Unlock()
+		return
+	}
 	if message.Method == "serverRequest/resolved" {
 		var params struct {
 			RequestID json.RawMessage `json:"requestId"`
@@ -460,5 +544,6 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	}
 	if message.Method == "turn/completed" {
 		s.expireApprovalsLocked(params.ThreadID, params.Turn.ID)
+		delete(s.pendingChanges, params.ThreadID)
 	}
 }

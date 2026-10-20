@@ -9,6 +9,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+export function AnswerElicitation(id: string, action: string, contentJSON: string): $CancellablePromise<void> {
+    return $Call.ByID(1000786857, id, action, contentJSON);
+}
+
 export function AnswerQuestions(id: string, answers: { [_ in string]?: $models.QuestionAnswer } | null): $CancellablePromise<void> {
     return $Call.ByID(2594495821, id, answers);
 }
@@ -63,6 +67,10 @@ export function RenameThread(threadID: string, name: string): $CancellablePromis
 
 export function RespondApproval(id: string, decision: string): $CancellablePromise<void> {
     return $Call.ByID(1563117452, id, decision);
+}
+
+export function RespondPermissions(id: string, allow: boolean, scope: string): $CancellablePromise<void> {
+    return $Call.ByID(1545420697, id, allow, scope);
 }
 
 export function StartTurn(threadID: string, text: string, model: string, effort: string, clientMessageID: string, attachmentIDs: string[] | null): $CancellablePromise<$models.Turn> {

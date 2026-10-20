@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Archive, ArrowUp, ChevronRight, Folder, LoaderCircle, Paperclip, Pencil, Plus, RefreshCw, Square, Terminal } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Archive, ArrowUp, ChevronRight, Folder, LoaderCircle, Paperclip, Pencil, Pin, Plus, RefreshCw, Square, Terminal } from "lucide-react";
 import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
 import type { Status, Thread } from "../../../bindings/agentor/internal/codex/models";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
@@ -17,6 +17,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport } from "@/components/ui/message-scroller";
 import { MessageView } from "./MessageView";
 import { AttachmentView } from "./AttachmentView";
+import { DiffView } from "./DiffView";
+import { UsageView } from "./UsageView";
+import { PreviewContext } from "./HTMLView";
+import { PermissionSelect, permissionLabels } from "@/features/accounts/PermissionSelect";
+import { WorktreeDialog } from "./WorktreeDialog";
 import { useChat } from "./useChat";
 import { errorText } from "@/app/errors";
 
@@ -31,22 +36,44 @@ export function ChatPage({ settings, onSettings, status, openSettings }: {
   const [saving, setSaving] = useState(false);
   const [project, setProject] = useState<string | null>(null);
   const [archiveProject, setArchiveProject] = useState<string | null>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState<{ cwd: string; id: string; kind: "project" | "thread" } | null>(null);
   const groups = useMemo(() => {
     const result = new Map<string, Thread[]>();
     for (const thread of chat.threads) result.set(thread.cwd, [...(result.get(thread.cwd) || []), thread]);
-    return [...result.entries()].filter(([cwd]) => !settings.hiddenProjects?.includes(cwd));
-  }, [chat.threads, settings.hiddenProjects]);
+    const rank = (ids: string[] | null | undefined, id: string) => { const index = ids?.indexOf(id) ?? -1; return index < 0 ? Number.MAX_SAFE_INTEGER : index; };
+    for (const [cwd, threads] of result) threads.sort((a, b) => Number(!!settings.pinnedThreads?.[b.id]) - Number(!!settings.pinnedThreads?.[a.id]) || rank(settings.chatOrder?.[cwd], a.id) - rank(settings.chatOrder?.[cwd], b.id));
+    return [...result.entries()].filter(([cwd]) => !settings.hiddenProjects?.includes(cwd)).sort(([a], [b]) => rank(settings.projectOrder, a) - rank(settings.projectOrder, b));
+  }, [chat.threads, settings]);
   const model = chat.models.find(model => model.model === settings.model);
   const effectiveModel = model || chat.models.find(model => model.model === chat.conversation?.thread.model) || chat.models.find(model => model.isDefault);
   const supportsImages = !!effectiveModel?.inputModalities?.includes("image");
   const invalidImages = !supportsImages && chat.draftFiles.some(file => file.mediaType.startsWith("image/"));
   const active = !!chat.conversation?.activeTurnId;
-  const title = chat.threads.find(thread => thread.id === chat.selected)?.name || chat.conversation?.thread.name || "新对话";
+  const selectedThread = chat.threads.find(thread => thread.id === chat.selected) || chat.conversation?.thread;
+  const title = selectedThread?.name || selectedThread?.preview || "新对话";
   const connected = status?.phase === "ready";
+  const projectPermission = settings.projectPermissions?.[selectedThread?.cwd || settings.projectDirectory] || settings.permissionMode;
+  const effectivePermission = settings.threadPermissions?.[chat.selected] || projectPermission;
 
   async function run(action: () => Promise<void>) {
     chat.setError("");
     try { await action(); } catch (error) { chat.setError(errorText(error)); }
+  }
+
+  function reorder(cwd: string, id: string, before: string) {
+    const ids = (cwd ? groups.find(([path]) => path === cwd)?.[1].map(thread => thread.id) : groups.map(([path]) => path)) || [];
+    const next = ids.filter(value => value !== id);
+    next.splice(Math.max(0, next.indexOf(before)), 0, id);
+    void run(async () => onSettings(await Data.SetChatOrder(cwd, next)));
+  }
+
+  function moveByKey(event: React.KeyboardEvent, cwd: string, id: string) {
+    if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    const ids = (cwd ? groups.find(([path]) => path === cwd)?.[1].map(thread => thread.id) : groups.map(([path]) => path)) || [];
+    const index = ids.indexOf(id), other = event.key === "ArrowUp" ? ids[index - 1] : ids[index + 1];
+    if (other && (!cwd || !!settings.pinnedThreads?.[id] === !!settings.pinnedThreads?.[other])) reorder(cwd, event.key === "ArrowUp" ? id : other, event.key === "ArrowUp" ? other : id);
   }
 
   if (!connected) return <div className="m-auto w-full max-w-2xl p-10"><Empty className="py-16">
@@ -57,20 +84,21 @@ export function ChatPage({ settings, onSettings, status, openSettings }: {
   return <div className="flex size-full min-h-0 min-w-0">
     <aside aria-label="会话列表" className="flex w-60 shrink-0 flex-col border-r bg-muted/15 max-lg:w-52">
       <div className="flex items-center gap-2 p-3"><Button className="flex-1" variant="outline" disabled={chat.loading || !settings.projectDirectory} onClick={() => void chat.createThread()}><Plus />新建对话</Button>
-        <Button variant="ghost" size="icon" aria-label="刷新会话" onClick={() => void run(() => chat.refreshThreads())}><RefreshCw /></Button></div>
+        <WorktreeDialog settings={settings} onSettings={onSettings} /><Button variant="ghost" size="icon" aria-label="刷新会话" onClick={() => void run(() => chat.refreshThreads())}><RefreshCw /></Button></div>
       {!settings.projectDirectory && <p className="px-4 pb-3 text-xs text-muted-foreground">先从侧栏选择项目目录。</p>}
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+      <div ref={list} className="min-h-0 flex-1 overflow-y-auto px-2 pb-4" onDragOver={event => { if (!dragging || !list.current) return; event.preventDefault(); const box = list.current.getBoundingClientRect(); if (event.clientY < box.top + 45) list.current.scrollBy(0, -24); else if (event.clientY > box.bottom - 45) list.current.scrollBy(0, 24); }}>
         {groups.map(([cwd, threads]) => <Collapsible key={cwd} open={expanded[cwd] !== false} onOpenChange={open => {
           setExpanded(old => ({ ...old, [cwd]: open })); if (!open) setVisible(old => ({ ...old, [cwd]: 6 }));
         }}>
-          <div className="mt-2 flex items-center"><CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted" title={cwd}>
+          <div className="mt-2 flex items-center" draggable onDragStart={event => { setDragging({ kind:"project", cwd:"", id:cwd }); event.dataTransfer.setData("text/plain", cwd); }} onDragEnd={() => setDragging(null)} onDrop={event => { event.preventDefault(); if (dragging?.kind === "project" && dragging.id !== cwd) reorder("", dragging.id, cwd); setDragging(null); }} onKeyDown={event => moveByKey(event, "", cwd)}><CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted" title={`${cwd} · 可拖动排序，或 Alt+方向键`}>
             <ChevronRight className={`size-3 shrink-0 transition-transform ${expanded[cwd] !== false ? "rotate-90" : ""}`} /><Folder className="size-3 shrink-0" /><span className="truncate">{settings.projectAliases?.[cwd] || cwd.split(/[\\/]/).filter(Boolean).slice(-1)[0] || cwd}</span><span className="ml-auto">{threads.length}</span>
           </CollapsibleTrigger><Button variant="ghost" size="icon-xs" aria-label="管理项目分组" onClick={() => { setProject(cwd); setName(settings.projectAliases?.[cwd] || ""); }}><Pencil /></Button></div>
           <CollapsibleContent>
-            {threads.slice(0, visible[cwd] || 6).map(thread => <div key={thread.id} className={`group flex items-center gap-0.5 rounded-lg ${chat.selected === thread.id ? "bg-accent" : "hover:bg-muted"}`}>
+            {threads.slice(0, visible[cwd] || 6).map(thread => <div key={thread.id} draggable onDragStart={event => { setDragging({kind:"thread",cwd,id:thread.id}); event.dataTransfer.setData("text/plain", thread.id); }} onDragEnd={() => setDragging(null)} onDrop={event => { event.preventDefault(); if (dragging?.kind === "thread" && dragging.cwd === cwd && dragging.id !== thread.id && !!settings.pinnedThreads?.[dragging.id] === !!settings.pinnedThreads?.[thread.id]) reorder(cwd, dragging.id, thread.id); setDragging(null); }} onKeyDown={event => moveByKey(event, cwd, thread.id)} className={`group flex items-center gap-0.5 rounded-lg ${chat.selected === thread.id ? "bg-accent" : "hover:bg-muted"}`}>
               <Button variant="ghost" className="min-w-0 flex-1 justify-start px-2 font-normal" onClick={() => void chat.openThread(thread.id)} title={thread.name || thread.preview || thread.id}>
                 {thread.status.type === "active" && <LoaderCircle className="size-3 shrink-0 animate-spin" />}<span className="truncate">{thread.name || thread.preview || "新对话"}</span>
               </Button>
+              <Button variant="ghost" size="icon-xs" aria-label={settings.pinnedThreads?.[thread.id] ? "取消置顶会话" : "置顶会话"} className={settings.pinnedThreads?.[thread.id] ? "text-primary" : "opacity-0 group-hover:opacity-100 focus:opacity-100"} onClick={() => void run(async () => onSettings(await Data.ToggleThreadPin(thread.id)))}><Pin /></Button>
               <Button variant="ghost" size="icon-xs" aria-label="修改会话标题" className="opacity-0 group-hover:opacity-100 focus:opacity-100" onClick={() => { setEditing(thread); setName(thread.name || thread.preview || ""); }}><Pencil /></Button>
               <Button variant="ghost" size="icon-xs" aria-label="归档会话" className="mr-1 opacity-0 group-hover:opacity-100 focus:opacity-100" onClick={() => void run(async () => { await Codex.ArchiveThread(thread.id); if (chat.selected === thread.id) await chat.clearSelection(); await chat.refreshThreads(); })}><Archive /></Button>
             </div>)}
@@ -84,20 +112,23 @@ export function ChatPage({ settings, onSettings, status, openSettings }: {
     <section className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex h-13 shrink-0 items-center gap-2 border-b px-5"><p className="truncate text-sm font-medium">{chat.selected ? title : "Codex 对话"}</p>{chat.loading && <LoaderCircle aria-label="加载中" className="size-4 animate-spin text-muted-foreground" />}<span className="ml-auto shrink-0 text-xs text-muted-foreground">{active ? "正在执行" : "就绪"}</span></div>
       {chat.error && <div className="px-5 pt-4"><Alert variant="destructive"><AlertDescription className="flex items-start justify-between gap-3"><span className="break-words">{chat.error}</span><Button size="sm" variant="ghost" onClick={() => chat.setError("")}>关闭</Button></AlertDescription></Alert></div>}
+      {chat.conversation?.transientError && <div className="px-5 pt-4"><Alert><AlertDescription>{chat.conversation.transientError.message}{chat.conversation.transientError.willRetry ? " · Codex 正在重试" : ""}</AlertDescription></Alert></div>}
       {chat.selected ? <>
         <div className="min-h-0 flex-1">
-          <MessageScrollerProvider key={chat.selected}>
+          <PreviewContext.Provider value={{ threadId: chat.selected, followup: text => { chat.setDraft(chat.draft ? `${chat.draft}\n\n${text}` : text); document.getElementById("chat-input")?.focus(); } }}><MessageScrollerProvider key={chat.selected}>
             <MessageScroller><MessageScrollerViewport><MessageScrollerContent className="mx-auto max-w-3xl px-6 py-6">
               {chat.conversation?.cursor && <Button variant="ghost" disabled={chat.loading} onClick={() => void chat.loadEarlier()}>加载更早的消息</Button>}
               {chat.conversation?.turns.map(turn => <MessageScrollerItem key={turn.id} className="space-y-5">
                 {(turn.items || []).map(item => <MessageView key={item.id} item={item} streaming={turn.status === "inProgress"} files={chat.attachments.filter(file => file.messageId === item.clientId && !!item.clientId)} onError={chat.setError} />)}
                 {turn.error && <Alert variant="destructive"><AlertDescription>{turn.error.message}</AlertDescription></Alert>}
                 {turn.status === "interrupted" && <p className="text-xs text-muted-foreground">此次执行已停止或中断。</p>}
+                {chat.conversation?.turnDiffs?.[turn.id] && !turn.items?.some(item => item.type === "fileChange") && <DiffView diff={chat.conversation.turnDiffs[turn.id]} />}
+                {turn.status !== "inProgress" && <p className="text-[11px] text-muted-foreground">耗时 {turn.durationMs != null ? `${(turn.durationMs / 1000).toFixed(1)} 秒` : "未知"}</p>}
               </MessageScrollerItem>)}
               {!chat.conversation?.turns.length && !chat.loading && <Empty className="m-auto"><EmptyHeader><EmptyMedia variant="icon"><Terminal /></EmptyMedia><EmptyTitle>这次，要完成什么？</EmptyTitle><EmptyDescription>输入任务，Codex 将在当前项目中开始工作。</EmptyDescription></EmptyHeader></Empty>}
               {active && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="size-3 animate-spin" />Codex 正在处理…</p>}
             </MessageScrollerContent></MessageScrollerViewport><MessageScrollerButton /></MessageScroller>
-          </MessageScrollerProvider>
+          </MessageScrollerProvider></PreviewContext.Provider>
         </div>
         <form className="mx-auto w-full max-w-3xl shrink-0 px-5 pb-5 pt-2" onSubmit={event => { event.preventDefault(); if (!invalidImages) void chat.send(); }}>
           <div className="rounded-2xl border bg-card p-3 shadow-sm focus-within:ring-2 focus-within:ring-ring/30">
@@ -122,10 +153,11 @@ export function ChatPage({ settings, onSettings, status, openSettings }: {
               {model && <NativeSelect aria-label="思考强度" className="w-28 border-0 bg-transparent text-xs shadow-none" value={settings.effort || model.defaultReasoningEffort} onChange={event => void run(async () => onSettings(await Data.SetModelSelection(settings.model, event.target.value)))}>
                 {(model.supportedReasoningEfforts || []).map(option => <NativeSelectOption key={option.reasoningEffort} value={option.reasoningEffort}>{option.reasoningEffort}</NativeSelectOption>)}
               </NativeSelect>}
+              <div className="max-w-48"><PermissionSelect label="当前会话权限" disabled={active || chat.sending} value={settings.threadPermissions?.[chat.selected] || ""} inherit={permissionLabels[projectPermission]} onChange={mode => void run(async () => onSettings(await Data.SetPermission("thread", chat.selected, mode)))} /></div>
               <div className="ml-auto flex items-center gap-2">{active && <Button variant="outline" type="button" aria-label="停止当前任务" onClick={() => void run(() => Codex.StopTurn(chat.selected))}><Square className="size-3" />停止</Button>}
                 <Button type="submit" size="icon" aria-label={active ? "追加指令" : "发送消息"} disabled={(!chat.draft.trim() && !chat.draftFiles.length) || chat.sending || chat.loading || chat.uploading || invalidImages}>{chat.sending ? <LoaderCircle className="animate-spin" /> : <ArrowUp />}</Button></div>
             </div>
-          </div><p className="mt-2 text-center text-[11px] text-muted-foreground">Enter 发送 · Shift+Enter 换行 · 当前会话以只读权限启动</p>
+          </div><div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground"><span>Enter 发送 · Shift+Enter 换行 · 执行权限：{permissionLabels[effectivePermission]}</span><UsageView usage={chat.conversation?.tokenUsage} />{chat.conversation?.turns.some(turn => turn.status === "inProgress" && turn.items?.some(item => item.type === "contextCompaction" && item.status === "inProgress")) && <span role="status">正在压缩上下文…</span>}</div>
         </form>
       </> : <Empty className="m-auto"><EmptyHeader><EmptyMedia variant="icon"><Terminal /></EmptyMedia><EmptyTitle>开始一次新的对话</EmptyTitle><EmptyDescription>选择项目目录，新建对话；也可以从左侧打开历史。</EmptyDescription></EmptyHeader><EmptyContent><Button disabled={!settings.projectDirectory || chat.loading} onClick={() => void chat.createThread()}><Plus />新建对话</Button></EmptyContent></Empty>}
     </section>
@@ -139,6 +171,7 @@ export function ChatPage({ settings, onSettings, status, openSettings }: {
     </DialogContent></Dialog>
     <Dialog open={project !== null} onOpenChange={open => { if (!open) setProject(null); }}><DialogContent>
       <DialogHeader><DialogTitle>管理项目分组</DialogTitle><DialogDescription className="break-all">{project}</DialogDescription></DialogHeader>
+      {project && <Field><FieldLabel>项目执行权限</FieldLabel><PermissionSelect value={settings.projectPermissions?.[project] || ""} inherit={permissionLabels[settings.permissionMode]} onChange={mode => void run(async () => onSettings(await Data.SetPermission("project", project, mode)))} /></Field>}
       <form onSubmit={event => { event.preventDefault(); if (!project) return; setSaving(true); void run(async () => {
         onSettings(await Data.SetProjectAlias(project, name.trim())); setProject(null);
       }).finally(() => setSaving(false)); }}><Field><FieldLabel htmlFor="project-alias">展示名</FieldLabel><Input id="project-alias" value={name} onChange={event => setName(event.target.value)} placeholder="留空使用目录名称" /></Field>

@@ -23,19 +23,35 @@ type Question struct {
 }
 
 type Approval struct {
-	ID                 string     `json:"id"`
-	Method             string     `json:"method"`
-	ThreadID           string     `json:"threadId"`
-	TurnID             string     `json:"turnId"`
-	ItemID             string     `json:"itemId"`
-	Command            string     `json:"command"`
-	Reason             string     `json:"reason"`
-	Cwd                string     `json:"cwd"`
-	GrantRoot          string     `json:"grantRoot"`
-	AvailableDecisions []string   `json:"availableDecisions"`
-	Questions          []Question `json:"questions"`
-	Status             string     `json:"status"`
-	Generation         uint64     `json:"generation"`
+	ID                 string             `json:"id"`
+	Method             string             `json:"method"`
+	ThreadID           string             `json:"threadId"`
+	TurnID             string             `json:"turnId"`
+	ItemID             string             `json:"itemId"`
+	Command            string             `json:"command"`
+	Reason             string             `json:"reason"`
+	Cwd                string             `json:"cwd"`
+	GrantRoot          string             `json:"grantRoot"`
+	AvailableDecisions []string           `json:"availableDecisions"`
+	Questions          []Question         `json:"questions"`
+	Status             string             `json:"status"`
+	Generation         uint64             `json:"generation"`
+	DecisionOptions    []DecisionOption   `json:"decisionOptions"`
+	PermissionsJSON    string             `json:"permissionsJSON"`
+	Details            string             `json:"details"`
+	ServerName         string             `json:"serverName"`
+	Mode               string             `json:"mode"`
+	Message            string             `json:"message"`
+	URL                string             `json:"url"`
+	SchemaJSON         string             `json:"schemaJSON"`
+	Fields             []ElicitationField `json:"fields"`
+	Changes            []FileChange       `json:"changes"`
+}
+
+type DecisionOption struct {
+	Value   string `json:"value"`
+	Label   string `json:"label"`
+	Details string `json:"details"`
 }
 
 func (s *Service) handleServerRequest(generation uint64, message packet) {
@@ -53,13 +69,17 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 		c.write(map[string]any{"id": message.ID, "result": map[string]int64{"currentTimeAt": time.Now().Unix()}})
 		return
 	}
-	if message.Method != "item/commandExecution/requestApproval" && message.Method != "item/fileChange/requestApproval" && message.Method != "item/tool/requestUserInput" {
+	if message.Method != "item/commandExecution/requestApproval" && message.Method != "item/fileChange/requestApproval" && message.Method != "item/tool/requestUserInput" && message.Method != "item/permissions/requestApproval" && message.Method != "mcpServer/elicitation/request" {
 		c.write(packet{ID: message.ID, Error: &rpcError{Code: -32601, Message: "agentor 尚不支持该服务器请求: " + message.Method}})
 		return
 	}
 	var params struct {
 		Approval
-		AvailableDecisions []json.RawMessage `json:"availableDecisions"`
+		AvailableDecisions     []json.RawMessage `json:"availableDecisions"`
+		Permissions            json.RawMessage   `json:"permissions"`
+		RequestedSchema        json.RawMessage   `json:"requestedSchema"`
+		AdditionalPermissions  json.RawMessage   `json:"additionalPermissions"`
+		NetworkApprovalContext json.RawMessage   `json:"networkApprovalContext"`
 	}
 	if err := json.Unmarshal(message.Params, &params); err != nil {
 		c.write(packet{ID: message.ID, Error: &rpcError{Code: -32602, Message: err.Error()}})
@@ -69,15 +89,47 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 	approval.ID, approval.Method, approval.Status, approval.Generation = string(message.ID), message.Method, "pending", generation
 	for _, raw := range params.AvailableDecisions {
 		var decision string
-		if json.Unmarshal(raw, &decision) == nil {
-			approval.AvailableDecisions = append(approval.AvailableDecisions, decision)
+		if json.Unmarshal(raw, &decision) != nil {
+			decision = string(raw)
+		}
+		approval.AvailableDecisions = append(approval.AvailableDecisions, decision)
+	}
+	if params.AvailableDecisions == nil {
+		approval.AvailableDecisions = []string{"accept", "acceptForSession", "decline", "cancel"}
+	}
+	for _, value := range approval.AvailableDecisions {
+		option := DecisionOption{Value: value, Label: map[string]string{"accept": "允许本次", "acceptForSession": "本会话允许", "decline": "拒绝", "cancel": "拒绝并停止"}[value]}
+		if option.Label == "" {
+			var object map[string]json.RawMessage
+			json.Unmarshal([]byte(value), &object)
+			if object["acceptWithExecpolicyAmendment"] != nil {
+				option.Label = "允许并保存命令规则"
+			}
+			if object["applyNetworkPolicyAmendment"] != nil {
+				option.Label = "保存网络规则"
+			}
+			option.Details = value
+		}
+		if option.Label != "" {
+			approval.DecisionOptions = append(approval.DecisionOptions, option)
 		}
 	}
-	if len(params.AvailableDecisions) == 0 {
-		approval.AvailableDecisions = []string{"accept", "acceptForSession", "decline", "cancel"}
+	if len(params.Permissions) > 0 {
+		approval.PermissionsJSON = string(params.Permissions)
+	}
+	if len(params.AdditionalPermissions) > 0 && string(params.AdditionalPermissions) != "null" {
+		approval.Details = "额外权限：\n" + string(params.AdditionalPermissions)
+	}
+	if len(params.NetworkApprovalContext) > 0 && string(params.NetworkApprovalContext) != "null" {
+		approval.Details += "\n网络请求：\n" + string(params.NetworkApprovalContext)
+	}
+	if message.Method == "mcpServer/elicitation/request" {
+		approval.SchemaJSON = string(params.RequestedSchema)
+		approval.Fields = elicitationFields(params.RequestedSchema)
 	}
 	s.mu.Lock()
 	if s.status.Generation == generation {
+		approval.Changes = s.pendingChanges[approval.ThreadID][approval.ItemID]
 		s.approvals[approval.ID] = approval
 	}
 	s.mu.Unlock()
@@ -141,7 +193,30 @@ func (s *Service) RespondApproval(id, decision string) error {
 	if !valid {
 		return errors.New("该审批不支持此选项")
 	}
-	return s.resolveApproval(id, map[string]string{"decision": decision})
+	var value any = decision
+	if len(decision) > 0 && decision[0] == '{' {
+		if err := json.Unmarshal([]byte(decision), &value); err != nil {
+			return err
+		}
+	}
+	return s.resolveApproval(id, map[string]any{"decision": value})
+}
+
+func (s *Service) RespondPermissions(id string, allow bool, scope string) error {
+	s.mu.Lock()
+	approval, found := s.approvals[id]
+	s.mu.Unlock()
+	if !found || approval.Method != "item/permissions/requestApproval" {
+		return errors.New("该请求不是权限审批")
+	}
+	if scope != "turn" && scope != "session" {
+		return errors.New("请选择本轮或本会话")
+	}
+	permissions := json.RawMessage(`{}`)
+	if allow {
+		permissions = json.RawMessage(approval.PermissionsJSON)
+	}
+	return s.resolveApproval(id, map[string]any{"permissions": permissions, "scope": scope})
 }
 
 type QuestionAnswer struct {

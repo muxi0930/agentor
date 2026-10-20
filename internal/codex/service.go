@@ -33,17 +33,19 @@ type Event struct {
 }
 
 type Service struct {
-	data      *appdata.Service
-	connectMu sync.Mutex
-	mu        sync.Mutex
-	client    *client
-	status    Status
-	ctx       context.Context
-	cancel    context.CancelFunc
-	active    map[string]string
-	opened    map[string]bool
-	approvals map[string]Approval
-	files     *artifact.Service
+	data           *appdata.Service
+	connectMu      sync.Mutex
+	mu             sync.Mutex
+	client         *client
+	status         Status
+	ctx            context.Context
+	cancel         context.CancelFunc
+	active         map[string]string
+	opened         map[string]bool
+	approvals      map[string]Approval
+	files          *artifact.Service
+	usage          map[string]*TokenUsage
+	pendingChanges map[string]map[string][]FileChange
 }
 
 func init() {
@@ -53,7 +55,7 @@ func init() {
 
 func NewService(data *appdata.Service, files *artifact.Service) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{data: data, files: files, ctx: ctx, cancel: cancel, active: make(map[string]string), opened: make(map[string]bool), approvals: make(map[string]Approval), status: Status{Phase: "stopped", Message: "尚未连接 Codex"}}
+	return &Service{data: data, files: files, ctx: ctx, cancel: cancel, active: make(map[string]string), opened: make(map[string]bool), approvals: make(map[string]Approval), usage: make(map[string]*TokenUsage), pendingChanges: make(map[string]map[string][]FileChange), status: Status{Phase: "stopped", Message: "尚未连接 Codex"}}
 }
 
 func (s *Service) GetStatus() Status {
@@ -106,6 +108,7 @@ func (s *Service) Connect() (Status, error) {
 	old := s.client
 	s.client = nil
 	s.opened = make(map[string]bool)
+	s.pendingChanges = make(map[string]map[string][]FileChange)
 	s.expireApprovalsLocked("", "")
 	s.status.Generation++
 	generation := s.status.Generation
@@ -154,7 +157,9 @@ func (s *Service) Connect() (Status, error) {
 			return
 		}
 		s.trackNotification(generation, message)
-		if !strings.HasPrefix(message.Method, "thread/") && !strings.HasPrefix(message.Method, "turn/") && !strings.HasPrefix(message.Method, "item/") && !strings.HasPrefix(message.Method, "account/") && message.Method != "serverRequest/resolved" && message.Method != "error" { return }
+		if !strings.HasPrefix(message.Method, "thread/") && !strings.HasPrefix(message.Method, "turn/") && !strings.HasPrefix(message.Method, "item/") && !strings.HasPrefix(message.Method, "account/") && message.Method != "serverRequest/resolved" && message.Method != "error" {
+			return
+		}
 		if app := application.Get(); app != nil {
 			app.Event.Emit("codex:event", Event{Generation: generation, Method: message.Method, Params: string(message.Params)})
 		}

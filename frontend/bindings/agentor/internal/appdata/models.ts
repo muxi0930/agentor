@@ -23,4 +23,10 @@ export interface Settings {
     "chatThreads": { [_ in string]?: string } | null;
     "projectAliases": { [_ in string]?: string } | null;
     "hiddenProjects": string[] | null;
+    "permissionMode": string;
+    "projectPermissions": { [_ in string]?: string } | null;
+    "threadPermissions": { [_ in string]?: string } | null;
+    "pinnedThreads": { [_ in string]?: boolean } | null;
+    "chatOrder": { [_ in string]?: string[] | null } | null;
+    "projectOrder": string[] | null;
 }

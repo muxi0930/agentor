@@ -8,7 +8,7 @@
     "build:dev": "tsc && vite build --minify false --mode development",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
-    "test:state": "node --experimental-strip-types --test tests/chat-state.test.ts"
+    "test:state": "node --experimental-strip-types --test tests/chat-state.test.ts tests/diff.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",

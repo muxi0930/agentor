@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CodeView } from "./CodeView";
 import { MarkdownView } from "./MarkdownView";
 import { AttachmentView } from "./AttachmentView";
+import { ToolView } from "./ToolView";
 
 export function MessageView({ item, files = [], streaming = false, onError }: { item: Item; files?: Attachment[]; streaming?: boolean; onError: (message: string) => void }) {
   const [source, setSource] = useState(false);
@@ -28,9 +29,9 @@ export function MessageView({ item, files = [], streaming = false, onError }: { 
   }
   if (item.type === "reasoning" || item.type === "commandExecution") {
     const command = item.type === "commandExecution";
-    return <Trace><TraceCollapsible><TraceCollapsibleTrigger><TraceLine status={item.status === "inProgress" ? "running" : item.status === "failed" ? "error" : undefined}><TraceIcon>{command ? <Terminal /> : <Brain />}</TraceIcon><TraceTitle>{command ? item.command || "执行命令" : "思考过程"}</TraceTitle>{command && <TraceDescription>{item.status}</TraceDescription>}</TraceLine></TraceCollapsibleTrigger>
+    return <Trace><TraceCollapsible><TraceCollapsibleTrigger><TraceLine status={item.status === "inProgress" ? "running" : item.status === "failed" ? "error" : undefined}><TraceIcon>{command ? <Terminal /> : <Brain />}</TraceIcon><TraceTitle>{command ? item.command || "执行命令" : "思考过程"}</TraceTitle>{command && <TraceDescription>{item.status}{item.durationMs != null ? ` · ${(item.durationMs / 1000).toFixed(1)}s` : ""}</TraceDescription>}</TraceLine></TraceCollapsibleTrigger>
       <TraceCollapsibleContent>{command ? <><CodeView code={item.aggregatedOutput || "暂无输出"} language="终端输出" />{item.exitCode != null && <p className="text-xs">退出码 {item.exitCode}</p>}</> : <p className="whitespace-pre-wrap text-sm">{(item.summary?.length ? item.summary : item.reasoningContent || []).join("\n") || "正在思考…"}</p>}</TraceCollapsibleContent>
     </TraceCollapsible></Trace>;
   }
-  return <p className="rounded-lg border px-3 py-2 text-xs text-muted-foreground">{item.type} · {item.status || "已记录"}</p>;
+  return <ToolView item={item} onError={onError} />;
 }

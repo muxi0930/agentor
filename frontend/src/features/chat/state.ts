@@ -1,9 +1,13 @@
-import type { Item, Thread, Turn } from "../../../bindings/agentor/internal/codex/models";
+import type { Item, Thread, TokenUsage, Turn, TurnError } from "../../../bindings/agentor/internal/codex/models";
 
-export type ConversationState = { thread: Thread; turns: Turn[]; cursor: string | null; activeTurnId: string };
+export type ConversationState = {
+  thread: Thread; turns: Turn[]; cursor: string | null; activeTurnId: string;
+  tokenUsage?: TokenUsage; turnDiffs?: Record<string, string>; transientError?: { message: string; willRetry: boolean; turnId?: string };
+};
 export type Notification = {
   threadId?: string; turnId?: string; itemId?: string; delta?: string;
   turn?: Turn; item?: Item; thread?: Thread; summaryIndex?: number; threadName?: string;
+  tokenUsage?: TokenUsage; diff?: string; error?: TurnError; willRetry?: boolean;
 };
 
 function mergeItems(previous: Item[], incoming: Item[]): Item[] {
@@ -24,11 +28,16 @@ export function mergeTurn(turns: Turn[], next: Turn): Turn[] {
 
 export function applyNotification(state: ConversationState, method: string, params: Notification): ConversationState {
   let next = { ...state, turns: [...state.turns] };
-  if (params.turn && method === "turn/started") {
+  if (method === "thread/tokenUsage/updated" && params.tokenUsage) next.tokenUsage = params.tokenUsage;
+  else if (method === "turn/diff/updated" && params.turnId && params.diff !== undefined) next.turnDiffs = { ...next.turnDiffs, [params.turnId]: params.diff };
+  else if (method === "error" && params.error) next.transientError = { message: params.error.message, willRetry: !!params.willRetry, turnId: params.turnId };
+  else if (params.turn && method === "turn/started") {
     next.turns = mergeTurn(next.turns, params.turn); next.activeTurnId = params.turn.id;
+    next.transientError = undefined;
   } else if (params.turn && method === "turn/completed") {
     next.turns = mergeTurn(next.turns, params.turn);
     if (next.activeTurnId === params.turn.id) next.activeTurnId = "";
+    if (next.transientError?.turnId === params.turn.id) next.transientError = undefined;
   } else if (params.turnId && (params.item || params.delta !== undefined)) {
     let turn = next.turns.find(turn => turn.id === params.turnId);
     if (!turn) { turn = { id: params.turnId, status: "inProgress", items: [], error: null }; next.turns.push(turn); }
@@ -36,7 +45,7 @@ export function applyNotification(state: ConversationState, method: string, para
     const itemId = params.item?.id || params.itemId;
     const item = items.find(item => item.id === itemId || (!!params.item?.clientId && item.clientId === params.item.clientId));
     if (params.item) {
-      const finalItem = { ...item, ...params.item };
+      const finalItem = { ...item, ...params.item, status: params.item.status || (method === "item/started" ? "inProgress" : "completed") };
       if (item) items.splice(items.indexOf(item), 1, finalItem); else items.push(finalItem);
     } else if (itemId && params.delta !== undefined) {
       const type = method === "item/commandExecution/outputDelta" ? "commandExecution" : method.startsWith("item/reasoning/") ? "reasoning" : "agentMessage";

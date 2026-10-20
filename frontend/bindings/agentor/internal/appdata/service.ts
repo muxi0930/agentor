@@ -17,6 +17,10 @@ export function ChooseFile(): $CancellablePromise<string> {
     return $Call.ByID(321432725);
 }
 
+export function CreateWorktree(cwd: string, branch: string, directory: string): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(1332525903, cwd, branch, directory);
+}
+
 export function GetInfo(): $CancellablePromise<$models.Info> {
     return $Call.ByID(2884597446);
 }
@@ -33,12 +37,20 @@ export function OpenDirectory(path: string): $CancellablePromise<void> {
     return $Call.ByID(691909249, path);
 }
 
+export function OpenFile(path: string): $CancellablePromise<void> {
+    return $Call.ByID(2430550212, path);
+}
+
 export function OpenURL(url: string): $CancellablePromise<void> {
     return $Call.ByID(3777903083, url);
 }
 
 export function RememberThread(threadID: string, cwd: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(1357629041, threadID, cwd);
+}
+
+export function SetChatOrder(cwd: string, ids: string[] | null): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(3630318876, cwd, ids);
 }
 
 export function SetCodexPath(path: string): $CancellablePromise<$models.Settings> {
@@ -57,6 +69,10 @@ export function SetModelSelection(model: string, effort: string): $CancellablePr
     return $Call.ByID(1531839347, model, effort);
 }
 
+export function SetPermission(scope: string, id: string, mode: string): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(3083411741, scope, id, mode);
+}
+
 export function SetProjectAlias(cwd: string, name: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(2164947253, cwd, name);
 }
@@ -67,4 +83,8 @@ export function SetProjectDirectory(path: string): $CancellablePromise<$models.S
 
 export function SetTheme(theme: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(155652315, theme);
+}
+
+export function ToggleThreadPin(threadID: string): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(117760941, threadID);
 }

@@ -4,6 +4,7 @@ import * as Data from "../../bindings/agentor/internal/appdata/service";
 import type { Info, Settings } from "../../bindings/agentor/internal/appdata/models";
 import type { Status } from "../../bindings/agentor/internal/codex/models";
 import { RuntimeConnection } from "@/features/accounts/RuntimeConnection";
+import { PermissionSelect } from "@/features/accounts/PermissionSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
@@ -39,6 +40,7 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus }: {
             onSettings(await Data.SetTheme(event.target.value));
           })}><NativeSelectOption value="light">浅色</NativeSelectOption><NativeSelectOption value="dark">深色</NativeSelectOption></NativeSelect>
         </Field>
+        <Field><FieldLabel htmlFor="default-permission">默认执行权限</FieldLabel><PermissionSelect id="default-permission" disabled={busy} value={settings.permissionMode} onChange={mode => void run(async () => onSettings(await Data.SetPermission("default", "", mode)))} /><FieldDescription>会话设置优先于项目设置，再继承此默认值。只读可查看文件；项目内读写可修改当前项目；完全访问允许项目外文件与网络操作。</FieldDescription></Field>
         <Field><FieldLabel>当前项目目录</FieldLabel>
           <p className="break-all rounded-lg border bg-muted/40 p-3 text-sm">{settings.projectDirectory || "尚未选择"}</p>
           <div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void run(async () => {
