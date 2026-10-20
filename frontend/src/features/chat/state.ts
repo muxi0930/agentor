@@ -1,0 +1,56 @@
+import type { Item, Thread, Turn } from "../../../bindings/agentor/internal/codex/models";
+
+export type ConversationState = { thread: Thread; turns: Turn[]; cursor: string | null; activeTurnId: string };
+export type Notification = {
+  threadId?: string; turnId?: string; itemId?: string; delta?: string;
+  turn?: Turn; item?: Item; thread?: Thread; summaryIndex?: number; threadName?: string;
+};
+
+function mergeItems(previous: Item[], incoming: Item[]): Item[] {
+  const items = [...previous];
+  for (const item of incoming) {
+    const index = items.findIndex(existing => existing.id === item.id || (!!item.clientId && existing.clientId === item.clientId));
+    if (index < 0) items.push(item); else items[index] = { ...items[index], ...item };
+  }
+  return items;
+}
+
+export function mergeTurn(turns: Turn[], next: Turn): Turn[] {
+  const found = turns.find(turn => turn.id === next.id);
+  if (!found) return [...turns, { ...next, items: next.items || [] }];
+  return turns.map(turn => turn.id === next.id
+    ? { ...turn, ...next, items: mergeItems(turn.items || [], next.items || []) } : turn);
+}
+
+export function applyNotification(state: ConversationState, method: string, params: Notification): ConversationState {
+  let next = { ...state, turns: [...state.turns] };
+  if (params.turn && method === "turn/started") {
+    next.turns = mergeTurn(next.turns, params.turn); next.activeTurnId = params.turn.id;
+  } else if (params.turn && method === "turn/completed") {
+    next.turns = mergeTurn(next.turns, params.turn);
+    if (next.activeTurnId === params.turn.id) next.activeTurnId = "";
+  } else if (params.turnId && (params.item || params.delta !== undefined)) {
+    let turn = next.turns.find(turn => turn.id === params.turnId);
+    if (!turn) { turn = { id: params.turnId, status: "inProgress", items: [], error: null }; next.turns.push(turn); }
+    const items = [...(turn.items || [])];
+    const itemId = params.item?.id || params.itemId;
+    const item = items.find(item => item.id === itemId || (!!params.item?.clientId && item.clientId === params.item.clientId));
+    if (params.item) {
+      const finalItem = { ...item, ...params.item };
+      if (item) items.splice(items.indexOf(item), 1, finalItem); else items.push(finalItem);
+    } else if (itemId && params.delta !== undefined) {
+      const type = method === "item/commandExecution/outputDelta" ? "commandExecution" : method.startsWith("item/reasoning/") ? "reasoning" : "agentMessage";
+      const updated = item ? { ...item } : { id: itemId, clientId: "", type, text: "", summary: [], content: [], command: "", aggregatedOutput: "", status: "inProgress", phase: "", exitCode: null, reasoningContent: [] };
+      if (type === "commandExecution") updated.aggregatedOutput = (updated.aggregatedOutput || "") + params.delta;
+      else if (type === "reasoning") {
+        const summary = [...(updated.summary || [])];
+        const index = params.summaryIndex || 0;
+        summary[index] = (summary[index] || "") + params.delta;
+        updated.summary = summary;
+      } else updated.text = (updated.text || "") + params.delta;
+      if (item) items.splice(items.indexOf(item), 1, updated); else items.push(updated);
+    }
+    next.turns = next.turns.map(candidate => candidate.id === params.turnId ? { ...candidate, items } : candidate);
+  }
+  return next;
+}

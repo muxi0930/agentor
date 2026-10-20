@@ -1,0 +1,162 @@
+import { useMemo, useState } from "react";
+import { Archive, ArrowUp, ChevronRight, Folder, LoaderCircle, Paperclip, Pencil, Plus, RefreshCw, Square, Terminal } from "lucide-react";
+import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
+import type { Status, Thread } from "../../../bindings/agentor/internal/codex/models";
+import * as Codex from "../../../bindings/agentor/internal/codex/service";
+import * as Data from "../../../bindings/agentor/internal/appdata/service";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport } from "@/components/ui/message-scroller";
+import { MessageView } from "./MessageView";
+import { AttachmentView } from "./AttachmentView";
+import { useChat } from "./useChat";
+import { errorText } from "@/app/errors";
+
+export function ChatPage({ settings, onSettings, status, openSettings }: {
+  settings: Settings; onSettings: (settings: Settings) => void; status?: Status; openSettings: () => void;
+}) {
+  const chat = useChat(settings, onSettings, status);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [visible, setVisible] = useState<Record<string, number>>({});
+  const [editing, setEditing] = useState<Thread | null>(null);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [project, setProject] = useState<string | null>(null);
+  const [archiveProject, setArchiveProject] = useState<string | null>(null);
+  const groups = useMemo(() => {
+    const result = new Map<string, Thread[]>();
+    for (const thread of chat.threads) result.set(thread.cwd, [...(result.get(thread.cwd) || []), thread]);
+    return [...result.entries()].filter(([cwd]) => !settings.hiddenProjects?.includes(cwd));
+  }, [chat.threads, settings.hiddenProjects]);
+  const model = chat.models.find(model => model.model === settings.model);
+  const effectiveModel = model || chat.models.find(model => model.model === chat.conversation?.thread.model) || chat.models.find(model => model.isDefault);
+  const supportsImages = !!effectiveModel?.inputModalities?.includes("image");
+  const invalidImages = !supportsImages && chat.draftFiles.some(file => file.mediaType.startsWith("image/"));
+  const active = !!chat.conversation?.activeTurnId;
+  const title = chat.threads.find(thread => thread.id === chat.selected)?.name || chat.conversation?.thread.name || "新对话";
+  const connected = status?.phase === "ready";
+
+  async function run(action: () => Promise<void>) {
+    chat.setError("");
+    try { await action(); } catch (error) { chat.setError(errorText(error)); }
+  }
+
+  if (!connected) return <div className="m-auto w-full max-w-2xl p-10"><Empty className="py-16">
+    <EmptyHeader><EmptyMedia variant="icon"><Terminal /></EmptyMedia><EmptyTitle className="text-2xl font-semibold tracking-tight">从一次对话开始</EmptyTitle><EmptyDescription className="mt-2 leading-7">连接 Codex，打开项目。<br />您的对话与工作资料将在这里逐步汇聚。</EmptyDescription></EmptyHeader>
+    <EmptyContent><Button onClick={openSettings}>配置 Codex</Button>{status?.phase === "error" && <p className="text-sm text-destructive">{status.message}</p>}</EmptyContent>
+  </Empty></div>;
+
+  return <div className="flex size-full min-h-0 min-w-0">
+    <aside aria-label="会话列表" className="flex w-60 shrink-0 flex-col border-r bg-muted/15 max-lg:w-52">
+      <div className="flex items-center gap-2 p-3"><Button className="flex-1" variant="outline" disabled={chat.loading || !settings.projectDirectory} onClick={() => void chat.createThread()}><Plus />新建对话</Button>
+        <Button variant="ghost" size="icon" aria-label="刷新会话" onClick={() => void run(() => chat.refreshThreads())}><RefreshCw /></Button></div>
+      {!settings.projectDirectory && <p className="px-4 pb-3 text-xs text-muted-foreground">先从侧栏选择项目目录。</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        {groups.map(([cwd, threads]) => <Collapsible key={cwd} open={expanded[cwd] !== false} onOpenChange={open => {
+          setExpanded(old => ({ ...old, [cwd]: open })); if (!open) setVisible(old => ({ ...old, [cwd]: 6 }));
+        }}>
+          <div className="mt-2 flex items-center"><CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted" title={cwd}>
+            <ChevronRight className={`size-3 shrink-0 transition-transform ${expanded[cwd] !== false ? "rotate-90" : ""}`} /><Folder className="size-3 shrink-0" /><span className="truncate">{settings.projectAliases?.[cwd] || cwd.split(/[\\/]/).filter(Boolean).slice(-1)[0] || cwd}</span><span className="ml-auto">{threads.length}</span>
+          </CollapsibleTrigger><Button variant="ghost" size="icon-xs" aria-label="管理项目分组" onClick={() => { setProject(cwd); setName(settings.projectAliases?.[cwd] || ""); }}><Pencil /></Button></div>
+          <CollapsibleContent>
+            {threads.slice(0, visible[cwd] || 6).map(thread => <div key={thread.id} className={`group flex items-center gap-0.5 rounded-lg ${chat.selected === thread.id ? "bg-accent" : "hover:bg-muted"}`}>
+              <Button variant="ghost" className="min-w-0 flex-1 justify-start px-2 font-normal" onClick={() => void chat.openThread(thread.id)} title={thread.name || thread.preview || thread.id}>
+                {thread.status.type === "active" && <LoaderCircle className="size-3 shrink-0 animate-spin" />}<span className="truncate">{thread.name || thread.preview || "新对话"}</span>
+              </Button>
+              <Button variant="ghost" size="icon-xs" aria-label="修改会话标题" className="opacity-0 group-hover:opacity-100 focus:opacity-100" onClick={() => { setEditing(thread); setName(thread.name || thread.preview || ""); }}><Pencil /></Button>
+              <Button variant="ghost" size="icon-xs" aria-label="归档会话" className="mr-1 opacity-0 group-hover:opacity-100 focus:opacity-100" onClick={() => void run(async () => { await Codex.ArchiveThread(thread.id); if (chat.selected === thread.id) await chat.clearSelection(); await chat.refreshThreads(); })}><Archive /></Button>
+            </div>)}
+            {threads.length > (visible[cwd] || 6) && <Button variant="ghost" size="sm" className="ml-4 text-xs text-muted-foreground" onClick={() => setVisible(old => ({ ...old, [cwd]: (old[cwd] || 6) + 6 }))}>显示更多</Button>}
+          </CollapsibleContent>
+        </Collapsible>)}
+        {!chat.threads.length && <p className="p-4 text-xs leading-6 text-muted-foreground">暂无会话。选择项目目录后，新建一次对话。</p>}
+        {chat.listCursor && <Button variant="ghost" className="mt-3 w-full" onClick={() => void run(() => chat.refreshThreads(chat.listCursor!))}>加载更多会话</Button>}
+      </div>
+    </aside>
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex h-13 shrink-0 items-center gap-2 border-b px-5"><p className="truncate text-sm font-medium">{chat.selected ? title : "Codex 对话"}</p>{chat.loading && <LoaderCircle aria-label="加载中" className="size-4 animate-spin text-muted-foreground" />}<span className="ml-auto shrink-0 text-xs text-muted-foreground">{active ? "正在执行" : "就绪"}</span></div>
+      {chat.error && <div className="px-5 pt-4"><Alert variant="destructive"><AlertDescription className="flex items-start justify-between gap-3"><span className="break-words">{chat.error}</span><Button size="sm" variant="ghost" onClick={() => chat.setError("")}>关闭</Button></AlertDescription></Alert></div>}
+      {chat.selected ? <>
+        <div className="min-h-0 flex-1">
+          <MessageScrollerProvider key={chat.selected}>
+            <MessageScroller><MessageScrollerViewport><MessageScrollerContent className="mx-auto max-w-3xl px-6 py-6">
+              {chat.conversation?.cursor && <Button variant="ghost" disabled={chat.loading} onClick={() => void chat.loadEarlier()}>加载更早的消息</Button>}
+              {chat.conversation?.turns.map(turn => <MessageScrollerItem key={turn.id} className="space-y-5">
+                {(turn.items || []).map(item => <MessageView key={item.id} item={item} streaming={turn.status === "inProgress"} files={chat.attachments.filter(file => file.messageId === item.clientId && !!item.clientId)} onError={chat.setError} />)}
+                {turn.error && <Alert variant="destructive"><AlertDescription>{turn.error.message}</AlertDescription></Alert>}
+                {turn.status === "interrupted" && <p className="text-xs text-muted-foreground">此次执行已停止或中断。</p>}
+              </MessageScrollerItem>)}
+              {!chat.conversation?.turns.length && !chat.loading && <Empty className="m-auto"><EmptyHeader><EmptyMedia variant="icon"><Terminal /></EmptyMedia><EmptyTitle>这次，要完成什么？</EmptyTitle><EmptyDescription>输入任务，Codex 将在当前项目中开始工作。</EmptyDescription></EmptyHeader></Empty>}
+              {active && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="size-3 animate-spin" />Codex 正在处理…</p>}
+            </MessageScrollerContent></MessageScrollerViewport><MessageScrollerButton /></MessageScroller>
+          </MessageScrollerProvider>
+        </div>
+        <form className="mx-auto w-full max-w-3xl shrink-0 px-5 pb-5 pt-2" onSubmit={event => { event.preventDefault(); if (!invalidImages) void chat.send(); }}>
+          <div className="rounded-2xl border bg-card p-3 shadow-sm focus-within:ring-2 focus-within:ring-ring/30">
+            {chat.draftFiles.length > 0 && <div className="mb-3"><AttachmentView files={chat.draftFiles} onRemove={chat.removeDraftFile} onError={chat.setError} /></div>}
+            <label htmlFor="chat-input" className="sr-only">{active ? "追加指令" : "发送消息"}</label>
+            <Textarea id="chat-input" className="max-h-52 min-h-20 resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0" style={{ fieldSizing: "content" }} value={chat.draft} placeholder={active ? "追加指令，或等待当前任务完成…" : "描述您的任务…"} onChange={event => chat.setDraft(event.target.value)} onPaste={event => {
+              const images = [...event.clipboardData.files].filter(file => file.type.startsWith("image/"));
+              if (!images.length) return;
+              event.preventDefault();
+              if (!supportsImages) { chat.setError("请先选择支持图片输入的模型"); return; }
+              void chat.pasteImages(images);
+            }} onKeyDown={event => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!invalidImages) void chat.send(); }
+            }} />
+            {invalidImages && <p className="text-xs text-destructive">当前模型不支持图片，请选择支持图片的模型后再发送。</p>}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button type="button" variant="ghost" size="icon-sm" aria-label="添加图片或文件" disabled={chat.uploading} onClick={() => void chat.chooseFiles()}>{chat.uploading ? <LoaderCircle className="animate-spin" /> : <Paperclip />}</Button>
+              <NativeSelect aria-label="选择模型" className="max-w-48 border-0 bg-transparent text-xs shadow-none" value={settings.model} onChange={event => void run(async () => {
+                const selected = chat.models.find(model => model.model === event.target.value);
+                onSettings(await Data.SetModelSelection(event.target.value, selected?.defaultReasoningEffort || ""));
+              })}><NativeSelectOption value="">CLI 默认模型</NativeSelectOption>{chat.models.map(model => <NativeSelectOption key={model.id} value={model.model}>{model.displayName}</NativeSelectOption>)}</NativeSelect>
+              {model && <NativeSelect aria-label="思考强度" className="w-28 border-0 bg-transparent text-xs shadow-none" value={settings.effort || model.defaultReasoningEffort} onChange={event => void run(async () => onSettings(await Data.SetModelSelection(settings.model, event.target.value)))}>
+                {(model.supportedReasoningEfforts || []).map(option => <NativeSelectOption key={option.reasoningEffort} value={option.reasoningEffort}>{option.reasoningEffort}</NativeSelectOption>)}
+              </NativeSelect>}
+              <div className="ml-auto flex items-center gap-2">{active && <Button variant="outline" type="button" aria-label="停止当前任务" onClick={() => void run(() => Codex.StopTurn(chat.selected))}><Square className="size-3" />停止</Button>}
+                <Button type="submit" size="icon" aria-label={active ? "追加指令" : "发送消息"} disabled={(!chat.draft.trim() && !chat.draftFiles.length) || chat.sending || chat.loading || chat.uploading || invalidImages}>{chat.sending ? <LoaderCircle className="animate-spin" /> : <ArrowUp />}</Button></div>
+            </div>
+          </div><p className="mt-2 text-center text-[11px] text-muted-foreground">Enter 发送 · Shift+Enter 换行 · 当前会话以只读权限启动</p>
+        </form>
+      </> : <Empty className="m-auto"><EmptyHeader><EmptyMedia variant="icon"><Terminal /></EmptyMedia><EmptyTitle>开始一次新的对话</EmptyTitle><EmptyDescription>选择项目目录，新建对话；也可以从左侧打开历史。</EmptyDescription></EmptyHeader><EmptyContent><Button disabled={!settings.projectDirectory || chat.loading} onClick={() => void chat.createThread()}><Plus />新建对话</Button></EmptyContent></Empty>}
+    </section>
+    <Dialog open={!!editing} onOpenChange={open => { if (!open) setEditing(null); }}><DialogContent>
+      <DialogHeader><DialogTitle>修改会话标题</DialogTitle><DialogDescription>标题会保存到 Codex 会话。</DialogDescription></DialogHeader>
+      <form onSubmit={event => { event.preventDefault(); if (!editing) return; setSaving(true); void run(async () => {
+        await Codex.RenameThread(editing.id, name); setEditing(null); await chat.refreshThreads();
+      }).finally(() => setSaving(false)); }}><Field><FieldLabel htmlFor="thread-name">标题</FieldLabel><Input id="thread-name" value={name} onChange={event => setName(event.target.value)} /></Field>
+        <DialogFooter className="mt-5"><Button variant="outline" type="button" onClick={() => setEditing(null)}>取消</Button><Button type="submit" disabled={saving || !name.trim()}>保存</Button></DialogFooter>
+      </form>
+    </DialogContent></Dialog>
+    <Dialog open={project !== null} onOpenChange={open => { if (!open) setProject(null); }}><DialogContent>
+      <DialogHeader><DialogTitle>管理项目分组</DialogTitle><DialogDescription className="break-all">{project}</DialogDescription></DialogHeader>
+      <form onSubmit={event => { event.preventDefault(); if (!project) return; setSaving(true); void run(async () => {
+        onSettings(await Data.SetProjectAlias(project, name.trim())); setProject(null);
+      }).finally(() => setSaving(false)); }}><Field><FieldLabel htmlFor="project-alias">展示名</FieldLabel><Input id="project-alias" value={name} onChange={event => setName(event.target.value)} placeholder="留空使用目录名称" /></Field>
+        <DialogFooter className="mt-5"><Button type="submit" disabled={saving}>保存展示名</Button></DialogFooter>
+      </form>
+      <div className="flex flex-wrap gap-2 border-t pt-4"><Button variant="outline" onClick={() => void run(async () => {
+        if (project) onSettings(await Data.HideProject(project)); setProject(null);
+      })}>从侧栏移除分组</Button><Button variant="outline" onClick={() => { setArchiveProject(project); setProject(null); }}>归档项目下的会话</Button></div>
+      <p className="text-xs text-muted-foreground">移除分组后，可重新选择项目目录恢复显示。</p>
+    </DialogContent></Dialog>
+    <AlertDialog open={archiveProject !== null} onOpenChange={open => { if (!open) setArchiveProject(null); }}><AlertDialogContent>
+      <AlertDialogHeader><AlertDialogTitle>归档此项目下的全部会话？</AlertDialogTitle><AlertDialogDescription className="break-all">此操作会归档 {archiveProject} 下属于 agentor 的会话，项目文件将保留。</AlertDialogDescription></AlertDialogHeader>
+      <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => void run(async () => {
+        if (!archiveProject) return;
+        await Codex.ArchiveProject(archiveProject);
+        if (chat.conversation?.thread.cwd === archiveProject) await chat.clearSelection();
+        await chat.refreshThreads(); setArchiveProject(null);
+      })}>确认归档</AlertDialogAction></AlertDialogFooter>
+    </AlertDialogContent></AlertDialog>
+  </div>;
+}

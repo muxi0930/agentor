@@ -1,0 +1,33 @@
+version: '3'
+
+tasks:
+  generate:bindings:
+    cmds:
+      - go mod tidy
+      - mkdir -p frontend/dist
+      - touch frontend/dist/.gitkeep
+      - wails3 generate bindings -ts -i
+  install:frontend:deps:
+    dir: frontend
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+    cmds: [npm install]
+  build:frontend:
+    dir: frontend
+    deps: [install:frontend:deps]
+    cmds: [npm run build:dev]
+  dev:frontend:
+    dir: frontend
+    cmds:
+      - npm run dev -- --port {{.VITE_PORT}}
+  run:darwin:
+    cmds:
+      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}.next"
+      - mv "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}.next" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"
+      - cp build/darwin/Info.dev.plist "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Info.plist"
+      - '"{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"'
+  run:linux:
+    cmds: ['"{{.BIN_DIR}}/{{.APP_NAME}}"']
+  run:windows:
+    cmds: ['"{{.BIN_DIR}}/{{.APP_NAME}}.exe"']
