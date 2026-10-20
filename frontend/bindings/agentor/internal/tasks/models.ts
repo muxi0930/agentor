@@ -18,6 +18,7 @@ export interface ControllerInput {
 }
 
 export interface DispatchInput {
+    "pipelineRunId": string;
     "stepId": string;
     "instruction": string;
     "completionCriteria": string;
@@ -29,6 +30,7 @@ export interface DispatchInput {
 }
 
 export interface Execution {
+    "pipelineRunId": string;
     "id": string;
     "stepId": string;
     "projectId": string;
@@ -54,6 +56,10 @@ export interface Execution {
 }
 
 export interface Notification {
+    "pipelineSessionId": string;
+    "pipelineRunId": string;
+    "projectId": string;
+    "source": Source;
     "id": string;
     "title": string;
     "body": string;
@@ -91,7 +97,7 @@ export interface Request {
     "error": string;
     "createdAt": string;
     "completedAt": string;
-    "completionExecutionId": string;
+    "completionId": string;
     "needsTarget": boolean;
     "lockedTarget": boolean;
 }

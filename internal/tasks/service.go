@@ -108,7 +108,8 @@ func (s *Service) changed() {
 //wails:ignore
 func (s *Service) ConfigureTools(specs func(string) []codex.DynamicToolSpec) { s.toolSpecs = specs }
 
-func (s *Service) modelSelection(model, effort string) (string, string, error) {
+//wails:ignore
+func (s *Service) SelectModel(model, effort string) (string, string, error) {
 	settings := s.data.GetSettings()
 	if model == "" {
 		model = settings.Model
@@ -151,7 +152,7 @@ func (s *Service) Dispatch(input DispatchInput) (Execution, error) {
 	if input.TimeoutSeconds < 0 {
 		return Execution{}, errors.New("超时秒数不能为负数")
 	}
-	model, effort, err := s.modelSelection(input.Model, input.Effort)
+	model, effort, err := s.SelectModel(input.Model, input.Effort)
 	if err != nil {
 		return Execution{}, err
 	}
@@ -162,7 +163,7 @@ func (s *Service) Dispatch(input DispatchInput) (Execution, error) {
 	if input.Source.Type == "" {
 		input.Source.Type = "desktop"
 	}
-	execution := Execution{ID: rand.Text(), StepID: input.StepID, ProjectID: context.ProjectID, FeatureID: context.FeatureID, Instruction: input.Instruction, CompletionCriteria: input.CompletionCriteria, Model: model, Effort: effort, Permission: permission, Source: input.Source, RequestID: input.RequestID, Context: context, Status: "queued", CreatedAt: now(), TimeoutSeconds: input.TimeoutSeconds}
+	execution := Execution{PipelineRunID: input.PipelineRunID, ID: rand.Text(), StepID: input.StepID, ProjectID: context.ProjectID, FeatureID: context.FeatureID, Instruction: input.Instruction, CompletionCriteria: input.CompletionCriteria, Model: model, Effort: effort, Permission: permission, Source: input.Source, RequestID: input.RequestID, Context: context, Status: "queued", CreatedAt: now(), TimeoutSeconds: input.TimeoutSeconds}
 	s.mu.Lock()
 	if err := s.ctx.Err(); err != nil {
 		s.mu.Unlock()
@@ -269,7 +270,7 @@ func (s *Service) finish(id, status, result string, err error) {
 			if body == "" {
 				body = "任务已结束"
 			}
-			s.state.Notifications = append(s.state.Notifications, Notification{ID: rand.Text(), Title: execution.Context.Step.Title + " · " + status, Body: body, ExecutionID: id, RequestID: execution.RequestID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}})
+			s.state.Notifications = append(s.state.Notifications, Notification{ID: rand.Text(), Title: execution.Context.Step.Title + " · " + status, Body: body, Source: execution.Source, ProjectID: execution.ProjectID, PipelineRunID: execution.PipelineRunID, ExecutionID: id, RequestID: execution.RequestID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}})
 			for _, channel := range s.completed[id] {
 				channel <- *execution
 				close(channel)

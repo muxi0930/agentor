@@ -19,6 +19,11 @@ export const CodexEvent = "codex:event";
 export const CodexStatus = "codex:status";
 
 /**
+ * Name of the custom event "pipeline:changed".
+ */
+export const PipelineChanged = "pipeline:changed";
+
+/**
  * Name of the custom event "tasks:changed".
  */
 export const TasksChanged = "tasks:changed";

@@ -12,6 +12,7 @@ type Source struct {
 }
 
 type DispatchInput struct {
+	PipelineRunID      string `json:"pipelineRunId"`
 	StepID             string `json:"stepId"`
 	Instruction        string `json:"instruction"`
 	CompletionCriteria string `json:"completionCriteria"`
@@ -23,6 +24,7 @@ type DispatchInput struct {
 }
 
 type Execution struct {
+	PipelineRunID      string                `json:"pipelineRunId"`
 	ID                 string                `json:"id"`
 	StepID             string                `json:"stepId"`
 	ProjectID          string                `json:"projectId"`
@@ -59,14 +61,18 @@ type NotificationPart struct {
 }
 
 type Notification struct {
-	ID          string             `json:"id"`
-	Title       string             `json:"title"`
-	Body        string             `json:"body"`
-	ExecutionID string             `json:"executionId"`
-	RequestID   string             `json:"requestId"`
-	CreatedAt   string             `json:"createdAt"`
-	Read        bool               `json:"read"`
-	Parts       []NotificationPart `json:"parts"`
+	PipelineSessionID string             `json:"pipelineSessionId"`
+	PipelineRunID     string             `json:"pipelineRunId"`
+	ProjectID         string             `json:"projectId"`
+	Source            Source             `json:"source"`
+	ID                string             `json:"id"`
+	Title             string             `json:"title"`
+	Body              string             `json:"body"`
+	ExecutionID       string             `json:"executionId"`
+	RequestID         string             `json:"requestId"`
+	CreatedAt         string             `json:"createdAt"`
+	Read              bool               `json:"read"`
+	Parts             []NotificationPart `json:"parts"`
 }
 
 type State struct {
@@ -88,24 +94,24 @@ type ControllerInput struct {
 }
 
 type Request struct {
-	ID                    string `json:"id"`
-	Kind                  string `json:"kind"`
-	Text                  string `json:"text"`
-	ProjectID             string `json:"projectId"`
-	StepID                string `json:"stepId"`
-	Model                 string `json:"model"`
-	Effort                string `json:"effort"`
-	Source                Source `json:"source"`
-	Status                string `json:"status"`
-	ThreadID              string `json:"threadId"`
-	TurnID                string `json:"turnId"`
-	Result                string `json:"result"`
-	Error                 string `json:"error"`
-	CreatedAt             string `json:"createdAt"`
-	CompletedAt           string `json:"completedAt"`
-	CompletionExecutionID string `json:"completionExecutionId"`
-	NeedsTarget           bool   `json:"needsTarget"`
-	LockedTarget          bool   `json:"lockedTarget"`
+	ID           string `json:"id"`
+	Kind         string `json:"kind"`
+	Text         string `json:"text"`
+	ProjectID    string `json:"projectId"`
+	StepID       string `json:"stepId"`
+	Model        string `json:"model"`
+	Effort       string `json:"effort"`
+	Source       Source `json:"source"`
+	Status       string `json:"status"`
+	ThreadID     string `json:"threadId"`
+	TurnID       string `json:"turnId"`
+	Result       string `json:"result"`
+	Error        string `json:"error"`
+	CreatedAt    string `json:"createdAt"`
+	CompletedAt  string `json:"completedAt"`
+	CompletionID string `json:"completionId"`
+	NeedsTarget  bool   `json:"needsTarget"`
+	LockedTarget bool   `json:"lockedTarget"`
 }
 
 type Scope struct {

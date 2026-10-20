@@ -5,13 +5,15 @@ import (
 	"errors"
 
 	"agentor/internal/codex"
+	"agentor/internal/pipeline"
 	"agentor/internal/tasks"
 	"agentor/internal/workspace"
 )
 
 type toolRouter struct {
-	tasks *tasks.Service
-	work  *workspace.Service
+	tasks    *tasks.Service
+	work     *workspace.Service
+	pipeline *pipeline.Service
 }
 
 func tool(name, description string, properties map[string]any, required ...string) codex.DynamicToolSpec {
@@ -25,6 +27,9 @@ func stringField(description string) map[string]any {
 }
 
 func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
+	if role == "pipeline_manager" || role == "pipeline_config" {
+		return r.pipelineSpecs(role)
+	}
 	if role == "controller" {
 		return []codex.DynamicToolSpec{
 			tool("list_workspaces", "查询本次请求范围内的项目、版本、功能和步骤摘要及稳定 ID。", map[string]any{}),
@@ -35,6 +40,11 @@ func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
 			tool("list_executions", "查询本次项目范围内的执行状态与结果。", map[string]any{}),
 			tool("stop_execution", "停止一项明确的执行，或取消该项排队。", map[string]any{"executionId": stringField("执行记录 ID")}, "executionId"),
 			tool("rebuild_step_context", "在步骤空闲时重建会话，保留已有执行记录，不重放任务。", map[string]any{"stepId": stringField("步骤 ID")}, "stepId"),
+			tool("list_pipeline_tasks", "查询本次项目范围内的流水线任务、调度与运行记录。", map[string]any{}),
+			tool("run_pipeline", "运行已有流水线任务，同一任务不重入。", map[string]any{"taskId": stringField("任务 ID"), "inputs": map[string]any{"type": "object", "description": "任务契约要求的输入值"}}, "taskId", "inputs"),
+			tool("request_pipeline_session", "给项目专用管理/配置会话提交请求。管理会话运行已有任务，配置会话维护 JSON 和调度。", map[string]any{"projectId": stringField("当前范围内的项目 ID"), "role": stringField("pipeline_manager / pipeline_config"), "text": stringField("会话请求")}, "projectId", "role", "text"),
+			tool("set_schedule_enabled", "启用或停用当前项目的调度。", map[string]any{"scheduleId": stringField("调度 ID"), "enabled": map[string]any{"type": "boolean"}}, "scheduleId", "enabled"),
+			tool("trigger_schedule", "手动触发已有调度，同任务不重入。", map[string]any{"scheduleId": stringField("调度 ID")}, "scheduleId"),
 		}
 	}
 	if role != "step" {
@@ -54,6 +64,11 @@ func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
 func (r *toolRouter) call(call codex.ToolCall) (any, error) {
 	scope, err := r.tasks.ScopeForThread(call.ThreadID)
 	if err != nil {
+		if r.pipeline != nil {
+			if request, sessionErr := r.pipeline.ActiveSession(call.ThreadID); sessionErr == nil {
+				return r.pipelineCall(request, call)
+			}
+		}
 		return nil, err
 	}
 	allowed := false
@@ -104,9 +119,15 @@ func (r *toolRouter) controllerCall(scope tasks.Scope, call codex.ToolCall) (any
 	if err != nil {
 		return nil, err
 	}
-	readOnly := call.Tool == "list_workspaces" || call.Tool == "get_work_item" || call.Tool == "list_executions"
-	if !readOnly && (request.NeedsTarget || request.Kind == "execution_result") {
+	readOnly := call.Tool == "list_workspaces" || call.Tool == "get_work_item" || call.Tool == "list_executions" || call.Tool == "list_pipeline_tasks"
+	if !readOnly && (request.NeedsTarget || request.Kind != "instruction") {
 		return nil, errors.New("此请求需要明确目标或仅用于完成汇报，不能修改或再次派发")
+	}
+	if r.pipeline != nil {
+		switch call.Tool {
+		case "list_pipeline_tasks", "run_pipeline", "request_pipeline_session", "set_schedule_enabled", "trigger_schedule":
+			return r.controllerPipelineCall(request, call)
+		}
 	}
 	var args struct {
 		Kind               string `json:"kind"`

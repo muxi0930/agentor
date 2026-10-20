@@ -33,7 +33,7 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 	}
 	s.mu.Lock()
 	for _, request := range s.state.Requests {
-		if input.Source.MessageID != "" && sourceKey(request.Source) == sourceKey(input.Source) && request.Source.MessageID == input.Source.MessageID && request.Kind == kind && request.CompletionExecutionID == completionID {
+		if input.Source.MessageID != "" && sourceKey(request.Source) == sourceKey(input.Source) && request.Source.MessageID == input.Source.MessageID && request.Kind == kind && request.CompletionID == completionID {
 			s.mu.Unlock()
 			return request, nil
 		}
@@ -51,11 +51,11 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 			return Request{}, err
 		}
 	}
-	model, effort, err := s.modelSelection(input.Model, input.Effort)
+	model, effort, err := s.SelectModel(input.Model, input.Effort)
 	if err != nil {
 		return Request{}, err
 	}
-	request := Request{ID: rand.Text(), Kind: kind, Text: input.Text, ProjectID: input.ProjectID, StepID: input.StepID, Model: model, Effort: effort, Source: input.Source, Status: "queued", CreatedAt: now(), CompletionExecutionID: completionID, NeedsTarget: needsTarget, LockedTarget: lockedTarget}
+	request := Request{ID: rand.Text(), Kind: kind, Text: input.Text, ProjectID: input.ProjectID, StepID: input.StepID, Model: model, Effort: effort, Source: input.Source, Status: "queued", CreatedAt: now(), CompletionID: completionID, NeedsTarget: needsTarget, LockedTarget: lockedTarget}
 	s.mu.Lock()
 	// Two deliveries can pass the initial read while model selection is in flight.
 	if err := s.ctx.Err(); err != nil {
@@ -63,13 +63,13 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 		return Request{}, err
 	}
 	for _, existing := range s.state.Requests {
-		if input.Source.MessageID != "" && sourceKey(existing.Source) == sourceKey(input.Source) && existing.Source.MessageID == input.Source.MessageID && existing.Kind == kind && existing.CompletionExecutionID == completionID {
+		if input.Source.MessageID != "" && sourceKey(existing.Source) == sourceKey(input.Source) && existing.Source.MessageID == input.Source.MessageID && existing.Kind == kind && existing.CompletionID == completionID {
 			s.mu.Unlock()
 			return existing, nil
 		}
 	}
 	s.state.Requests = append(s.state.Requests, request)
-	if kind == "execution_result" && s.runtime.GetStatus().Phase != "ready" {
+	if kind != "instruction" && s.runtime.GetStatus().Phase != "ready" {
 		s.state.Paused = true
 	}
 	err = s.persistLocked()
@@ -146,7 +146,7 @@ func (s *Service) runControllerQueue() {
 				if body == "" {
 					body = current.Error
 				}
-				s.state.Notifications = append(s.state.Notifications, Notification{ID: rand.Text(), Title: "控制器 · " + status, Body: body, RequestID: request.ID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}})
+				s.state.Notifications = append(s.state.Notifications, Notification{ID: rand.Text(), Title: "控制器 · " + status, Body: body, Source: request.Source, ProjectID: request.ProjectID, RequestID: request.ID, CreatedAt: now(), Parts: []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}}})
 				break
 			}
 		}
@@ -292,7 +292,7 @@ func (s *Service) DispatchFromController(threadID, stepID, instruction, criteria
 	if err != nil {
 		return Execution{}, err
 	}
-	if request.Kind == "execution_result" {
+	if request.Kind != "instruction" {
 		return Execution{}, errors.New("完成汇报不能重新派发任务")
 	}
 	if request.NeedsTarget {

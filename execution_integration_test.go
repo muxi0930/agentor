@@ -182,7 +182,7 @@ func TestNativeControllerDispatchAndReport(t *testing.T) {
 			if snapshot.Requests[i].ID == request.ID && snapshot.Requests[i].Status == "error" {
 				t.Fatal(snapshot.Requests[i].Error)
 			}
-			if snapshot.Requests[i].CompletionExecutionID != "" {
+			if snapshot.Requests[i].CompletionID != "" {
 				report = &snapshot.Requests[i]
 			}
 		}

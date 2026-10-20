@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Command, FolderOpen, Layers3, ListTodo, MessageSquare, Moon, Settings2, Sun, Unplug } from "lucide-react";
+import { Command, FolderOpen, Layers3, ListTodo, MessageSquare, Moon, Settings2, Sun, Unplug, Workflow } from "lucide-react";
 import * as Data from "../bindings/agentor/internal/appdata/service";
 import type { Info, Settings } from "../bindings/agentor/internal/appdata/models";
 import * as Codex from "../bindings/agentor/internal/codex/service";
@@ -15,6 +15,7 @@ import { ChatPage } from "@/features/chat/ChatPage";
 import { ApprovalCenter } from "@/features/approvals/ApprovalCenter";
 import { WorkspacePage } from "@/features/workspace/WorkspacePage";
 import { ControllerPage } from "@/features/controller/ControllerPage";
+import { PipelinePage } from "@/features/pipeline/PipelinePage";
 import { NotificationCenter, type NotificationTarget } from "@/features/notifications/NotificationCenter";
 import * as Work from "../bindings/agentor/internal/workspace/service";
 import { errorText } from "@/app/errors";
@@ -28,6 +29,7 @@ export default function App() {
   const [workspaceKey,setWorkspaceKey]=useState(0);
   const [focusExecution,setFocusExecution]=useState("");
   const [focusRequest,setFocusRequest]=useState("");
+  const [focusPipeline,setFocusPipeline]=useState<NotificationTarget>();
   const [error, setError] = useState("");
 
   async function load() {
@@ -56,7 +58,8 @@ export default function App() {
     } catch (error) { setError(errorText(error)); }
   }
   async function openSource(target:NotificationTarget){
-    if(target.stepId){await Work.GetStepContext(target.stepId);await Work.Select(target.stepId);setFocusExecution(target.executionId||"");setWorkspaceKey(key=>key+1);setSettings(await Data.SetMode("workspace"));setPage("home");}
+    if(target.pipelineRunId||target.pipelineSessionId){setFocusPipeline(target);setPage("pipeline");}
+    else if(target.stepId){await Work.GetStepContext(target.stepId);await Work.Select(target.stepId);setFocusExecution(target.executionId||"");setWorkspaceKey(key=>key+1);setSettings(await Data.SetMode("workspace"));setPage("home");}
     else if(target.requestId){setFocusRequest(target.requestId);setSettings(await Data.SetMode("workspace"));setPage("controller");}
   }
 
@@ -76,6 +79,7 @@ export default function App() {
           <SidebarMenuItem><SidebarMenuButton tooltip="Codex 对话" isActive={settings.mode === "chat" && page === "home"} onClick={() => void changeMode("chat")}><MessageSquare /><span>Codex 对话</span></SidebarMenuButton></SidebarMenuItem>
           <SidebarMenuItem><SidebarMenuButton tooltip="工作区" isActive={settings.mode === "workspace" && page === "home"} onClick={() => void changeMode("workspace")}><Layers3 /><span>工作区</span></SidebarMenuButton></SidebarMenuItem>
           <SidebarMenuItem><SidebarMenuButton tooltip="工作控制器" isActive={page==="controller"} onClick={()=>void Data.SetMode("workspace").then(value=>{setSettings(value);setPage("controller");}).catch(error=>setError(errorText(error)))}><ListTodo/><span>工作控制器</span></SidebarMenuButton></SidebarMenuItem>
+          <SidebarMenuItem><SidebarMenuButton tooltip="项目流水线" isActive={page==="pipeline"} onClick={()=>{setFocusPipeline(undefined);setPage("pipeline");}}><Workflow/><span>项目流水线</span></SidebarMenuButton></SidebarMenuItem>
         </SidebarMenu></SidebarGroup>
         <SidebarSeparator />
         <SidebarGroup><SidebarGroupLabel>项目</SidebarGroupLabel><SidebarMenu>
@@ -91,13 +95,14 @@ export default function App() {
     </Sidebar>
     <SidebarInset className="min-w-0 overflow-hidden">
       <header className="flex h-16 shrink-0 items-center gap-3 border-b px-5">
-        <SidebarTrigger /><span className="text-sm font-medium">{page === "settings" ? "设置" : page==="controller"?"工作控制器":settings.mode === "chat" ? "Codex 对话" : "工作区"}</span>
+        <SidebarTrigger /><span className="text-sm font-medium">{page === "settings" ? "设置" : page==="controller"?"工作控制器":page==="pipeline"?"项目流水线":settings.mode === "chat" ? "Codex 对话" : "工作区"}</span>
         <div className="ml-auto flex items-center gap-3"><NotificationCenter onOpenSource={openSource}/><ApprovalCenter status={status} /><Badge variant="outline" className="gap-1.5 text-muted-foreground"><Unplug className="size-3" />{status?.phase === "ready" ? "Codex 已连接" : status?.phase === "starting" ? "正在连接" : status?.phase === "error" ? "连接失败" : "尚未连接"}</Badge></div>
       </header>
       {error && <div className="p-4"><Alert variant="destructive"><AlertDescription className="flex justify-between">{error}<Button variant="ghost" size="sm" onClick={() => setError("")}>关闭</Button></AlertDescription></Alert></div>}
       <main className="relative flex min-h-0 flex-1 overflow-hidden">
         {page === "settings" && <div className="size-full overflow-y-auto"><SettingsPage info={info} settings={settings} onSettings={setSettings} status={status} onStatus={acceptStatus} /></div>}
         {page==="controller"&&<div className="size-full overflow-y-auto"><ControllerPage settings={settings} status={status} focusRequestId={focusRequest}/></div>}
+        {page==="pipeline"&&<div className="size-full overflow-y-auto"><PipelinePage key={`${focusPipeline?.projectId}:${focusPipeline?.pipelineRunId}:${focusPipeline?.pipelineSessionId}`} settings={settings} status={status} focusProjectId={focusPipeline?.projectId} focusRunId={focusPipeline?.pipelineRunId} focusRequestId={focusPipeline?.pipelineSessionId}/></div>}
         <div className={page === "home" && settings.mode === "chat" ? "flex size-full min-h-0" : "hidden"}>
           <ChatPage settings={settings} onSettings={setSettings} status={status} openSettings={() => setPage("settings")} />
         </div>

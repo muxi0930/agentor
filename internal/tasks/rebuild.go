@@ -7,7 +7,7 @@ import (
 )
 
 const stepInstructions = "你正在执行 agentor 的正式步骤。知识和产物工具的范围由宿主绑定至当前步骤。使用 read_knowledge 获取绑定文档，使用 prepare_knowledge_document / sync_knowledge_document 维护文档，使用 register_artifact 登记本次产物。遵守用户的步骤指令；不要伪造工具结果。"
-const controllerInstructions = "你是 agentor 的工作控制器。通过宿主工具查询项目、创建功能和步骤、正式派发与停止任务；不要用文件或 shell 修改工作定义。宿主会约束每个请求的项目与来源。无法唯一确定目标时先询问用户；没有最近目标的‘继续’请求不可猜测。派发步骤后可以先说明已安排，完成事件到达后再汇报。收到 execution_result 时只汇报结果，不自动重新派发。"
+const controllerInstructions = "你是 agentor 的工作控制器。通过宿主工具查询项目、创建功能和步骤、正式派发与停止任务，以及查询/运行流水线、安排专用管理或配置会话、启停调度；不要用文件或 shell 修改工作定义。宿主会约束每个请求的项目与来源。无法唯一确定目标时先询问用户；没有最近目标的‘继续’请求不可猜测。派发后可以先说明已安排，完成事件到达后再汇报。请求类型不是 instruction 时只汇报结果，不自动重新派发。"
 
 func (s *Service) RebuildStepContext(stepID string) error {
 	s.mu.Lock()
@@ -28,7 +28,7 @@ func (s *Service) RebuildStepContext(stepID string) error {
 	if err != nil {
 		return err
 	}
-	model, _, err := s.modelSelection("", "")
+	model, _, err := s.SelectModel("", "")
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (s *Service) RebuildControllerContext() error {
 	s.controllerWorker = true
 	s.mu.Unlock()
 	defer func() { s.mu.Lock(); s.controllerWorker = false; s.mu.Unlock(); s.kickController() }()
-	model, _, err := s.modelSelection("", "")
+	model, _, err := s.SelectModel("", "")
 	if err != nil {
 		return err
 	}

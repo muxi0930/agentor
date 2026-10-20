@@ -29,6 +29,10 @@ export function GetExecutionArtifacts(executionID: string): $CancellablePromise<
     return $Call.ByID(806563538, executionID);
 }
 
+export function GetPipelineArtifacts(runID: string): $CancellablePromise<$models.Attachment[] | null> {
+    return $Call.ByID(134736112, runID);
+}
+
 export function LocateAttachment(id: string): $CancellablePromise<void> {
     return $Call.ByID(2826396334, id);
 }
