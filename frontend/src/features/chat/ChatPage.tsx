@@ -149,8 +149,8 @@ export function ChatPage({ settings, onSettings, status, openSettings }: {
               <NativeSelect aria-label="选择模型" className="max-w-48 border-0 bg-transparent text-xs shadow-none" value={settings.model} onChange={event => void run(async () => {
                 const selected = chat.models.find(model => model.model === event.target.value);
                 onSettings(await Data.SetModelSelection(event.target.value, selected?.defaultReasoningEffort || ""));
-              })}><NativeSelectOption value="">CLI 默认模型</NativeSelectOption>{chat.models.map(model => <NativeSelectOption key={model.id} value={model.model}>{model.displayName}</NativeSelectOption>)}</NativeSelect>
-              {model && <NativeSelect aria-label="思考强度" className="w-28 border-0 bg-transparent text-xs shadow-none" value={settings.effort || model.defaultReasoningEffort} onChange={event => void run(async () => onSettings(await Data.SetModelSelection(settings.model, event.target.value)))}>
+              })}><NativeSelectOption value="">{settings.reuseCLI?"CLI 默认模型":"账号默认模型"}</NativeSelectOption>{chat.models.map(model => <NativeSelectOption key={model.id} value={model.model}>{model.displayName}</NativeSelectOption>)}</NativeSelect>
+              {model && !!model.supportedReasoningEfforts?.length && <NativeSelect aria-label="思考强度" className="w-28 border-0 bg-transparent text-xs shadow-none" value={settings.effort || model.defaultReasoningEffort} onChange={event => void run(async () => onSettings(await Data.SetModelSelection(settings.model, event.target.value)))}>
                 {(model.supportedReasoningEfforts || []).map(option => <NativeSelectOption key={option.reasoningEffort} value={option.reasoningEffort}>{option.reasoningEffort}</NativeSelectOption>)}
               </NativeSelect>}
               <div className="max-w-48"><PermissionSelect label="当前会话权限" disabled={active || chat.sending} value={settings.threadPermissions?.[chat.selected] || ""} inherit={permissionLabels[projectPermission]} onChange={mode => void run(async () => onSettings(await Data.SetPermission("thread", chat.selected, mode)))} /></div>

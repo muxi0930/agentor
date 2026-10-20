@@ -25,33 +25,6 @@ type Model struct {
 	InputModalities           []string          `json:"inputModalities"`
 }
 
-func (s *Service) GetModels() ([]Model, error) {
-	models := []Model{}
-	cursor := ""
-	for {
-		var result struct {
-			Data       []Model `json:"data"`
-			NextCursor *string `json:"nextCursor"`
-		}
-		params := map[string]any{"limit": 100}
-		if cursor != "" {
-			params["cursor"] = cursor
-		}
-		if err := s.call("model/list", params, &result); err != nil {
-			return nil, err
-		}
-		for _, model := range result.Data {
-			if !model.Hidden {
-				models = append(models, model)
-			}
-		}
-		if result.NextCursor == nil {
-			return models, nil
-		}
-		cursor = *result.NextCursor
-	}
-}
-
 type ThreadStatus struct {
 	Type string `json:"type"`
 }
@@ -73,12 +46,132 @@ type ThreadPage struct {
 	NextCursor *string  `json:"nextCursor"`
 }
 
+type Input struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+	Path string `json:"path,omitempty"`
+}
+
+type Item struct {
+	ID               string       `json:"id"`
+	ClientID         string       `json:"clientId"`
+	Type             string       `json:"type"`
+	Text             string       `json:"text"`
+	Phase            string       `json:"phase"`
+	Content          []Input      `json:"content"`
+	Command          string       `json:"command"`
+	AggregatedOutput string       `json:"aggregatedOutput"`
+	Status           string       `json:"status"`
+	ExitCode         *int         `json:"exitCode"`
+	Summary          []string     `json:"summary"`
+	ReasoningContent []string     `json:"reasoningContent"`
+	DurationMs       *int64       `json:"durationMs,omitempty"`
+	Changes          []FileChange `json:"changes,omitempty"`
+	Path             string       `json:"path,omitempty"`
+	Query            string       `json:"query,omitempty"`
+	Server           string       `json:"server,omitempty"`
+	Tool             string       `json:"tool,omitempty"`
+	Details          string       `json:"details,omitempty"`
+}
+
+type FileChangeKind struct {
+	Type     string `json:"type"`
+	MovePath string `json:"move_path,omitempty"`
+}
+
+type FileChange struct {
+	Path string         `json:"path"`
+	Kind FileChangeKind `json:"kind"`
+	Diff string         `json:"diff"`
+}
+
+type TurnError struct {
+	Message string `json:"message"`
+}
+
+type Turn struct {
+	ID          string     `json:"id"`
+	Status      string     `json:"status"`
+	Items       []Item     `json:"items"`
+	Error       *TurnError `json:"error"`
+	StartedAt   *int64     `json:"startedAt,omitempty"`
+	CompletedAt *int64     `json:"completedAt,omitempty"`
+	DurationMs  *int64     `json:"durationMs,omitempty"`
+}
+
+type TurnPage struct {
+	Data       []Turn  `json:"data"`
+	NextCursor *string `json:"nextCursor"`
+}
+
+type Conversation struct {
+	Thread       Thread      `json:"thread"`
+	Turns        TurnPage    `json:"turns"`
+	ActiveTurnID string      `json:"activeTurnId"`
+	TokenUsage   *TokenUsage `json:"tokenUsage,omitempty"`
+}
+
+type TokenBreakdown struct {
+	InputTokens           int64 `json:"inputTokens"`
+	OutputTokens          int64 `json:"outputTokens"`
+	CachedInputTokens     int64 `json:"cachedInputTokens"`
+	CacheWriteInputTokens int64 `json:"cacheWriteInputTokens"`
+	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
+	TotalTokens           int64 `json:"totalTokens"`
+}
+
+type TokenUsage struct {
+	Total              TokenBreakdown `json:"total"`
+	Last               TokenBreakdown `json:"last"`
+	ModelContextWindow *int64         `json:"modelContextWindow"`
+}
+
+// GetModels 读取原生模型目录并补充当前 API 配置的自定义模型
+func (s *Service) GetModels() ([]Model, error) {
+	models := []Model{}
+	cursor := ""
+	for {
+		var result struct {
+			Data       []Model `json:"data"`
+			NextCursor *string `json:"nextCursor"`
+		}
+		params := map[string]any{"limit": 100}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		if err := s.call("model/list", params, &result); err != nil {
+			return nil, err
+		}
+		for _, model := range result.Data {
+			if !model.Hidden {
+				models = append(models, model)
+			}
+		}
+		if result.NextCursor == nil {
+			settings := s.data.GetSettings()
+			if !settings.ReuseCLI && settings.Model != "" {
+				stored, err := s.profile(settings.ActiveAccountID)
+				found := false
+				for _, model := range models {
+					found = found || model.Model == settings.Model
+				}
+				if err == nil && stored.Profile.Type == "api" && !found {
+					models = append(models, Model{ID: settings.Model, Model: settings.Model, DisplayName: settings.Model + "（自定义）", Description: "由当前 API 账号配置，实际可用性以请求结果为准", InputModalities: []string{"text"}, SupportedReasoningEfforts: []ReasoningOption{}})
+				}
+			}
+			return models, nil
+		}
+		cursor = *result.NextCursor
+	}
+}
+
+// ListThreads 读取本应用可见的会话列表
 func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 	var result ThreadPage
 	params := map[string]any{"limit": 100, "sortKey": "updated_at"}
 	settings := s.data.GetSettings()
 	if settings.ReuseCLI {
-		// Sharing CLI authentication must not expose unrelated CLI conversations.
+		// 复用 CLI 认证时，只展示本应用登记的会话
 		directories := make(map[string]bool)
 		for _, cwd := range settings.ChatThreads {
 			directories[cwd] = true
@@ -121,15 +214,212 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 	return result, err
 }
 
+// CreateThread 在当前项目创建普通对话
 func (s *Service) CreateThread(cwd, model string) (Thread, error) {
 	return s.createThread(cwd, model, s.data.EffectivePermission("", cwd), "", "", nil)
 }
 
+// CreateToolThread 创建带角色指令和宿主工具的业务线程
+//
 //wails:ignore
 func (s *Service) CreateToolThread(cwd, model, permission, role, instructions string, tools []DynamicToolSpec) (Thread, error) {
 	return s.createThread(cwd, model, permission, role, instructions, tools)
 }
 
+// UnmarshalJSON 按当前协议读取文字与思考消息的不同字段
+func (item *Item) UnmarshalJSON(data []byte) error {
+	type plain Item
+	payload := struct {
+		*plain
+		Content json.RawMessage `json:"content"`
+	}{plain: (*plain)(item)}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+	switch item.Type {
+	case "userMessage":
+		if len(payload.Content) > 0 {
+			return json.Unmarshal(payload.Content, &item.Content)
+		}
+	case "reasoning":
+		if len(payload.Content) > 0 {
+			return json.Unmarshal(payload.Content, &item.ReasoningContent)
+		}
+	default:
+		if item.Type != "agentMessage" && item.Type != "commandExecution" && item.Type != "fileChange" {
+			item.Details = string(data)
+		}
+	}
+	return nil
+}
+
+// OpenThread 恢复线程并读取分页历史
+func (s *Service) OpenThread(threadID string) (Conversation, error) {
+	var result Conversation
+	s.mu.Lock()
+	opened := s.opened[threadID]
+	s.mu.Unlock()
+	method := "thread/read"
+	params := map[string]any{"threadId": threadID}
+	if !opened {
+		method = "thread/resume"
+		var err error
+		params, err = s.resumeParameters(threadID)
+		if err != nil {
+			return result, err
+		}
+	}
+	if err := s.call(method, params, &result); err != nil {
+		return result, err
+	}
+	s.mu.Lock()
+	s.opened[threadID] = true
+	s.mu.Unlock()
+	turns, err := s.ListTurns(threadID, "")
+	result.Turns = turns
+	if err == nil {
+		if _, known := s.data.GetSettings().ChatThreads[threadID]; !known {
+			_, err = s.data.RememberThread(threadID, result.Thread.Cwd)
+		}
+	}
+	s.mu.Lock()
+	result.ActiveTurnID = s.active[threadID]
+	result.TokenUsage = s.usage[threadID]
+	s.mu.Unlock()
+	return result, err
+}
+
+// ListTurns 分页读取当前线程的轮次
+func (s *Service) ListTurns(threadID, cursor string) (TurnPage, error) {
+	var result TurnPage
+	params := map[string]any{"threadId": threadID, "limit": 20, "itemsView": "full", "sortDirection": "desc"}
+	if cursor != "" {
+		params["cursor"] = cursor
+	}
+	err := s.call("thread/turns/list", params, &result)
+	if result.Data == nil {
+		result.Data = []Turn{}
+	}
+	return result, err
+}
+
+// StartTurn 按会话实际权限发起一轮普通对话
+func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (Turn, error) {
+	settings := s.data.GetSettings()
+	cwd := settings.ChatThreads[threadID]
+	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd)
+}
+
+// StartManagedTurn 按正式任务冻结的权限发起一轮对话
+//
+//wails:ignore
+func (s *Service) StartManagedTurn(threadID, text, model, effort, permission, cwd, clientMessageID string, attachmentIDs []string) (Turn, error) {
+	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, permission, cwd)
+}
+
+// SteerTurn 向原活动轮次追加输入
+func (s *Service) SteerTurn(threadID, text, clientMessageID string, attachmentIDs []string) error {
+	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
+		return errors.New("请输入追加指令")
+	}
+	input, additionalContext, err := s.buildInput(threadID, text, attachmentIDs)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	turnID := s.active[threadID]
+	s.mu.Unlock()
+	if turnID == "" || turnID == "starting" {
+		return errors.New("当前会话没有可追加的活动轮次")
+	}
+	params := map[string]any{"threadId": threadID, "expectedTurnId": turnID, "input": input, "clientUserMessageId": clientMessageID}
+	if len(additionalContext) > 0 {
+		params["additionalContext"] = additionalContext
+	}
+	if err := s.call("turn/steer", params, nil); err != nil {
+		return err
+	}
+	if len(attachmentIDs) > 0 {
+		return s.files.BindTurn(threadID, turnID, clientMessageID, attachmentIDs)
+	}
+	return nil
+}
+
+// StopTurn 中断当前线程的活动轮次
+func (s *Service) StopTurn(threadID string) error {
+	s.mu.Lock()
+	turnID := s.active[threadID]
+	s.mu.Unlock()
+	if turnID == "" || turnID == "starting" {
+		return errors.New("当前会话没有可停止的活动轮次")
+	}
+	return s.call("turn/interrupt", map[string]string{"threadId": threadID, "turnId": turnID}, nil)
+}
+
+// IsThreadActive 检查指定线程是否有活动轮次
+//
+//wails:ignore
+func (s *Service) IsThreadActive(threadID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.active[threadID] != ""
+}
+
+// RenameThread 更新上游会话标题
+func (s *Service) RenameThread(threadID, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("请输入会话标题")
+	}
+	return s.call("thread/name/set", map[string]string{"threadId": threadID, "name": strings.TrimSpace(name)}, nil)
+}
+
+// ArchiveThread 归档上游会话
+func (s *Service) ArchiveThread(threadID string) error {
+	s.mu.Lock()
+	active := s.active[threadID] != ""
+	s.mu.Unlock()
+	if active {
+		return errors.New("请先停止运行中的会话")
+	}
+	return s.call("thread/archive", map[string]string{"threadId": threadID}, nil)
+}
+
+// ArchiveProject 归档当前目录下本应用的普通对话
+func (s *Service) ArchiveProject(cwd string) (int, error) {
+	var threads []Thread
+	cursor := ""
+	for {
+		page, err := s.ListThreads(cursor)
+		if err != nil {
+			return 0, err
+		}
+		for _, thread := range page.Data {
+			if thread.Cwd == cwd {
+				threads = append(threads, thread)
+			}
+		}
+		if page.NextCursor == nil {
+			break
+		}
+		cursor = *page.NextCursor
+	}
+	s.mu.Lock()
+	for _, thread := range threads {
+		if s.active[thread.ID] != "" {
+			s.mu.Unlock()
+			return 0, errors.New("项目中仍有活动任务，请先停止后再归档")
+		}
+	}
+	s.mu.Unlock()
+	for index, thread := range threads {
+		if err := s.ArchiveThread(thread.ID); err != nil {
+			return index, err
+		}
+	}
+	return len(threads), nil
+}
+
+// createThread 创建原生线程并保存本应用归属
 func (s *Service) createThread(cwd, model, permission, role, instructions string, tools []DynamicToolSpec) (Thread, error) {
 	if cwd == "" {
 		return Thread{}, errors.New("请先选择项目目录")
@@ -175,166 +465,7 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 	return result.Thread, err
 }
 
-type Input struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-	Path string `json:"path,omitempty"`
-}
-
-type Item struct {
-	ID               string       `json:"id"`
-	ClientID         string       `json:"clientId"`
-	Type             string       `json:"type"`
-	Text             string       `json:"text"`
-	Phase            string       `json:"phase"`
-	Content          []Input      `json:"content"`
-	Command          string       `json:"command"`
-	AggregatedOutput string       `json:"aggregatedOutput"`
-	Status           string       `json:"status"`
-	ExitCode         *int         `json:"exitCode"`
-	Summary          []string     `json:"summary"`
-	ReasoningContent []string     `json:"reasoningContent"`
-	DurationMs       *int64       `json:"durationMs,omitempty"`
-	Changes          []FileChange `json:"changes,omitempty"`
-	Path             string       `json:"path,omitempty"`
-	Query            string       `json:"query,omitempty"`
-	Server           string       `json:"server,omitempty"`
-	Tool             string       `json:"tool,omitempty"`
-	Details          string       `json:"details,omitempty"`
-}
-
-type FileChangeKind struct {
-	Type     string `json:"type"`
-	MovePath string `json:"move_path,omitempty"`
-}
-type FileChange struct {
-	Path string         `json:"path"`
-	Kind FileChangeKind `json:"kind"`
-	Diff string         `json:"diff"`
-}
-
-func (item *Item) UnmarshalJSON(data []byte) error {
-	type plain Item
-	payload := struct {
-		*plain
-		Content json.RawMessage `json:"content"`
-	}{plain: (*plain)(item)}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return err
-	}
-	switch item.Type {
-	case "userMessage":
-		if len(payload.Content) > 0 {
-			return json.Unmarshal(payload.Content, &item.Content)
-		}
-	case "reasoning":
-		if len(payload.Content) > 0 {
-			return json.Unmarshal(payload.Content, &item.ReasoningContent)
-		}
-	default:
-		if item.Type != "agentMessage" && item.Type != "commandExecution" && item.Type != "fileChange" {
-			item.Details = string(data)
-		}
-	}
-	return nil
-}
-
-type TurnError struct {
-	Message string `json:"message"`
-}
-
-type Turn struct {
-	ID          string     `json:"id"`
-	Status      string     `json:"status"`
-	Items       []Item     `json:"items"`
-	Error       *TurnError `json:"error"`
-	StartedAt   *int64     `json:"startedAt,omitempty"`
-	CompletedAt *int64     `json:"completedAt,omitempty"`
-	DurationMs  *int64     `json:"durationMs,omitempty"`
-}
-
-type TurnPage struct {
-	Data       []Turn  `json:"data"`
-	NextCursor *string `json:"nextCursor"`
-}
-
-type Conversation struct {
-	Thread       Thread      `json:"thread"`
-	Turns        TurnPage    `json:"turns"`
-	ActiveTurnID string      `json:"activeTurnId"`
-	TokenUsage   *TokenUsage `json:"tokenUsage,omitempty"`
-}
-
-type TokenBreakdown struct {
-	InputTokens           int64 `json:"inputTokens"`
-	OutputTokens          int64 `json:"outputTokens"`
-	CachedInputTokens     int64 `json:"cachedInputTokens"`
-	CacheWriteInputTokens int64 `json:"cacheWriteInputTokens"`
-	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
-	TotalTokens           int64 `json:"totalTokens"`
-}
-
-type TokenUsage struct {
-	Total              TokenBreakdown `json:"total"`
-	Last               TokenBreakdown `json:"last"`
-	ModelContextWindow *int64         `json:"modelContextWindow"`
-}
-
-func (s *Service) OpenThread(threadID string) (Conversation, error) {
-	var result Conversation
-	s.mu.Lock()
-	opened := s.opened[threadID]
-	s.mu.Unlock()
-	method := "thread/read"
-	params := map[string]any{"threadId": threadID}
-	if !opened {
-		method = "thread/resume"
-		params["excludeTurns"] = true
-	}
-	if err := s.call(method, params, &result); err != nil {
-		return result, err
-	}
-	s.mu.Lock()
-	s.opened[threadID] = true
-	s.mu.Unlock()
-	turns, err := s.ListTurns(threadID, "")
-	result.Turns = turns
-	if err == nil {
-		if _, known := s.data.GetSettings().ChatThreads[threadID]; !known {
-			_, err = s.data.RememberThread(threadID, result.Thread.Cwd)
-		}
-	}
-	s.mu.Lock()
-	result.ActiveTurnID = s.active[threadID]
-	result.TokenUsage = s.usage[threadID]
-	s.mu.Unlock()
-	return result, err
-}
-
-func (s *Service) ListTurns(threadID, cursor string) (TurnPage, error) {
-	var result TurnPage
-	params := map[string]any{"threadId": threadID, "limit": 20, "itemsView": "full", "sortDirection": "desc"}
-	if cursor != "" {
-		params["cursor"] = cursor
-	}
-	err := s.call("thread/turns/list", params, &result)
-	if result.Data == nil {
-		result.Data = []Turn{}
-	}
-	return result, err
-}
-
-func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (Turn, error) {
-	settings := s.data.GetSettings()
-	cwd := settings.ChatThreads[threadID]
-	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd)
-}
-
-//wails:ignore
-func (s *Service) StartManagedTurn(threadID, text, model, effort, permission, cwd, clientMessageID string, attachmentIDs []string) (Turn, error) {
-	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, permission, cwd)
-}
-
+// startTurn 登记活动状态并提交真实模型输入
 func (s *Service) startTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string, permission, cwd string) (Turn, error) {
 	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
 		return Turn{}, errors.New("请输入消息")
@@ -389,33 +520,7 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 	return result.Turn, err
 }
 
-func (s *Service) SteerTurn(threadID, text, clientMessageID string, attachmentIDs []string) error {
-	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
-		return errors.New("请输入追加指令")
-	}
-	input, additionalContext, err := s.buildInput(threadID, text, attachmentIDs)
-	if err != nil {
-		return err
-	}
-	s.mu.Lock()
-	turnID := s.active[threadID]
-	s.mu.Unlock()
-	if turnID == "" || turnID == "starting" {
-		return errors.New("当前会话没有可追加的活动轮次")
-	}
-	params := map[string]any{"threadId": threadID, "expectedTurnId": turnID, "input": input, "clientUserMessageId": clientMessageID}
-	if len(additionalContext) > 0 {
-		params["additionalContext"] = additionalContext
-	}
-	if err := s.call("turn/steer", params, nil); err != nil {
-		return err
-	}
-	if len(attachmentIDs) > 0 {
-		return s.files.BindTurn(threadID, turnID, clientMessageID, attachmentIDs)
-	}
-	return nil
-}
-
+// buildInput 将文字与所属附件转为当前原生输入协议
 func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]Input, map[string]map[string]string, error) {
 	input := []Input{}
 	if strings.TrimSpace(text) != "" {
@@ -446,74 +551,7 @@ func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]I
 	return input, context, nil
 }
 
-func (s *Service) StopTurn(threadID string) error {
-	s.mu.Lock()
-	turnID := s.active[threadID]
-	s.mu.Unlock()
-	if turnID == "" || turnID == "starting" {
-		return errors.New("当前会话没有可停止的活动轮次")
-	}
-	return s.call("turn/interrupt", map[string]string{"threadId": threadID, "turnId": turnID}, nil)
-}
-
-//wails:ignore
-func (s *Service) IsThreadActive(threadID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.active[threadID] != ""
-}
-
-func (s *Service) RenameThread(threadID, name string) error {
-	if strings.TrimSpace(name) == "" {
-		return errors.New("请输入会话标题")
-	}
-	return s.call("thread/name/set", map[string]string{"threadId": threadID, "name": strings.TrimSpace(name)}, nil)
-}
-
-func (s *Service) ArchiveThread(threadID string) error {
-	s.mu.Lock()
-	active := s.active[threadID] != ""
-	s.mu.Unlock()
-	if active {
-		return errors.New("请先停止运行中的会话")
-	}
-	return s.call("thread/archive", map[string]string{"threadId": threadID}, nil)
-}
-
-func (s *Service) ArchiveProject(cwd string) (int, error) {
-	var threads []Thread
-	cursor := ""
-	for {
-		page, err := s.ListThreads(cursor)
-		if err != nil {
-			return 0, err
-		}
-		for _, thread := range page.Data {
-			if thread.Cwd == cwd {
-				threads = append(threads, thread)
-			}
-		}
-		if page.NextCursor == nil {
-			break
-		}
-		cursor = *page.NextCursor
-	}
-	s.mu.Lock()
-	for _, thread := range threads {
-		if s.active[thread.ID] != "" {
-			s.mu.Unlock()
-			return 0, errors.New("项目中仍有活动任务，请先停止后再归档")
-		}
-	}
-	s.mu.Unlock()
-	for index, thread := range threads {
-		if err := s.ArchiveThread(thread.ID); err != nil {
-			return index, err
-		}
-	}
-	return len(threads), nil
-}
-
+// trackNotification 合并当前连接的线程状态与用量事件
 func (s *Service) trackNotification(generation uint64, message packet) {
 	if message.Method == "item/started" || message.Method == "item/completed" {
 		var params struct {

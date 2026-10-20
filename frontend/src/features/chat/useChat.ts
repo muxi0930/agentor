@@ -38,6 +38,7 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
   const [uploading, setUploading] = useState<Record<string, number>>({});
   const selectionRequest = useRef(0);
   const statusRef = useRef(status);
+  const historyHome = useRef("");
   statusRef.current = status;
 
   const loadAttachments = useCallback(async (threadId: string) => {
@@ -92,9 +93,16 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
   useEffect(() => {
     if (status?.phase !== "ready") return;
     let cancelled = false;
+    const changedHome = !!historyHome.current && historyHome.current !== status.home;
+    historyHome.current = status.home;
+    if (changedHome) {
+      selectionRequest.current++;
+      setSelected(""); setThreads([]); setConversations({}); setError(""); setLoading(false);
+      void Data.SetLastThread("").then(onSettings).catch(error => { if (!cancelled) setError(errorText(error)); });
+    }
     void refreshThreads().catch(error => { if (!cancelled) setError(errorText(error)); });
     void Codex.GetModels().then(value => { if (!cancelled) setModels(value || []); }).catch(error => { if (!cancelled) setError(errorText(error)); });
-    if (selected) void openThread(selected);
+    if (selected && !changedHome) void openThread(selected);
     return () => { cancelled = true; };
   }, [status?.generation, status?.phase]);
 

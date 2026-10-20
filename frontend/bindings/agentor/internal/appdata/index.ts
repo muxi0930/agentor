@@ -7,6 +7,7 @@ export {
 };
 
 export type {
+    AccountPreferences,
     Info,
     Settings
 } from "./models.js";

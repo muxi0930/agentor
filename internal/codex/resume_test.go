@@ -8,8 +8,7 @@ import (
 
 // TestEnsureOpenSkipsHistoryForNewThreads 验证空新线程不读历史且旧线程只恢复一次
 func TestEnsureOpenSkipsHistoryForNewThreads(t *testing.T) {
-	s := NewService(nil, nil)
-	defer s.cancel()
+	s := accountFixture(t)
 	s.opened["new"] = true
 	if err := s.EnsureOpen("new"); err != nil {
 		t.Fatal(err)
@@ -20,6 +19,7 @@ func TestEnsureOpenSkipsHistoryForNewThreads(t *testing.T) {
 	defer writer.Close()
 	c := &client{stdin: writer, done: make(chan struct{}), pending: map[string]chan packet{}}
 	s.client, s.status.Phase = c, "ready"
+	defer func() { s.client = nil }()
 	request := make(chan packet, 1)
 	go func() {
 		var message packet

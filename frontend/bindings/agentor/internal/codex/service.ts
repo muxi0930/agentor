@@ -20,24 +20,74 @@ export function AnswerQuestions(id: string, answers: { [_ in string]?: $models.Q
     return $Call.ByID(2594495821, id, answers);
 }
 
+/**
+ * ArchiveProject 归档当前目录下本应用的普通对话
+ */
 export function ArchiveProject(cwd: string): $CancellablePromise<number> {
     return $Call.ByID(3247633641, cwd);
 }
 
+/**
+ * ArchiveThread 归档上游会话
+ */
 export function ArchiveThread(threadID: string): $CancellablePromise<void> {
     return $Call.ByID(3170175260, threadID);
 }
 
+/**
+ * CancelLogin 取消当前原生登录流程并保留可重试状态
+ */
+export function CancelLogin(): $CancellablePromise<$models.LoginState> {
+    return $Call.ByID(2682187793);
+}
+
+/**
+ * CheckAccountConnection 对独立 API 发起一次模型接口请求或读取当前 ChatGPT 真实额度
+ */
+export function CheckAccountConnection(id: string): $CancellablePromise<string> {
+    return $Call.ByID(436108965, id);
+}
+
+/**
+ * Connect 启动当前所选身份的原生运行时
+ */
 export function Connect(): $CancellablePromise<$models.Status> {
     return $Call.ByID(1678152580);
 }
 
+/**
+ * ContinueLogin 用系统浏览器继续当前仍有效的登录
+ */
+export function ContinueLogin(): $CancellablePromise<void> {
+    return $Call.ByID(1909605060);
+}
+
+/**
+ * CreateThread 在当前项目创建普通对话
+ */
 export function CreateThread(cwd: string, model: string): $CancellablePromise<$models.Thread> {
     return $Call.ByID(3376549670, cwd, model);
 }
 
+/**
+ * DeleteProfile 删除未使用账号的私有记录，保留共享会话库
+ */
+export function DeleteProfile(id: string): $CancellablePromise<$models.AccountsView> {
+    return $Call.ByID(3375347874, id);
+}
+
+/**
+ * GetAccount 读取上游返回的当前身份
+ */
 export function GetAccount(): $CancellablePromise<$models.AccountInfo> {
     return $Call.ByID(1671499933);
+}
+
+/**
+ * GetAccounts 读取独立账号列表和登录进度，不返回任何凭据
+ */
+export function GetAccounts(): $CancellablePromise<$models.AccountsView> {
+    return $Call.ByID(3297617578);
 }
 
 /**
@@ -47,26 +97,58 @@ export function GetApprovals(): $CancellablePromise<$models.Approval[] | null> {
     return $Call.ByID(3207137798);
 }
 
+/**
+ * GetBalance 查询指定 API 账号的余额，短时缓存与聊天连接互不影响
+ */
+export function GetBalance(id: string, force: boolean): $CancellablePromise<$models.BalanceResult> {
+    return $Call.ByID(896050358, id, force);
+}
+
+/**
+ * GetModels 读取原生模型目录并补充当前 API 配置的自定义模型
+ */
 export function GetModels(): $CancellablePromise<$models.Model[] | null> {
     return $Call.ByID(2538277076);
 }
 
+/**
+ * GetRateLimits 读取上游真实额度，不用模型列表推断账号权益
+ */
+export function GetRateLimits(): $CancellablePromise<$models.RateLimits> {
+    return $Call.ByID(740323216);
+}
+
+/**
+ * GetStatus 读取当前原生连接状态
+ */
 export function GetStatus(): $CancellablePromise<$models.Status> {
     return $Call.ByID(1323948220);
 }
 
+/**
+ * ListThreads 读取本应用可见的会话列表
+ */
 export function ListThreads(cursor: string): $CancellablePromise<$models.ThreadPage> {
     return $Call.ByID(605430015, cursor);
 }
 
+/**
+ * ListTurns 分页读取当前线程的轮次
+ */
 export function ListTurns(threadID: string, cursor: string): $CancellablePromise<$models.TurnPage> {
     return $Call.ByID(1927617126, threadID, cursor);
 }
 
+/**
+ * OpenThread 恢复线程并读取分页历史
+ */
 export function OpenThread(threadID: string): $CancellablePromise<$models.Conversation> {
     return $Call.ByID(2629375922, threadID);
 }
 
+/**
+ * RenameThread 更新上游会话标题
+ */
 export function RenameThread(threadID: string, name: string): $CancellablePromise<void> {
     return $Call.ByID(1247852160, threadID, name);
 }
@@ -85,14 +167,44 @@ export function RespondPermissions(id: string, allow: boolean, scope: string): $
     return $Call.ByID(1545420697, id, allow, scope);
 }
 
+/**
+ * SaveProfile 创建或编辑独立账号，空密钥保留原值
+ */
+export function SaveProfile(input: $models.ProfileInput): $CancellablePromise<$models.AccountsView> {
+    return $Call.ByID(817604540, input);
+}
+
+/**
+ * StartLogin 通过当前原生协议启动独立 ChatGPT 账号登录
+ */
+export function StartLogin(): $CancellablePromise<$models.LoginState> {
+    return $Call.ByID(306704019);
+}
+
+/**
+ * StartTurn 按会话实际权限发起一轮普通对话
+ */
 export function StartTurn(threadID: string, text: string, model: string, effort: string, clientMessageID: string, attachmentIDs: string[] | null): $CancellablePromise<$models.Turn> {
     return $Call.ByID(66819901, threadID, text, model, effort, clientMessageID, attachmentIDs);
 }
 
+/**
+ * SteerTurn 向原活动轮次追加输入
+ */
 export function SteerTurn(threadID: string, text: string, clientMessageID: string, attachmentIDs: string[] | null): $CancellablePromise<void> {
     return $Call.ByID(2350684480, threadID, text, clientMessageID, attachmentIDs);
 }
 
+/**
+ * StopTurn 中断当前线程的活动轮次
+ */
 export function StopTurn(threadID: string): $CancellablePromise<void> {
     return $Call.ByID(3664734389, threadID);
+}
+
+/**
+ * UseAccount 在所有业务空闲后切换身份，空标识表示沿用 CLI
+ */
+export function UseAccount(id: string): $CancellablePromise<$models.Status> {
+    return $Call.ByID(3983098976, id);
 }

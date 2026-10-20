@@ -9,10 +9,16 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+/**
+ * ChooseDirectory 通过原生对话框选择项目目录
+ */
 export function ChooseDirectory(): $CancellablePromise<string> {
     return $Call.ByID(3626200410);
 }
 
+/**
+ * ChooseFile 通过原生对话框选择普通文件
+ */
 export function ChooseFile(): $CancellablePromise<string> {
     return $Call.ByID(321432725);
 }
@@ -21,30 +27,51 @@ export function CreateWorktree(cwd: string, branch: string, directory: string): 
     return $Call.ByID(1332525903, cwd, branch, directory);
 }
 
+/**
+ * GetInfo 返回当前应用路径和运行平台
+ */
 export function GetInfo(): $CancellablePromise<$models.Info> {
     return $Call.ByID(2884597446);
 }
 
+/**
+ * GetSettings 读取应用设置快照
+ */
 export function GetSettings(): $CancellablePromise<$models.Settings> {
     return $Call.ByID(3251048195);
 }
 
+/**
+ * HideProject 隐藏项目分组而不删除目录
+ */
 export function HideProject(cwd: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(3800495675, cwd);
 }
 
+/**
+ * OpenDirectory 在系统文件管理器打开目录
+ */
 export function OpenDirectory(path: string): $CancellablePromise<void> {
     return $Call.ByID(691909249, path);
 }
 
+/**
+ * OpenFile 通过系统应用打开文件
+ */
 export function OpenFile(path: string): $CancellablePromise<void> {
     return $Call.ByID(2430550212, path);
 }
 
+/**
+ * OpenURL 通过系统浏览器打开链接
+ */
 export function OpenURL(url: string): $CancellablePromise<void> {
     return $Call.ByID(3777903083, url);
 }
 
+/**
+ * RememberThread 登记由本应用打开的普通会话
+ */
 export function RememberThread(threadID: string, cwd: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(1357629041, threadID, cwd);
 }
@@ -53,34 +80,58 @@ export function SetChatOrder(cwd: string, ids: string[] | null): $CancellablePro
     return $Call.ByID(3630318876, cwd, ids);
 }
 
+/**
+ * SetCodexPath 保存原生 Codex 程序路径
+ */
 export function SetCodexPath(path: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(1882208606, path);
 }
 
+/**
+ * SetLastThread 保存最近打开的会话
+ */
 export function SetLastThread(threadID: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(2478289546, threadID);
 }
 
+/**
+ * SetMode 保存工作模式
+ */
 export function SetMode(mode: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(3890066273, mode);
 }
 
+/**
+ * SetModelSelection 保存当前身份的模型和推理强度
+ */
 export function SetModelSelection(model: string, effort: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(1531839347, model, effort);
 }
 
+/**
+ * SetPermission 保存账号默认权限或项目会话覆盖值
+ */
 export function SetPermission(scope: string, id: string, mode: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(3083411741, scope, id, mode);
 }
 
+/**
+ * SetProjectAlias 保存或清除项目分组显示名称
+ */
 export function SetProjectAlias(cwd: string, name: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(2164947253, cwd, name);
 }
 
+/**
+ * SetProjectDirectory 检查并保存当前项目目录
+ */
 export function SetProjectDirectory(path: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(2441644074, path);
 }
 
+/**
+ * SetTheme 保存浅色或深色主题
+ */
 export function SetTheme(theme: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(155652315, theme);
 }

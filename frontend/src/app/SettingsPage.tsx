@@ -4,6 +4,7 @@ import * as Data from "../../bindings/agentor/internal/appdata/service";
 import type { Info, Settings } from "../../bindings/agentor/internal/appdata/models";
 import type { Status } from "../../bindings/agentor/internal/codex/models";
 import { RuntimeConnection } from "@/features/accounts/RuntimeConnection";
+import { AccountSettings } from "@/features/accounts/AccountSettings";
 import { PermissionSelect } from "@/features/accounts/PermissionSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus }: {
         <div><Button type="submit" disabled={busy}><Save />保存路径</Button></div>
       </FieldGroup></form><div className="mt-5"><RuntimeConnection status={status} onStatus={onStatus} /></div></CardContent>
     </Card>
+    <AccountSettings status={status} onStatus={onStatus} onSettings={onSettings}/>
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2"><Monitor className="size-4" />应用信息</CardTitle></CardHeader>
       <CardContent className="space-y-4 text-sm">

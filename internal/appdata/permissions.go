@@ -2,6 +2,7 @@ package appdata
 
 import "errors"
 
+// SetPermission 保存账号默认权限或项目会话覆盖值
 func (s *Service) SetPermission(scope, id, mode string) (Settings, error) {
 	if mode != "read-only" && mode != "workspace-write" && mode != "danger-full-access" && mode != "" {
 		return Settings{}, errors.New("不支持的权限模式")
@@ -18,6 +19,7 @@ func (s *Service) SetPermission(scope, id, mode string) (Settings, error) {
 	return s.update(func(settings *Settings) {
 		if scope == "default" {
 			settings.PermissionMode = mode
+			rememberPreferences(settings)
 			return
 		}
 		next := map[string]string{}
@@ -41,6 +43,8 @@ func (s *Service) SetPermission(scope, id, mode string) (Settings, error) {
 	})
 }
 
+// EffectivePermission 按会话项目账号的顺序取得最终权限
+//
 //wails:ignore
 func (s *Service) EffectivePermission(threadID, cwd string) string {
 	s.mu.Lock()

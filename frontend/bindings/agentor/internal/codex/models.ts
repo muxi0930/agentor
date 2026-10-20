@@ -12,6 +12,75 @@ export interface AccountInfo {
     "requiresOpenaiAuth": boolean;
 }
 
+export interface AccountProfile {
+    /**
+     * 应用内稳定标识
+     */
+    "id": string;
+
+    /**
+     * 显示名称
+     */
+    "name": string;
+
+    /**
+     * chatgpt 或 api
+     */
+    "type": string;
+
+    /**
+     * API 提供方显示名称
+     */
+    "provider": string;
+
+    /**
+     * Responses 服务基础地址
+     */
+    "baseURL": string;
+
+    /**
+     * 当前账号保存的模型偏好
+     */
+    "model": string;
+
+    /**
+     * 可选余额查询配置
+     */
+    "balance": BalanceConfig;
+
+    /**
+     * 是否已保存 API 密钥
+     */
+    "keyConfigured": boolean;
+
+    /**
+     * 是否已有本应用的 ChatGPT 登录凭据
+     */
+    "authenticated": boolean;
+}
+
+export interface AccountsView {
+    /**
+     * 不包含密钥或登录令牌
+     */
+    "profiles": AccountProfile[] | null;
+
+    /**
+     * 当前选择的独立账号
+     */
+    "activeId": string;
+
+    /**
+     * 是否沿用 CLI 配置
+     */
+    "reuseCLI": boolean;
+
+    /**
+     * 当前交互式登录进度
+     */
+    "login": LoginState;
+}
+
 export interface Approval {
     "id": string;
     "method": string;
@@ -38,11 +107,117 @@ export interface Approval {
     "changes": FileChange[] | null;
 }
 
+export interface BalanceConfig {
+    /**
+     * 用户指定的余额接口
+     */
+    "url": string;
+
+    /**
+     * GET 或 POST
+     */
+    "method": string;
+
+    /**
+     * 引用当前 API 密钥的请求头
+     */
+    "headerName": string;
+
+    /**
+     * 密钥前缀，例如 Bearer 加空格
+     */
+    "headerPrefix": string;
+
+    /**
+     * POST JSON，完整字符串值 $API_KEY 引用当前密钥
+     */
+    "body": string;
+
+    /**
+     * 余额的 JSON Pointer，留空表示未知
+     */
+    "balancePath": string;
+
+    /**
+     * 已用量的 JSON Pointer
+     */
+    "usedPath": string;
+
+    /**
+     * 总量的 JSON Pointer
+     */
+    "totalPath": string;
+
+    /**
+     * 单位的 JSON Pointer
+     */
+    "unitPath": string;
+
+    /**
+     * 接口未提供单位时使用的显示文字
+     */
+    "unit": string;
+}
+
+export interface BalanceResult {
+    /**
+     * 余额所属账号
+     */
+    "profileId": string;
+
+    /**
+     * 接口返回的余额，未知时为空
+     */
+    "balance": number | null;
+
+    /**
+     * 接口返回的已用量
+     */
+    "used": number | null;
+
+    /**
+     * 接口返回的总量
+     */
+    "total": number | null;
+
+    /**
+     * 接口或用户指定的单位
+     */
+    "unit": string;
+
+    /**
+     * 实际查询时间
+     */
+    "checkedAt": string;
+
+    /**
+     * 查询失败原因，与聊天状态独立
+     */
+    "error": string;
+}
+
 export interface Conversation {
     "thread": Thread;
     "turns": TurnPage;
     "activeTurnId": string;
     "tokenUsage"?: TokenUsage | null;
+}
+
+export interface CreditsSnapshot {
+    /**
+     * 上游是否报告有额度
+     */
+    "hasCredits": boolean;
+
+    /**
+     * 是否无限额度
+     */
+    "unlimited": boolean;
+
+    /**
+     * 上游余额文字，不推算单位
+     */
+    "balance": string | null;
 }
 
 export interface DecisionOption {
@@ -118,6 +293,33 @@ export interface Item {
     "details"?: string;
 }
 
+export interface LoginState {
+    /**
+     * 当前登录的独立账号
+     */
+    "profileId": string;
+
+    /**
+     * 上游登录标识
+     */
+    "loginId": string;
+
+    /**
+     * pending、completed、error 或 cancelled
+     */
+    "status": string;
+
+    /**
+     * 原生登录流程返回的浏览器地址
+     */
+    "url": string;
+
+    /**
+     * 可读失败原因
+     */
+    "error": string;
+}
+
 export interface Model {
     "id": string;
     "model": string;
@@ -128,6 +330,48 @@ export interface Model {
     "defaultReasoningEffort": string;
     "supportedReasoningEfforts": ReasoningOption[] | null;
     "inputModalities": string[] | null;
+}
+
+export interface ProfileInput {
+    /**
+     * 编辑时传入已有账号标识
+     */
+    "id": string;
+
+    /**
+     * 显示名称
+     */
+    "name": string;
+
+    /**
+     * 账号类型
+     */
+    "type": string;
+
+    /**
+     * API 提供方名称
+     */
+    "provider": string;
+
+    /**
+     * API 基础地址
+     */
+    "baseURL": string;
+
+    /**
+     * 账号模型，可填写服务支持的自定义标识
+     */
+    "model": string;
+
+    /**
+     * 只作为输入，编辑时留空保留
+     */
+    "apiKey": string;
+
+    /**
+     * 余额请求与字段映射
+     */
+    "balance": BalanceConfig;
 }
 
 export interface Question {
@@ -146,6 +390,67 @@ export interface QuestionAnswer {
 export interface QuestionOption {
     "label": string;
     "description": string;
+}
+
+export interface RateLimits {
+    /**
+     * 单桶响应
+     */
+    "rateLimits": RateSnapshot | null;
+
+    /**
+     * 多桶响应优先展示
+     */
+    "rateLimitsByLimitId": { [_ in string]?: RateSnapshot } | null;
+
+    /**
+     * 实际查询时间
+     */
+    "checkedAt": string;
+}
+
+export interface RateSnapshot {
+    /**
+     * 计量桶标识
+     */
+    "limitId": string | null;
+
+    /**
+     * 上游显示名称
+     */
+    "limitName": string | null;
+
+    /**
+     * 主窗口
+     */
+    "primary": RateWindow | null;
+
+    /**
+     * 次窗口
+     */
+    "secondary": RateWindow | null;
+
+    /**
+     * 上游附加额度
+     */
+    "credits": CreditsSnapshot | null;
+}
+
+export interface RateWindow {
+    /**
+     * 上游已使用百分比
+     */
+    "usedPercent": number;
+
+    /**
+     * 上游窗口时长
+     */
+    "windowDurationMins": number | null;
+
+    /**
+     * Unix 秒重置时间
+     */
+    "resetsAt": number | null;
 }
 
 export interface ReasoningOption {

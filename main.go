@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"errors"
 	"log"
 
 	"agentor/internal/appdata"
@@ -50,6 +51,31 @@ func main() {
 	runtime.SetEventHandler(func(event codex.Event) { executions.OnCodexEvent(event); remote.OnCodexEvent(event) })
 	executions.SetNotificationHandler(remote.OnNotification)
 	work.SetDeleteGuard(executions.PrepareDelete)
+	runtime.SetAccountGuard(func(changing bool) error {
+		state := executions.GetState()
+		for _, execution := range state.Executions {
+			if execution.Status == "running" || changing && execution.Status == "queued" {
+				return errors.New("请先结束或取消步骤队列，再切换连接")
+			}
+		}
+		for _, request := range state.Requests {
+			if request.Status == "running" || changing && request.Status == "queued" {
+				return errors.New("请先结束或取消控制器请求，再切换连接")
+			}
+		}
+		pipelineState := pipelines.GetState()
+		for _, run := range pipelineState.Runs {
+			if run.Status == "running" || changing && run.Status == "queued" {
+				return errors.New("请先结束流水线运行，再切换连接")
+			}
+		}
+		for _, request := range pipelineState.Requests {
+			if request.Status == "running" || changing && request.Status == "queued" {
+				return errors.New("请先结束流水线会话请求，再切换连接")
+			}
+		}
+		return nil
+	})
 	var window *application.WebviewWindow
 	app := application.New(application.Options{
 		Name: "agentor", Description: "Codex 对话与工作编排",
