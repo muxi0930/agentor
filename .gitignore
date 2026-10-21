@@ -1,6 +1,7 @@
 /.tools/
 /.task/
 /bin/
+/scripts/
 /frontend/node_modules/
 /frontend/dist/
 .DS_Store

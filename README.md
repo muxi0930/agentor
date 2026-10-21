@@ -6,10 +6,17 @@
 
 ```sh
 npm ci --prefix "frontend"
-"./scripts/wails.sh" dev
+make dev
 ```
 
-需要 Go 1.26、Node/npm（仅开发时）、当前平台的 Wails 开发依赖。脚本默认使用 `~/Env/GoSDK/go1.26.0/bin`；其他安装位置通过 `GO126_BIN` 指定。Wails CLI 固定为 `v3.0.0-beta.33`，首次运行会安装到项目的 `.tools/bin`。前端开发端口默认为 9256，可通过 `WAILS_VITE_PORT` 调整。
+需要提前安装 Go 1.26、Node/npm、Make、Wails CLI `v3.0.0-beta.33` 和当前平台的 Wails 开发依赖，并将命令加入 PATH。构建命令不安装工具、不设置本机专用路径。前端开发端口默认为 9256，可通过 `make dev WAILS_VITE_PORT=端口号` 调整。`scripts/` 仅供本地使用，不纳入版本控制。
+
+```sh
+make build      # 构建当前平台应用，输出到 bin/
+make build_exe  # 交叉编译 Windows x64，输出 bin/agentor.exe
+```
+
+两个构建命令都会先生成绑定并构建前端生产资源，再将资源嵌入应用。Windows 构建使用 `CGO_ENABLED=0`，无需额外的 C/C++ 交叉编译工具链；生成的应用运行时仍需目标平台的 Codex 原生程序。
 
 默认数据目录为系统用户配置目录下的 `agentor`。测试时可设置 `AGENTOR_DATA_DIR` 为临时目录。
 
@@ -28,12 +35,12 @@ npm ci --prefix "frontend"
 本轮验收数据与飞书配置保存在独立测试目录。需要打开同一份验收现场时运行：
 
 ```sh
-AGENTOR_DATA_DIR="/private/tmp/agentor-desktop-check" "./scripts/wails.sh" dev
+AGENTOR_DATA_DIR="/private/tmp/agentor-desktop-check" make dev
 ```
 
 该路径是临时测试数据，正式使用可在默认数据目录重新配置。测试账号 `Local API Check` 指向已停止的本机测试服务；测试余额不代表平台资金，当前活动连接已恢复 CLI。没有待执行队列或启用中的测试调度。
 
-Go 方法变更后运行 `"./scripts/wails.sh" generate bindings -ts -i`，不要手工修改 `frontend/bindings/`。
+Go 方法变更后运行 `wails3 generate bindings -ts -i`，不要手工修改 `frontend/bindings/`。
 
 针对性检查：前端在 `frontend/` 运行 `npm run typecheck` 和 `npm run test:state`；Go 1.26 环境运行 `CGO_ENABLED=1 go test -race ./internal/...`。`AGENTOR_CODEX_ACCOUNTS_SMOKE=1` 显式启用隔离的原生账号启动与登录取消检查；它不完成浏览器认证。真实历史检查使用 `AGENTOR_CODEX_SMOKE_THREAD`，仅指定本应用测试会话，并先退出桌面释放写入方。
 
