@@ -16,9 +16,11 @@ import (
 func (s *Service) GetAccounts() (AccountsView, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.profilesErr != nil {
 		return AccountsView{}, s.profilesErr
 	}
+
 	settings := s.data.GetSettings()
 	view := AccountsView{ActiveID: settings.ActiveAccountID, ReuseCLI: settings.ReuseCLI, Login: s.login, Profiles: []AccountProfile{}}
 	for _, stored := range s.profiles.Profiles {
@@ -30,6 +32,7 @@ func (s *Service) GetAccounts() (AccountsView, error) {
 		profile.KeyConfigured, profile.Authenticated = stored.APIKey != "", len(stored.Auth) > 2
 		view.Profiles = append(view.Profiles, profile)
 	}
+
 	return view, nil
 }
 
@@ -37,6 +40,7 @@ func (s *Service) GetAccounts() (AccountsView, error) {
 func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
+
 	input.Name, input.Provider, input.BaseURL = strings.TrimSpace(input.Name), strings.TrimSpace(input.Provider), strings.TrimRight(strings.TrimSpace(input.BaseURL), "/")
 	if input.Provider == "" {
 		input.Provider = input.Name
@@ -65,6 +69,7 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 		s.mu.Unlock()
 		return AccountsView{}, err
 	}
+
 	stored, index := storedProfile{}, -1
 	for i, candidate := range s.profiles.Profiles {
 		if candidate.Profile.ID == input.ID {
@@ -72,6 +77,7 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 			break
 		}
 	}
+
 	if input.ID != "" && index < 0 || index >= 0 && stored.Profile.Type != input.Type {
 		s.mu.Unlock()
 		return AccountsView{}, errors.New("账号不存在或类型发生变化，请新建对应类型的账号")
@@ -86,6 +92,7 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 		s.mu.Unlock()
 		return AccountsView{}, errors.New("请在设置中填写 API 密钥")
 	}
+
 	stored.Profile = AccountProfile{ID: input.ID, Name: input.Name, Type: input.Type, Provider: input.Provider, BaseURL: input.BaseURL, Balance: input.Balance}
 	if index < 0 {
 		s.profiles.Profiles = append(s.profiles.Profiles, stored)
@@ -113,10 +120,12 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 func (s *Service) DeleteProfile(id string) (AccountsView, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
+
 	settings := s.data.GetSettings()
 	if !settings.ReuseCLI && settings.ActiveAccountID == id {
 		return AccountsView{}, errors.New("请先切换到其他账号，再删除当前账号")
 	}
+
 	s.mu.Lock()
 	index := -1
 	for i, stored := range s.profiles.Profiles {
@@ -125,10 +134,12 @@ func (s *Service) DeleteProfile(id string) (AccountsView, error) {
 			break
 		}
 	}
+
 	if index < 0 {
 		s.mu.Unlock()
 		return AccountsView{}, errors.New("账号不存在")
 	}
+
 	s.profiles.Profiles = append(s.profiles.Profiles[:index], s.profiles.Profiles[index+1:]...)
 	delete(s.balances, id)
 	err := appdata.WriteJSON(s.profilesPath(), s.profiles)
@@ -136,6 +147,7 @@ func (s *Service) DeleteProfile(id string) (AccountsView, error) {
 	if err != nil {
 		return AccountsView{}, err
 	}
+
 	return s.GetAccounts()
 }
 
@@ -143,6 +155,7 @@ func (s *Service) DeleteProfile(id string) (AccountsView, error) {
 func (s *Service) UseAccount(id string) (Status, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
+
 	if err := s.accountIdle(true); err != nil {
 		return s.GetStatus(), err
 	}
@@ -157,16 +170,18 @@ func (s *Service) UseAccount(id string) (Status, error) {
 		s.mu.Unlock()
 		return previous, errors.New("有新的对话正在启动，请结束后再切换")
 	}
+
 	s.status.Phase = "starting"
 	s.mu.Unlock()
 	if _, err := s.data.SelectAccount(id, id == ""); err != nil {
 		s.setStatus(previous.Generation, previous.Phase, previous.Message)
 		return s.GetStatus(), err
 	}
+
 	return s.connect()
 }
 
-// SetAccountGuard 将连接切换限制到控制器和流水线均空闲时
+// SetAccountGuard 将连接切换限制到控制中心和流水线均空闲时
 //
 //wails:ignore
 func (s *Service) SetAccountGuard(guard func(bool) error) {
@@ -184,14 +199,17 @@ func (s *Service) profilesPath() string {
 func (s *Service) profile(id string) (storedProfile, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.profilesErr != nil {
 		return storedProfile{}, s.profilesErr
 	}
+
 	for _, stored := range s.profiles.Profiles {
 		if stored.Profile.ID == id {
 			return stored, nil
 		}
 	}
+
 	return storedProfile{}, errors.New("请选择一个独立账号")
 }
 
@@ -206,6 +224,7 @@ func (s *Service) accountIdle(changing bool) error {
 	if guard != nil {
 		return guard(changing)
 	}
+
 	return nil
 }
 
@@ -217,10 +236,12 @@ func (s *Service) captureAuth() error {
 	if id == "" {
 		return nil
 	}
+
 	stored, err := s.profile(id)
 	if err != nil || stored.Profile.Type != "chatgpt" {
 		return err
 	}
+
 	raw, err := os.ReadFile(filepath.Join(s.data.GetInfo().CodexHome, "auth.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -231,8 +252,9 @@ func (s *Service) captureAuth() error {
 	if !json.Valid(raw) {
 		return errors.New("原生 Codex 登录文件无法解析")
 	}
+
 	var auth struct {
-		Tokens json.RawMessage `json:"tokens"`
+		Tokens json.RawMessage `json:"tokens"` // 原生登录令牌
 	}
 	if err := json.Unmarshal(raw, &auth); err != nil {
 		return err
@@ -243,12 +265,14 @@ func (s *Service) captureAuth() error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for i := range s.profiles.Profiles {
 		if s.profiles.Profiles[i].Profile.ID == id {
 			s.profiles.Profiles[i].Auth = append(json.RawMessage{}, raw...)
 			return appdata.WriteJSON(s.profilesPath(), s.profiles)
 		}
 	}
+
 	return nil
 }
 
@@ -260,19 +284,24 @@ func (s *Service) prepareProfile(stored storedProfile) error {
 		config += "model = " + mustJSON(model) + "\n"
 	}
 	if stored.Profile.Type == "api" {
-		config += "model_provider = \"agentor_api\"\n[model_providers.agentor_api]\nname = " + mustJSON(stored.Profile.Provider) + "\nbase_url = " + mustJSON(stored.Profile.BaseURL) + "\nwire_api = \"responses\"\nenv_key = \"AGENTOR_ACCOUNT_API_KEY\"\nrequires_openai_auth = false\n"
+		config += "model_provider = \"agentor_api\"\n[model_providers.agentor_api]\nname = " +
+			mustJSON(stored.Profile.Provider) + "\nbase_url = " + mustJSON(stored.Profile.BaseURL) +
+			"\nwire_api = \"responses\"\nenv_key = \"AGENTOR_ACCOUNT_API_KEY\"\nrequires_openai_auth = false\n"
 	}
 	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(config), 0600); err != nil {
 		return err
 	}
+
 	auth := stored.Auth
 	if stored.Profile.Type != "chatgpt" || len(auth) == 0 {
 		err := os.Remove(filepath.Join(home, "auth.json"))
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
+
 		return err
 	}
+
 	return appdata.WriteJSON(filepath.Join(home, "auth.json"), auth)
 }
 
@@ -282,5 +311,6 @@ func httpURL(raw string) error {
 	if err != nil || parsed.Host == "" || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.User != nil {
 		return errors.New("请填写不含内嵌凭据的完整 HTTP 或 HTTPS 服务地址")
 	}
+
 	return nil
 }

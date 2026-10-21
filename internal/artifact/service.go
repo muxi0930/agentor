@@ -20,32 +20,32 @@ import (
 )
 
 type Attachment struct {
-	PipelineRunID string `json:"pipelineRunId"`
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	MediaType     string `json:"mediaType"`
-	Size          int64  `json:"size"`
-	Status        string `json:"status"`
-	Error         string `json:"error"`
-	ThreadID      string `json:"threadId"`
-	TurnID        string `json:"turnId"`
-	MessageID     string `json:"messageId"`
-	Kind          string `json:"kind"`
-	Source        string `json:"source"`
-	LocalPath     string `json:"localPath"`
-	URL           string `json:"url"`
-	CreatedAt     string `json:"createdAt"`
-	ExecutionID   string `json:"executionId"`
-	StepID        string `json:"stepId"`
-	ProjectID     string `json:"projectId"`
-	RequestID     string `json:"requestId"`
+	PipelineRunID string `json:"pipelineRunId"` // 所属流水线运行
+	ID            string `json:"id"`            // 附件稳定标识
+	Name          string `json:"name"`          // 文件显示名称
+	MediaType     string `json:"mediaType"`     // 文件媒体类型
+	Size          int64  `json:"size"`          // 文件字节数
+	Status        string `json:"status"`        // 导入状态
+	Error         string `json:"error"`         // 导入失败原因
+	ThreadID      string `json:"threadId"`      // 所属会话
+	TurnID        string `json:"turnId"`        // 所属对话轮次
+	MessageID     string `json:"messageId"`     // 所属消息
+	Kind          string `json:"kind"`          // 输入附件或任务产物
+	Source        string `json:"source"`        // 文件来源
+	LocalPath     string `json:"localPath"`     // 应用托管副本路径
+	URL           string `json:"url"`           // WebView 资源地址
+	CreatedAt     string `json:"createdAt"`     // 创建时间
+	ExecutionID   string `json:"executionId"`   // 所属步骤执行
+	StepID        string `json:"stepId"`        // 所属工作区步骤
+	ProjectID     string `json:"projectId"`     // 所属项目
+	RequestID     string `json:"requestId"`     // 所属远程请求
 }
 
 type Service struct {
-	mu       sync.Mutex
-	root     string
-	items    map[string]Attachment
-	previews map[string]string
+	mu       sync.Mutex            // 附件索引与预览读写锁
+	root     string                // 应用附件目录
+	items    map[string]Attachment // 已登记的附件
+	previews map[string]string     // 当前挂载的 HTML 预览源码
 }
 
 // NewService 初始化服务并读取本地记录
@@ -57,6 +57,7 @@ func NewService(dataDirectory string) (*Service, error) {
 	if err := appdata.ReadJSON(filepath.Join(s.root, "index.json"), &s.items); err != nil {
 		return nil, err
 	}
+
 	changed := false
 	for id, item := range s.items {
 		if item.Status == "pending" {
@@ -82,6 +83,7 @@ func (s *Service) ImportFile(threadID, path string) (Attachment, error) {
 		return Attachment{}, err
 	}
 	defer file.Close()
+
 	info, err := file.Stat()
 	if err != nil {
 		return Attachment{}, err
@@ -89,6 +91,7 @@ func (s *Service) ImportFile(threadID, path string) (Attachment, error) {
 	if !info.Mode().IsRegular() {
 		return Attachment{}, errors.New("请选择普通文件")
 	}
+
 	header := make([]byte, 512)
 	count, err := file.Read(header)
 	if err != nil && err != io.EOF {
@@ -107,6 +110,7 @@ func (s *Service) ChooseFiles(threadID string) ([]Attachment, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	items := make([]Attachment, 0, len(paths))
 	for _, path := range paths {
 		item, err := s.ImportFile(threadID, path)
@@ -124,6 +128,7 @@ func (s *Service) SavePastedImage(threadID, name, encoded string) (Attachment, e
 	if err != nil {
 		return Attachment{}, errors.New("图片数据无法读取")
 	}
+
 	mediaType := http.DetectContentType(data)
 	if !strings.HasPrefix(mediaType, "image/") {
 		return Attachment{}, errors.New("剪贴板内容不是支持的图片")
@@ -135,6 +140,7 @@ func (s *Service) SavePastedImage(threadID, name, encoded string) (Attachment, e
 func (s *Service) GetAttachments(threadID string) []Attachment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	items := []Attachment{}
 	for _, item := range s.items {
 		if item.ThreadID == threadID {
@@ -151,6 +157,7 @@ func (s *Service) GetAttachments(threadID string) []Attachment {
 func (s *Service) ResolveInputs(threadID string, ids []string) ([]Attachment, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	items := make([]Attachment, 0, len(ids))
 	for _, id := range ids {
 		item, found := s.items[id]
@@ -174,6 +181,7 @@ func (s *Service) BindTurn(threadID, turnID, messageID string, ids []string) err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for _, id := range ids {
 		item, found := s.items[id]
 		if !found || item.ThreadID != threadID {
@@ -216,11 +224,13 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			s.servePreview(w, request)
 			return
 		}
+
 		const prefix = "/agentor/attachments/"
 		if !strings.HasPrefix(request.URL.Path, prefix) {
 			next.ServeHTTP(w, request)
 			return
 		}
+
 		id := strings.TrimPrefix(request.URL.Path, prefix)
 		s.mu.Lock()
 		item, found := s.items[id]
@@ -229,17 +239,20 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			http.NotFound(w, request)
 			return
 		}
+
 		file, err := os.Open(item.LocalPath)
 		if err != nil {
 			http.NotFound(w, request)
 			return
 		}
 		defer file.Close()
+
 		info, err := file.Stat()
 		if err != nil {
 			http.NotFound(w, request)
 			return
 		}
+
 		w.Header().Set("Content-Type", item.MediaType)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if !strings.HasPrefix(item.MediaType, "image/") {
@@ -264,15 +277,18 @@ func (s *Service) saveOwned(owner Attachment, name, mediaType string, input io.R
 	if owner.ThreadID == "" && owner.RequestID == "" {
 		return Attachment{}, errors.New("附件缺少会话或请求归属")
 	}
+
 	name = filepath.Base(name)
 	if name == "" || name == "." {
 		return Attachment{}, errors.New("文件名不能为空")
 	}
+
 	id := rand.Text()
 	directory := filepath.Join(s.root, id)
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		return Attachment{}, err
 	}
+
 	item := owner
 	item.ID, item.Name, item.MediaType, item.Status = id, name, mediaType, "pending"
 	item.LocalPath, item.URL, item.CreatedAt = filepath.Join(directory, name), "/agentor/attachments/"+id, time.Now().UTC().Format(time.RFC3339Nano)
@@ -283,6 +299,7 @@ func (s *Service) saveOwned(owner Attachment, name, mediaType string, input io.R
 	if err != nil {
 		return item, err
 	}
+
 	file, err := os.OpenFile(item.LocalPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err == nil {
 		item.Size, err = io.Copy(file, input)
@@ -291,6 +308,7 @@ func (s *Service) saveOwned(owner Attachment, name, mediaType string, input io.R
 			err = closeErr
 		}
 	}
+
 	if err != nil {
 		item.Status, item.Error = "failed", err.Error()
 	} else {

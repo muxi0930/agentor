@@ -8,6 +8,7 @@ import (
 	"agentor/internal/workspace"
 )
 
+// TestControllerQueueUsesFIFO 验证控制中心请求按入队顺序串行执行
 func TestControllerQueueUsesFIFO(t *testing.T) {
 	s, err := NewService(testData(t), nil, nil, nil)
 	if err != nil {
@@ -59,6 +60,7 @@ func TestControllerQueueUsesFIFO(t *testing.T) {
 	}
 }
 
+// TestDuplicateSourceMessageReturnsExistingRequest 验证同一来源消息重复提交时复用原请求
 func TestDuplicateSourceMessageReturnsExistingRequest(t *testing.T) {
 	s, err := NewService(testData(t), nil, nil, nil)
 	if err != nil {
@@ -73,6 +75,7 @@ func TestDuplicateSourceMessageReturnsExistingRequest(t *testing.T) {
 	}
 }
 
+// TestContinueUsesItsSourceAndQuotedMultipleTargetsNeedClarification 验证继续请求的来源归属和引用多目标时的澄清
 func TestContinueUsesItsSourceAndQuotedMultipleTargetsNeedClarification(t *testing.T) {
 	data := testData(t)
 	work, err := workspace.NewService(data.GetInfo().DataDirectory)

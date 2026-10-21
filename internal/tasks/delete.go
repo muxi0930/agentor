@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// PrepareDelete 停止关联执行后允许删除步骤并返回保护解除入口
+//
 //wails:ignore
 func (s *Service) PrepareDelete(stepIDs []string) (func(), error) {
 	s.mu.Lock()
@@ -21,6 +23,7 @@ func (s *Service) PrepareDelete(stepIDs []string) (func(), error) {
 		}
 	}
 	s.mu.Unlock()
+
 	release := func() {
 		s.mu.Lock()
 		for _, id := range stepIDs {
@@ -34,6 +37,7 @@ func (s *Service) PrepareDelete(stepIDs []string) (func(), error) {
 			return nil, err
 		}
 	}
+
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 	defer cancel()
 	for _, id := range executions {

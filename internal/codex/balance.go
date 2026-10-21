@@ -22,12 +22,14 @@ func (s *Service) GetBalance(id string, force bool) (BalanceResult, error) {
 	if stored.Profile.Type != "api" || stored.Profile.Balance.URL == "" {
 		return BalanceResult{}, errors.New("此账号尚未配置 API 余额接口")
 	}
+
 	s.mu.Lock()
 	cached, exists := s.balances[id]
 	s.mu.Unlock()
 	if checked, err := time.Parse(time.RFC3339Nano, cached.CheckedAt); !force && exists && err == nil && time.Since(checked) < time.Minute {
 		return cached, nil
 	}
+
 	result := BalanceResult{ProfileID: id, CheckedAt: time.Now().UTC().Format(time.RFC3339Nano), Unit: stored.Profile.Balance.Unit}
 	config := stored.Profile.Balance
 	var body io.Reader
@@ -36,6 +38,7 @@ func (s *Service) GetBalance(id string, force bool) (BalanceResult, error) {
 		if err := json.Unmarshal([]byte(config.Body), &document); err != nil {
 			return result, errors.New("余额请求正文必须是 JSON")
 		}
+
 		raw, _ := json.Marshal(replaceAPIKey(document, stored.APIKey))
 		body = bytes.NewReader(raw)
 	}
@@ -51,6 +54,7 @@ func (s *Service) GetBalance(id string, force bool) (BalanceResult, error) {
 		response, err = accountHTTP().Do(request)
 		if err == nil {
 			defer response.Body.Close()
+
 			if response.StatusCode < 200 || response.StatusCode >= 300 {
 				err = fmt.Errorf("余额接口返回 HTTP %d", response.StatusCode)
 			} else {
@@ -102,21 +106,27 @@ func (s *Service) CheckAccountConnection(id string) (string, error) {
 		if _, err := s.GetRateLimits(); err != nil {
 			return "", err
 		}
+
 		return "已从当前 ChatGPT 账号读取真实额度", nil
 	}
+
 	request, err := http.NewRequestWithContext(s.ctx, "GET", stored.Profile.BaseURL+"/models", nil)
 	if err != nil {
 		return "", errors.New("API 服务地址无法使用")
 	}
+
 	request.Header.Set("Authorization", "Bearer "+stored.APIKey)
 	response, err := accountHTTP().Do(request)
 	if err != nil {
 		return "", errors.New("API 连接失败，请检查服务地址、网络和密钥")
 	}
+
 	defer response.Body.Close()
+
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return "", fmt.Errorf("模型接口返回 HTTP %d", response.StatusCode)
 	}
+
 	return "模型接口请求成功；实际模型调用仍以对话结果为准", nil
 }
 
@@ -134,17 +144,21 @@ func validateBalance(config BalanceConfig) error {
 	if config.Method == "POST" && config.Body != "" && !json.Valid([]byte(config.Body)) {
 		return errors.New("余额 POST 正文必须是 JSON；密钥引用使用完整字符串值 $API_KEY")
 	}
+
 	for _, path := range []string{config.BalancePath, config.UsedPath, config.TotalPath, config.UnitPath} {
 		if path != "" && !strings.HasPrefix(path, "/") {
 			return errors.New("余额字段使用 JSON Pointer，例如 /data/balance")
 		}
 	}
+
 	return nil
 }
 
 // accountHTTP 为账号诊断提供有超时且不自动转发凭据的请求客户端
 func accountHTTP() *http.Client {
-	return &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
 }
 
 // replaceAPIKey 只替换 JSON 完整字符串引用，不执行模板或脚本
@@ -163,6 +177,7 @@ func replaceAPIKey(value any, key string) any {
 			item[name] = replaceAPIKey(child, key)
 		}
 	}
+
 	return value
 }
 
@@ -188,6 +203,7 @@ func jsonPointer(document any, path string) (any, error) {
 			return nil, fmt.Errorf("映射路径 %s 无法继续读取", path)
 		}
 	}
+
 	return current, nil
 }
 
@@ -196,10 +212,12 @@ func balanceNumber(document any, path string) (*float64, error) {
 	if path == "" {
 		return nil, nil
 	}
+
 	value, err := jsonPointer(document, path)
 	if err != nil || value == nil {
 		return nil, err
 	}
+
 	var raw string
 	switch number := value.(type) {
 	case json.Number:
@@ -209,9 +227,11 @@ func balanceNumber(document any, path string) (*float64, error) {
 	default:
 		return nil, fmt.Errorf("映射字段 %s 不是数字", path)
 	}
+
 	number, err := strconv.ParseFloat(raw, 64)
 	if err != nil || math.IsNaN(number) || math.IsInf(number, 0) {
 		return nil, fmt.Errorf("映射字段 %s 不是数字", path)
 	}
+
 	return &number, nil
 }

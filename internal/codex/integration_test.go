@@ -8,27 +8,28 @@ import (
 	"agentor/internal/appdata"
 )
 
-// Opt in with the id of a conversation created for agentor development.
+// TestNativeThreadHistory 使用指定开发会话验证原生历史读取
 func TestNativeThreadHistory(t *testing.T) {
 	threadID := os.Getenv("AGENTOR_CODEX_SMOKE_THREAD")
 	if threadID == "" {
 		t.Skip("set AGENTOR_CODEX_SMOKE_THREAD for the native app-server check")
 	}
 	t.Setenv("AGENTOR_DATA_DIR", t.TempDir())
-	data, err := appdata.NewService()
+	data, err := appdata.NewService("test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := NewService(data, nil)
 	defer s.ServiceShutdown()
+
 	if _, err := s.Connect(); err != nil {
 		t.Fatal(err)
 	}
 	var metadata struct {
 		Thread struct {
-			Source     json.RawMessage `json:"source"`
-			Originator string          `json:"originator"`
-		} `json:"thread"`
+			Source     json.RawMessage `json:"source"`     // 会话来源
+			Originator string          `json:"originator"` // 会话创建来源标识
+		} `json:"thread"` // 原生会话元信息
 	}
 	if err := s.call("thread/read", map[string]any{"threadId": threadID}, &metadata); err != nil {
 		t.Fatal(err)
@@ -50,6 +51,7 @@ func TestNativeThreadHistory(t *testing.T) {
 			}
 		}
 	}
+
 	if userMessages == 0 || agentMessages == 0 {
 		t.Fatalf("history missing messages: user=%d agent=%d", userMessages, agentMessages)
 	}

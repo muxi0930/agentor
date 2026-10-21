@@ -29,7 +29,12 @@ func (s *Service) OnNotification(notification tasks.Notification) {
 	}
 	s.preparing[notification.ID] = true
 	s.mu.Unlock()
-	defer func() { s.mu.Lock(); delete(s.preparing, notification.ID); s.mu.Unlock() }()
+	defer func() {
+		s.mu.Lock()
+		delete(s.preparing, notification.ID)
+		s.mu.Unlock()
+	}()
+
 	current, err := s.tasks.GetNotification(notification.ID)
 	if err != nil {
 		return
@@ -42,22 +47,18 @@ func (s *Service) OnNotification(notification tasks.Notification) {
 		}
 	}
 	if !hasParts {
-		// 原控制器统一汇报结果，辅助步骤和流水线记录仅保留桌面通知
+		// 原控制中心统一汇报结果，辅助步骤和流水线记录仅保留桌面通知
 		if notification.RequestID != "" && (notification.ExecutionID != "" || notification.PipelineRunID != "" || notification.PipelineSessionID != "") {
 			return
 		}
 		parts := []tasks.NotificationPart{}
-		body := []rune(current.Body)
-		if len(body) == 0 {
-			body = []rune(current.Title)
+		body := current.Body
+		if body == "" {
+			body = current.Title
 		}
-		for len(body) > 0 {
-			end := len(body)
-			if end > 4000 {
-				end = 4000
-			}
-			parts = append(parts, tasks.NotificationPart{ID: rand.Text(), Kind: "text", Channel: "lark", Target: current.Source.ChatID, Status: "pending", Content: string(body[:end])})
-			body = body[end:]
+		footer := s.replyFooter(current)
+		for _, content := range splitReplyMarkdown(body) {
+			parts = append(parts, tasks.NotificationPart{ID: rand.Text(), Kind: "markdown", Channel: "lark", Target: current.Source.ChatID, Status: "pending", Content: content, PayloadJSON: jsonText(replyCard(content, footer))})
 		}
 		if err = s.tasks.AddNotificationParts(current.ID, parts); err != nil {
 			return
@@ -228,8 +229,15 @@ func (s *Service) kickDelivery(id string) {
 	}
 	s.sending[id] = true
 	s.mu.Unlock()
+
 	go func() {
-		defer func() { s.mu.Lock(); delete(s.sending, id); s.mu.Unlock(); s.changed() }()
+		defer func() {
+			s.mu.Lock()
+			delete(s.sending, id)
+			s.mu.Unlock()
+			s.changed()
+		}()
+
 		notification, err := s.tasks.GetNotification(id)
 		if err != nil {
 			return
@@ -251,7 +259,7 @@ func (s *Service) deliveryClient(source tasks.Source) (*larksdk.Client, context.
 	if s.ctx.Err() != nil {
 		return nil, nil, s.ctx.Err()
 	}
-	if !s.config.Enabled || s.client == nil || s.status.Phase != "ready" {
+	if s.client == nil || s.status.Phase != "ready" {
 		return nil, nil, errors.New("飞书尚未连接，未发送")
 	}
 	if source.AppID != s.config.AppID {
@@ -290,7 +298,7 @@ func (s *Service) deliver(notification tasks.Notification, part tasks.Notificati
 	}
 	status, messageID := "unknown", ""
 	type_, content := "text", jsonText(map[string]any{"text": part.Content})
-	if part.Kind == "approval" {
+	if part.Kind == "approval" || part.Kind == "markdown" {
 		type_, content = "interactive", part.PayloadJSON
 	}
 	if part.Kind == "file" {
@@ -377,7 +385,10 @@ func (s *Service) deliver(notification tasks.Notification, part tasks.Notificati
 }
 
 // jsonText 将消息内容编码为 JSON 字符串
-func jsonText(value any) string { raw, _ := json.Marshal(value); return string(raw) }
+func jsonText(value any) string {
+	raw, _ := json.Marshal(value)
+	return string(raw)
+}
 
 // sendMessage 回复原消息或发送到明确接收者
 func sendMessage(ctx context.Context, client *larksdk.Client, source tasks.Source, type_, content, id string) (string, string, error) {

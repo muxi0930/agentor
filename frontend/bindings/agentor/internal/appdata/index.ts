@@ -8,6 +8,7 @@ export {
 
 export type {
     AccountPreferences,
+    ControllerSettings,
     Info,
     Settings
 } from "./models.js";

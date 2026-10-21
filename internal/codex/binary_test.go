@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestCLIAuthenticationDoesNotInheritHostTaskIdentity 验证沿用 CLI 认证时隔离宿主任务身份
 func TestCLIAuthenticationDoesNotInheritHostTaskIdentity(t *testing.T) {
 	t.Setenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "parent-app")
 	t.Setenv("CODEX_THREAD_ID", "parent-thread")
@@ -17,6 +18,7 @@ func TestCLIAuthenticationDoesNotInheritHostTaskIdentity(t *testing.T) {
 			t.Fatal("host identity leaked into child")
 		}
 	}
+
 	if !slices.Contains(env, "CODEX_HOME=/agentor-home") || !slices.Contains(env, "OPENAI_API_KEY=test-key") {
 		t.Fatal("CLI authentication configuration was lost")
 	}

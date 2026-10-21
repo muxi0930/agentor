@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestMoveKeepsStepAndKnowledgeContextAcrossRestart 验证功能移动与重启后步骤知识上下文一致
 func TestMoveKeepsStepAndKnowledgeContextAcrossRestart(t *testing.T) {
 	root := t.TempDir()
 	s, err := NewService(root)
@@ -74,6 +75,7 @@ func TestMoveKeepsStepAndKnowledgeContextAcrossRestart(t *testing.T) {
 	}
 }
 
+// TestKnowledgeScopeAndCrossProjectMove 验证知识可见范围和跨项目操作限制
 func TestKnowledgeScopeAndCrossProjectMove(t *testing.T) {
 	s, err := NewService(t.TempDir())
 	if err != nil {

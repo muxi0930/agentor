@@ -5,10 +5,12 @@ import (
 	"slices"
 )
 
+// MoveNode 调整项目标签版本功能或步骤的顺序
 func (s *Service) MoveNode(kind, id string, offset int) (State, error) {
-	if offset != -1 && offset != 1 {
-		return State{}, errors.New("请选择上移或下移")
+	if offset == 0 {
+		return State{}, errors.New("移动距离不能为零")
 	}
+
 	return s.mutate(func(state *State) error {
 		if kind == "project" {
 			return move(state.Projects, id, offset, func(v Project) string { return v.ID })
@@ -38,18 +40,7 @@ func (s *Service) MoveNode(kind, id string, offset int) (State, error) {
 	})
 }
 
-func move[T any](items []T, id string, offset int, key func(T) string) error {
-	index := slices.IndexFunc(items, func(v T) bool { return key(v) == id })
-	if index < 0 {
-		return errors.New("排序对象不存在")
-	}
-	target := index + offset
-	if target >= 0 && target < len(items) {
-		items[index], items[target] = items[target], items[index]
-	}
-	return nil
-}
-
+// MoveFeature 将功能移动到同一项目内的另一版本
 func (s *Service) MoveFeature(projectID, featureID, targetVersionID string) (State, error) {
 	return s.mutate(func(state *State) error {
 		project := findProject(state, projectID)
@@ -67,6 +58,7 @@ func (s *Service) MoveFeature(projectID, featureID, targetVersionID string) (Sta
 	})
 }
 
+// DeleteNode 删除节点前检查关联任务并移除节点
 func (s *Service) DeleteNode(kind, id string) (State, error) {
 	if s.deleteGuard != nil && kind != "tag" {
 		steps := []string{}
@@ -91,6 +83,7 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 			}
 		}
 	}
+
 	return s.mutate(func(state *State) error {
 		found := false
 		if kind == "project" {
@@ -159,4 +152,23 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 		}
 		return nil
 	})
+}
+
+// move 将节点插入目标位置并保持其他节点的相对顺序
+func move[T any](items []T, id string, offset int, key func(T) string) error {
+	index := slices.IndexFunc(items, func(v T) bool { return key(v) == id })
+	if index < 0 {
+		return errors.New("排序对象不存在")
+	}
+	target := index + offset
+	if target >= 0 && target < len(items) {
+		item := items[index]
+		if target > index {
+			copy(items[index:target], items[index+1:target+1])
+		} else {
+			copy(items[target+1:index+1], items[target:index])
+		}
+		items[target] = item
+	}
+	return nil
 }

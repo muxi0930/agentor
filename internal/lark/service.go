@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -57,7 +58,21 @@ type quietLogger struct{}
 // NewService 初始化服务并读取本地记录
 func NewService(root string, executions *tasks.Service, work *workspace.Service, files *artifact.Service, runtime *codex.Service, pipelines *pipeline.Service) (*Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Service{pipelines: pipelines, approvalSession: rand.Text(), root: filepath.Join(root, "lark"), tasks: executions, work: work, files: files, runtime: runtime, ctx: ctx, cancel: cancel, sending: map[string]bool{}, preparing: map[string]bool{}, config: credentials{Settings: Settings{Region: "feishu"}}, status: Status{Phase: "disabled", Message: "飞书未启用"}}
+	s := &Service{
+		pipelines:       pipelines,
+		approvalSession: rand.Text(),
+		root:            filepath.Join(root, "lark"),
+		tasks:           executions,
+		work:            work,
+		files:           files,
+		runtime:         runtime,
+		ctx:             ctx,
+		cancel:          cancel,
+		sending:         map[string]bool{},
+		preparing:       map[string]bool{},
+		config:          credentials{Settings: Settings{Region: "feishu"}},
+		status:          Status{Phase: "unconfigured", Message: "请配置 App ID 和 App Secret"},
+	}
 	if err := appdata.ReadJSON(filepath.Join(s.root, "config.json"), &s.config); err != nil {
 		cancel()
 		return nil, err
@@ -66,6 +81,7 @@ func NewService(root string, executions *tasks.Service, work *workspace.Service,
 		cancel()
 		return nil, err
 	}
+
 	changed := false
 	for i := range s.state.Incoming {
 		item := &s.state.Incoming[i]
@@ -86,7 +102,7 @@ func NewService(root string, executions *tasks.Service, work *workspace.Service,
 			return nil, err
 		}
 	}
-	if s.config.Enabled {
+	if s.config.AppID != "" && s.config.AppSecret != "" {
 		s.status = Status{Phase: "unconfigured", Message: "等待建立连接"}
 	}
 	return s, nil
@@ -96,10 +112,39 @@ func NewService(root string, executions *tasks.Service, work *workspace.Service,
 func (s *Service) GetState() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return copyValue(View{Settings: s.config.Settings, SecretConfigured: s.config.AppSecret != "", Status: s.status, Binding: s.config.Binding, Candidates: s.state.Candidates, Incoming: s.state.Incoming, Approvals: s.state.Approvals})
+
+	return copyValue(View{
+		Settings:         s.config.Settings,
+		SecretConfigured: s.config.AppSecret != "",
+		Status:           s.status,
+		Binding:          s.config.Binding,
+		Candidates:       s.state.Candidates,
+		Incoming:         s.state.Incoming,
+		Approvals:        s.state.Approvals,
+	})
 }
 
-// SaveSettings 保存配置并重新建立已启用的连接
+// DeleteCandidate 删除指定类型的已发现身份记录
+func (s *Service) DeleteCandidate(kind, id string) error {
+	s.mu.Lock()
+	next := copyValue(s.state)
+	next.Candidates = slices.DeleteFunc(next.Candidates, func(candidate Candidate) bool {
+		return candidate.Kind == kind && candidate.ID == id
+	})
+	err := appdata.WriteJSON(filepath.Join(s.root, "records.json"), next)
+	if err == nil {
+		s.state = next
+	}
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
+
+	s.changed()
+	return nil
+}
+
+// SaveSettings 保存配置成功后建立连接
 func (s *Service) SaveSettings(input SettingsInput) (View, error) {
 	if input.Region != "feishu" && input.Region != "lark" {
 		return View{}, errors.New("区域请选择飞书或 Lark")
@@ -135,28 +180,67 @@ func (s *Service) SaveSettings(input SettingsInput) (View, error) {
 	if err != nil {
 		return View{}, err
 	}
-	s.Disconnect()
-	if input.Enabled {
-		s.Connect()
-	}
+
+	s.connect()
 	s.changed()
 	return s.GetState(), nil
 }
 
-// Connect 启动官方 SDK 长连接
-func (s *Service) Connect() Status {
+// Disconnect 关闭当前长连接并取消等待
+func (s *Service) Disconnect() {
+	s.mu.Lock()
+	s.status.Generation++
+	cancel, ws := s.connectionCancel, s.ws
+	s.connectionCancel, s.ws, s.client = nil, nil, nil
+	s.connectionCtx = nil
+	s.status.Phase, s.status.Message, s.status.BotOpenID = "disconnected", "连接已关闭", ""
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if ws != nil {
+		ws.Close()
+	}
+	s.changed()
+}
+
+// ServiceStartup 在应用启动时连接已配置的服务
+func (s *Service) ServiceStartup(context.Context, application.ServiceOptions) error {
+	s.mu.Lock()
+	configured := s.config.AppID != "" && s.config.AppSecret != ""
+	s.mu.Unlock()
+	if configured {
+		s.connect()
+	}
+	return nil
+}
+
+// ServiceShutdown 取消活动请求并关闭服务连接
+func (s *Service) ServiceShutdown() error {
+	s.cancel()
+	s.Disconnect()
+	return nil
+}
+
+// Debug 忽略 SDK 调试日志以免泄露请求凭据
+func (quietLogger) Debug(context.Context, ...interface{}) {}
+
+// Info 忽略 SDK 普通日志以免泄露请求凭据
+func (quietLogger) Info(context.Context, ...interface{}) {}
+
+// Warn 忽略 SDK 警告日志以免泄露请求凭据
+func (quietLogger) Warn(context.Context, ...interface{}) {}
+
+// Error 忽略 SDK 错误日志以免泄露请求凭据
+func (quietLogger) Error(context.Context, ...interface{}) {}
+
+// connect 启动官方 SDK 长连接
+func (s *Service) connect() Status {
 	s.Disconnect()
 	s.mu.Lock()
 	cfg := copyValue(s.config)
 	s.status.Generation++
 	generation := s.status.Generation
-	if !cfg.Enabled {
-		s.status.Phase, s.status.Message = "disabled", "飞书未启用"
-		value := s.status
-		s.mu.Unlock()
-		s.changed()
-		return value
-	}
 	if cfg.AppID == "" || cfg.AppSecret == "" {
 		s.status.Phase, s.status.Message = "unconfigured", "请配置 App ID 和 App Secret"
 		value := s.status
@@ -171,13 +255,19 @@ func (s *Service) Connect() Status {
 	value := s.status
 	s.mu.Unlock()
 	s.changed()
+
 	go func() {
-		client := larksdk.NewClient(cfg.AppID, cfg.AppSecret, larksdk.WithOpenBaseUrl(domain(cfg.Region)), larksdk.WithLogger(quietLogger{}), larksdk.WithHttpClient(&http.Client{Timeout: 20 * time.Second}))
+		client := larksdk.NewClient(cfg.AppID, cfg.AppSecret,
+			larksdk.WithOpenBaseUrl(domain(cfg.Region)),
+			larksdk.WithLogger(quietLogger{}),
+			larksdk.WithHttpClient(&http.Client{Timeout: 20 * time.Second}),
+		)
 		botID, err := botIdentity(ctx, client)
 		if err != nil {
 			s.setStatus(generation, "error", err.Error(), "")
 			return
 		}
+
 		handler := dispatcher.NewEventDispatcher("", "").OnP2MessageReceiveV1(func(_ context.Context, event *larkim.P2MessageReceiveV1) error {
 			message, err := normalize(event, cfg.AppID, botID)
 			if err != nil {
@@ -187,8 +277,31 @@ func (s *Service) Connect() Status {
 		}).OnP2CardActionTrigger(func(ctx context.Context, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
 			return s.cardAction(ctx, generation, event)
 		})
-		ws := larkws.NewClient(cfg.AppID, cfg.AppSecret, larkws.WithDomain(domain(cfg.Region)), larkws.WithLogger(quietLogger{}), larkws.WithHttpClient(&http.Client{Timeout: 20 * time.Second}), larkws.WithEventHandler(handler), larkws.WithOnReady(func() { s.setStatus(generation, "ready", "长连接已建立", botID); go s.drain() }), larkws.WithOnReconnecting(func() { s.setStatus(generation, "connecting", "SDK 正在重连", botID) }), larkws.WithOnReconnected(func() { s.setStatus(generation, "ready", "长连接已恢复", botID); go s.drain() }), larkws.WithOnError(func(err error) { s.setStatus(generation, "error", err.Error(), botID) }), larkws.WithOnDisconnected(func() { s.setStatus(generation, "disconnected", "长连接已断开", botID) }))
+		ws := larkws.NewClient(cfg.AppID, cfg.AppSecret,
+			larkws.WithDomain(domain(cfg.Region)),
+			larkws.WithLogger(quietLogger{}),
+			larkws.WithHttpClient(&http.Client{Timeout: 20 * time.Second}),
+			larkws.WithEventHandler(handler),
+			larkws.WithOnReady(func() {
+				s.setStatus(generation, "ready", "长连接已建立", botID)
+				go s.drain()
+			}),
+			larkws.WithOnReconnecting(func() {
+				s.setStatus(generation, "connecting", "SDK 正在重连", botID)
+			}),
+			larkws.WithOnReconnected(func() {
+				s.setStatus(generation, "ready", "长连接已恢复", botID)
+				go s.drain()
+			}),
+			larkws.WithOnError(func(err error) {
+				s.setStatus(generation, "error", err.Error(), botID)
+			}),
+			larkws.WithOnDisconnected(func() {
+				s.setStatus(generation, "disconnected", "长连接已断开", botID)
+			}),
+		)
 		handler.Config.Logger = quietLogger{}
+
 		s.mu.Lock()
 		if s.status.Generation != generation || ctx.Err() != nil {
 			s.mu.Unlock()
@@ -197,6 +310,7 @@ func (s *Service) Connect() Status {
 		s.client, s.ws = client, ws
 		s.status.BotOpenID = botID
 		s.mu.Unlock()
+
 		if err := ws.Start(ctx); err != nil && ctx.Err() == nil {
 			s.setStatus(generation, "error", err.Error(), botID)
 		}
@@ -204,58 +318,15 @@ func (s *Service) Connect() Status {
 	return value
 }
 
-// Disconnect 关闭当前长连接并取消等待
-func (s *Service) Disconnect() {
-	s.mu.Lock()
-	s.status.Generation++
-	cancel, ws := s.connectionCancel, s.ws
-	s.connectionCancel, s.ws, s.client = nil, nil, nil
-	s.connectionCtx = nil
-	s.status.Phase, s.status.Message, s.status.BotOpenID = "disconnected", "连接已关闭", ""
-	if !s.config.Enabled {
-		s.status.Phase, s.status.Message = "disabled", "飞书未启用"
-	}
-	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	if ws != nil {
-		ws.Close()
-	}
-	s.changed()
-}
-
-// ServiceStartup 在应用启动时连接已启用的服务
-func (s *Service) ServiceStartup(context.Context, application.ServiceOptions) error {
-	s.mu.Lock()
-	enabled := s.config.Enabled
-	s.mu.Unlock()
-	if enabled {
-		s.Connect()
-	}
-	return nil
-}
-
-// ServiceShutdown 取消活动请求并关闭服务连接
-func (s *Service) ServiceShutdown() error { s.cancel(); s.Disconnect(); return nil }
-
-// Debug 忽略 SDK 调试日志以免泄露请求凭据
-func (quietLogger) Debug(context.Context, ...interface{}) {}
-
-// Info 忽略 SDK 普通日志以免泄露请求凭据
-func (quietLogger) Info(context.Context, ...interface{}) {}
-
-// Warn 忽略 SDK 警告日志以免泄露请求凭据
-func (quietLogger) Warn(context.Context, ...interface{}) {}
-
-// Error 忽略 SDK 错误日志以免泄露请求凭据
-func (quietLogger) Error(context.Context, ...interface{}) {}
-
 // init 注册业务变更事件
-func init() { application.RegisterEvent[Changed]("lark:changed") }
+func init() {
+	application.RegisterEvent[Changed]("lark:changed")
+}
 
 // now 返回当前 UTC 时间
-func now() string { return time.Now().UTC().Format(time.RFC3339Nano) }
+func now() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
+}
 
 // copyValue 复制可变状态以隔离调用方
 func copyValue[T any](value T) T {
@@ -308,16 +379,21 @@ func domain(region string) string {
 
 // botIdentity 通过官方接口读取当前机器人身份
 func botIdentity(ctx context.Context, client *larksdk.Client) (string, error) {
-	response, err := client.Do(ctx, &larkcore.ApiReq{HttpMethod: http.MethodGet, ApiPath: "/open-apis/bot/v3/info", SupportedAccessTokenTypes: []larkcore.AccessTokenType{larkcore.AccessTokenTypeTenant}})
+	response, err := client.Do(ctx, &larkcore.ApiReq{
+		HttpMethod:                http.MethodGet,
+		ApiPath:                   "/open-apis/bot/v3/info",
+		SupportedAccessTokenTypes: []larkcore.AccessTokenType{larkcore.AccessTokenTypeTenant},
+	})
 	if err != nil {
 		return "", err
 	}
+
 	var body struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
+		Code int    `json:"code"` // 接口业务状态码
+		Msg  string `json:"msg"`  // 接口状态说明
 		Bot  struct {
-			OpenID string `json:"open_id"`
-		} `json:"bot"`
+			OpenID string `json:"open_id"` // 当前机器人的开放标识
+		} `json:"bot"` // 机器人身份
 	}
 	if err = json.Unmarshal(response.RawBody, &body); err != nil {
 		return "", err

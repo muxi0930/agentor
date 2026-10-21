@@ -12,16 +12,16 @@ import (
 )
 
 type turnOutcome struct {
-	status string
-	result string
-	err    error
+	status string // 轮次完成状态
+	result string // 最终助手消息正文
+	err    error  // 轮次失败原因
 }
 
 type turnWaiter struct {
-	turnID string
-	items  map[string]string
-	order  []string
-	done   chan turnOutcome
+	turnID string            // 等待的轮次标识
+	items  map[string]string // 按消息标识保存的最终助手正文
+	order  []string          // 助手消息的完成顺序
+	done   chan turnOutcome  // 轮次结束通知通道
 }
 
 // OnCodexEvent 处理上游事件并同步所属任务状态
@@ -46,17 +46,19 @@ func (s *Service) OnCodexEvent(event codex.Event) {
 	if event.Method != "turn/started" && event.Method != "turn/completed" && event.Method != "item/completed" {
 		return
 	}
+
 	var params struct {
-		ThreadID string     `json:"threadId"`
-		TurnID   string     `json:"turnId"`
-		Turn     codex.Turn `json:"turn"`
-		Item     codex.Item `json:"item"`
+		ThreadID string     `json:"threadId"` // 执行会话
+		TurnID   string     `json:"turnId"`   // 执行轮次
+		Turn     codex.Turn `json:"turn"`     // 上游轮次内容
+		Item     codex.Item `json:"item"`     // 上游完成的消息项
 	}
 	if json.Unmarshal([]byte(event.Params), &params) != nil {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	waiter := s.turns[params.ThreadID]
 	if waiter == nil {
 		return
@@ -68,6 +70,7 @@ func (s *Service) OnCodexEvent(event codex.Event) {
 	if params.TurnID != "" && waiter.turnID != "" && params.TurnID != waiter.turnID {
 		return
 	}
+
 	add := func(item codex.Item) {
 		if item.Type == "agentMessage" && item.Phase != "commentary" {
 			if _, found := waiter.items[item.ID]; !found {
@@ -83,6 +86,7 @@ func (s *Service) OnCodexEvent(event codex.Event) {
 	if waiter.turnID != "" && params.Turn.ID != waiter.turnID {
 		return
 	}
+
 	for _, item := range params.Turn.Items {
 		add(item)
 	}
@@ -109,9 +113,18 @@ func (s *Service) OnCodexEvent(event codex.Event) {
 func (s *Service) ScopeForThread(threadID string) (Scope, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for _, execution := range s.state.Executions {
 		if execution.ThreadID == threadID && execution.Status == "running" {
-			return Scope{Role: "step", ProjectID: execution.ProjectID, FeatureID: execution.FeatureID, StepID: execution.StepID, ExecutionID: execution.ID, RequestID: execution.RequestID, Directory: execution.Context.Directory}, nil
+			return Scope{
+				Role:        "step",
+				ProjectID:   execution.ProjectID,
+				FeatureID:   execution.FeatureID,
+				StepID:      execution.StepID,
+				ExecutionID: execution.ID,
+				RequestID:   execution.RequestID,
+				Directory:   execution.Context.Directory,
+			}, nil
 		}
 	}
 	for _, request := range s.state.Requests {
@@ -125,7 +138,23 @@ func (s *Service) ScopeForThread(threadID string) (Scope, error) {
 // executionPrompt 组合冻结的步骤上下文和执行要求
 func executionPrompt(execution Execution) string {
 	context := execution.Context
-	parts := []string{"# 正式步骤执行", "## 项目：" + context.ProjectName, context.SharedContext, context.ProjectPrompt, context.Structure, "## 版本：" + context.VersionName, "## 功能：" + context.FeatureTitle, context.FeatureDescription, context.FeatureContext, context.FeaturePrompt, "## 步骤：" + context.Step.Title, context.Step.Description, context.Step.Prompt, "## 本次执行指令", execution.Instruction}
+	parts := []string{
+		"# 正式步骤执行",
+		"## 项目：" + context.ProjectName,
+		context.SharedContext,
+		context.ProjectPrompt,
+		context.Structure,
+		"## 版本：" + context.VersionName,
+		"## 功能：" + context.FeatureTitle,
+		context.FeatureDescription,
+		context.FeatureContext,
+		context.FeaturePrompt,
+		"## 步骤：" + context.Step.Title,
+		context.Step.Description,
+		context.Step.Prompt,
+		"## 本次执行指令",
+		execution.Instruction,
+	}
 	if execution.CompletionCriteria != "" {
 		parts = append(parts, "## 完成标准", execution.CompletionCriteria)
 	}

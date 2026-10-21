@@ -12,6 +12,7 @@ import (
 	"testing"
 )
 
+// TestAttachmentOwnershipAndResourceRouting 验证附件归属及资源路由范围
 func TestAttachmentOwnershipAndResourceRouting(t *testing.T) {
 	var imageData bytes.Buffer
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))

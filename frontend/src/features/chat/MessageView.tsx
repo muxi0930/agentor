@@ -29,8 +29,10 @@ export function MessageView({ item, files = [], streaming = false, onError }: { 
   }
   if (item.type === "reasoning" || item.type === "commandExecution") {
     const command = item.type === "commandExecution";
-    return <Trace><TraceCollapsible><TraceCollapsibleTrigger><TraceLine status={item.status === "inProgress" ? "running" : item.status === "failed" ? "error" : undefined}><TraceIcon>{command ? <Terminal /> : <Brain />}</TraceIcon><TraceTitle>{command ? item.command || "执行命令" : "思考过程"}</TraceTitle>{command && <TraceDescription>{item.status}{item.durationMs != null ? ` · ${(item.durationMs / 1000).toFixed(1)}s` : ""}</TraceDescription>}</TraceLine></TraceCollapsibleTrigger>
-      <TraceCollapsibleContent>{command ? <><CodeView code={item.aggregatedOutput || "暂无输出"} language="终端输出" />{item.exitCode != null && <p className="text-xs">退出码 {item.exitCode}</p>}</> : <p className="whitespace-pre-wrap text-sm">{(item.summary?.length ? item.summary : item.reasoningContent || []).join("\n") || "正在思考…"}</p>}</TraceCollapsibleContent>
+    const running = item.status === "inProgress" && (command || streaming);
+    const reasoning = (item.summary || []).filter(part => part.trim()).join("\n") || (item.reasoningContent || []).filter(part => part.trim()).join("\n");
+    return <Trace><TraceCollapsible><TraceCollapsibleTrigger><TraceLine status={running ? "running" : item.status === "failed" ? "error" : undefined}><TraceIcon>{command ? <Terminal /> : <Brain />}</TraceIcon><TraceTitle>{command ? item.command || "执行命令" : "思考过程"}</TraceTitle>{command && <TraceDescription>{item.status}{item.durationMs != null ? ` · ${(item.durationMs / 1000).toFixed(1)}s` : ""}</TraceDescription>}</TraceLine></TraceCollapsibleTrigger>
+      <TraceCollapsibleContent>{command ? <><CodeView code={item.aggregatedOutput || "暂无输出"} language="终端输出" />{item.exitCode != null && <p className="text-xs">退出码 {item.exitCode}</p>}</> : <p className="whitespace-pre-wrap text-sm">{reasoning || (running ? "正在思考…" : "未提供思考摘要")}</p>}</TraceCollapsibleContent>
     </TraceCollapsible></Trace>;
   }
   return <ToolView item={item} onError={onError} />;

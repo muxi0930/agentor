@@ -151,6 +151,7 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  resizable = false,
   className,
   children,
   dir,
@@ -159,8 +160,37 @@ function Sidebar({
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  resizable?: boolean
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const [width, setWidth] = React.useState(256)
+  const [resizing, setResizing] = React.useState(false)
+  const drag = React.useRef<{ x: number; width: number } | null>(null)
+  const canResize = resizable && !isMobile && state === "expanded"
+
+  React.useEffect(() => {
+    if (!resizing) return
+
+    const { cursor, userSelect } = document.body.style
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+    return () => {
+      document.body.style.cursor = cursor
+      document.body.style.userSelect = userSelect
+    }
+  }, [resizing])
+
+  React.useEffect(() => {
+    if (!canResize) {
+      drag.current = null
+      setResizing(false)
+    }
+  }, [canResize])
+
+  // 为主内容保留至少半个窗口，并沿用当前展开宽度作为下限
+  function resize(nextWidth: number) {
+    setWidth(Math.max(256, Math.min(480, window.innerWidth / 2, nextWidth)))
+  }
 
   if (collapsible === "none") {
     return (
@@ -211,12 +241,14 @@ function Sidebar({
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      style={resizable ? { "--sidebar-width": `clamp(256px, ${width}px, min(480px, 50vw))` } as React.CSSProperties : undefined}
     >
       {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
         className={cn(
           "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          resizing && "transition-none",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -229,6 +261,7 @@ function Sidebar({
         data-side={side}
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
+          resizing && "transition-none",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -244,6 +277,44 @@ function Sidebar({
         >
           {children}
         </div>
+        {canResize && <div
+          role="separator"
+          aria-label="调整侧边栏宽度"
+          aria-orientation="vertical"
+          aria-valuemin={256}
+          aria-valuemax={Math.min(480, window.innerWidth / 2)}
+          aria-valuenow={Math.min(width, 480, window.innerWidth / 2)}
+          tabIndex={0}
+          title="拖动或使用左右方向键调整侧边栏宽度"
+          className={cn(
+            "absolute inset-y-0 z-20 w-2 touch-none cursor-col-resize select-none outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-sidebar-ring focus-visible:after:bg-sidebar-ring",
+            side === "left" ? "-right-1" : "-left-1",
+            resizing && "after:bg-sidebar-ring"
+          )}
+          onPointerDown={(event) => {
+            if (event.button !== 0 || !event.isPrimary) return
+            event.preventDefault()
+            event.currentTarget.focus()
+            drag.current = { x: event.clientX, width: event.currentTarget.parentElement!.getBoundingClientRect().width }
+            event.currentTarget.setPointerCapture(event.pointerId)
+            setResizing(true)
+          }}
+          onPointerMove={(event) => {
+            if (!drag.current) return
+            resize(drag.current.width + (event.clientX - drag.current.x) * (side === "left" ? 1 : -1))
+          }}
+          onPointerUp={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+          }}
+          onPointerCancel={() => { drag.current = null; setResizing(false) }}
+          onLostPointerCapture={() => { drag.current = null; setResizing(false) }}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+            event.preventDefault()
+            const currentWidth = event.currentTarget.parentElement!.getBoundingClientRect().width
+            resize(currentWidth + (event.key === "ArrowRight" ? 16 : -16) * (side === "left" ? 1 : -1))
+          }}
+        />}
       </div>
     </div>
   )
@@ -477,7 +548,7 @@ const sidebarMenuButtonVariants = cva(
   {
     variants: {
       variant: {
-        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-foreground data-active:text-background data-active:hover:bg-foreground data-active:hover:text-background data-active:active:bg-foreground data-active:active:text-background data-active:after:ml-auto data-active:after:size-1.5 data-active:after:shrink-0 data-active:after:rounded-full data-active:after:bg-emerald-400 group-data-[collapsible=icon]:after:hidden",
         outline:
           "bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_var(--sidebar-accent)]",
       },

@@ -1,83 +1,93 @@
 package workspace
 
 type Tag struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color"`
+	ID    string `json:"id"`    // 稳定标识
+	Name  string `json:"name"`  // 显示名称
+	Color string `json:"color"` // 标签颜色
 }
 
 type Project struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Directory     string    `json:"directory"`
-	SharedContext string    `json:"sharedContext"`
-	Prompt        string    `json:"prompt"`
-	Structure     string    `json:"structure"`
-	Tags          []Tag     `json:"tags"`
-	Versions      []Version `json:"versions"`
-	DocumentIDs   []string  `json:"documentIds"`
+	CreatedAt     string    `json:"createdAt,omitempty"` // 创建时间
+	ID            string    `json:"id"`                  // 稳定标识
+	Name          string    `json:"name"`                // 显示名称
+	Directory     string    `json:"directory"`           // 项目工作目录
+	SharedContext string    `json:"sharedContext"`       // 项目共享上下文
+	Prompt        string    `json:"prompt"`              // 提示词
+	Structure     string    `json:"structure"`           // 项目结构说明
+	Tags          []Tag     `json:"tags"`                // 项目标签
+	Versions      []Version `json:"versions"`            // 项目版本
+	DocumentIDs   []string  `json:"documentIds"`         // 绑定的知识文档
 }
 
 type Version struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	TagIDs      []string  `json:"tagIds"`
-	Features    []Feature `json:"features"`
+	CreatedAt   string    `json:"createdAt,omitempty"` // 创建时间
+	DocumentIDs []string  `json:"documentIds"`         // 绑定的知识文档
+	ID          string    `json:"id"`                  // 稳定标识
+	Name        string    `json:"name"`                // 显示名称
+	Description string    `json:"description"`         // 描述
+	TagIDs      []string  `json:"tagIds"`              // 关联的项目标签
+	Features    []Feature `json:"features"`            // 版本内的功能
 }
 
 type Feature struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Context     string   `json:"context"`
-	Prompt      string   `json:"prompt"`
-	DocumentIDs []string `json:"documentIds"`
-	Steps       []Step   `json:"steps"`
+	Completed   bool     `json:"completed"`           // 是否已完成
+	CompletedAt string   `json:"completedAt"`         // 完成时间，未完成时为空
+	CreatedAt   string   `json:"createdAt,omitempty"` // 创建时间
+	ID          string   `json:"id"`                  // 稳定标识
+	Title       string   `json:"title"`               // 显示标题
+	Description string   `json:"description"`         // 描述
+	Context     string   `json:"context"`             // 功能上下文
+	Prompt      string   `json:"prompt"`              // 提示词
+	DocumentIDs []string `json:"documentIds"`         // 绑定的知识文档
+	Steps       []Step   `json:"steps"`               // 功能内的步骤
 }
 
 type Step struct {
-	ID             string `json:"id"`
-	Title          string `json:"title"`
-	Description    string `json:"description"`
-	Prompt         string `json:"prompt"`
-	ThreadID       string `json:"threadId"`
-	PermissionMode string `json:"permissionMode"`
+	Completed      bool   `json:"completed"`           // 是否已完成
+	CompletedAt    string `json:"completedAt"`         // 完成时间，未完成时为空
+	CreatedAt      string `json:"createdAt,omitempty"` // 创建时间
+	ID             string `json:"id"`                  // 稳定标识
+	Title          string `json:"title"`               // 显示标题
+	Description    string `json:"description"`         // 描述
+	Prompt         string `json:"prompt"`              // 提示词
+	ThreadID       string `json:"threadId"`            // 绑定的会话
+	PermissionMode string `json:"permissionMode"`      // 步骤权限覆盖值
 }
 
 type Document struct {
-	ID          string `json:"id"`
-	ProjectID   string `json:"projectId"`
-	Title       string `json:"title"`
-	SourcePath  string `json:"sourcePath"`
-	ManagedPath string `json:"managedPath"`
-	UpdatedAt   string `json:"updatedAt"`
+	ID          string `json:"id"`          // 稳定标识
+	ProjectID   string `json:"projectId"`   // 所属项目
+	Title       string `json:"title"`       // 显示标题
+	SourcePath  string `json:"sourcePath"`  // 原始导入路径
+	ManagedPath string `json:"managedPath"` // 应用托管文档路径
+	UpdatedAt   string `json:"updatedAt"`   // 最近更新时间
 }
 
 type State struct {
-	Projects   []Project  `json:"projects"`
-	Documents  []Document `json:"documents"`
-	SelectedID string     `json:"selectedId"`
+	Projects   []Project  `json:"projects"`   // 工作区项目
+	Documents  []Document `json:"documents"`  // 知识文档
+	SelectedID string     `json:"selectedId"` // 当前选中的节点
 }
 
 type StepContext struct {
-	ProjectID          string     `json:"projectId"`
-	ProjectName        string     `json:"projectName"`
-	Directory          string     `json:"directory"`
-	SharedContext      string     `json:"sharedContext"`
-	ProjectPrompt      string     `json:"projectPrompt"`
-	Structure          string     `json:"structure"`
-	VersionID          string     `json:"versionId"`
-	VersionName        string     `json:"versionName"`
-	FeatureID          string     `json:"featureId"`
-	FeatureTitle       string     `json:"featureTitle"`
-	FeatureDescription string     `json:"featureDescription"`
-	FeatureContext     string     `json:"featureContext"`
-	FeaturePrompt      string     `json:"featurePrompt"`
-	Step               Step       `json:"step"`
-	Documents          []Document `json:"documents"`
+	ProjectID          string     `json:"projectId"`          // 所属项目
+	ProjectName        string     `json:"projectName"`        // 项目名称
+	Directory          string     `json:"directory"`          // 项目工作目录
+	SharedContext      string     `json:"sharedContext"`      // 项目共享上下文
+	ProjectPrompt      string     `json:"projectPrompt"`      // 项目提示词
+	Structure          string     `json:"structure"`          // 项目结构说明
+	VersionID          string     `json:"versionId"`          // 所属版本
+	VersionName        string     `json:"versionName"`        // 版本名称
+	FeatureID          string     `json:"featureId"`          // 所属功能
+	FeatureTitle       string     `json:"featureTitle"`       // 功能标题
+	FeatureDescription string     `json:"featureDescription"` // 功能描述
+	FeatureContext     string     `json:"featureContext"`     // 功能上下文
+	FeaturePrompt      string     `json:"featurePrompt"`      // 功能提示词
+	Step               Step       `json:"step"`               // 当前步骤
+	Documents          []Document `json:"documents"`          // 知识文档
 }
 
+// findProject 按标识查找工作区项目
 func findProject(state *State, id string) *Project {
 	for i := range state.Projects {
 		if state.Projects[i].ID == id {
@@ -87,6 +97,7 @@ func findProject(state *State, id string) *Project {
 	return nil
 }
 
+// findVersion 按标识查找项目内的版本
 func findVersion(project *Project, id string) *Version {
 	if project != nil {
 		for i := range project.Versions {
@@ -98,6 +109,7 @@ func findVersion(project *Project, id string) *Version {
 	return nil
 }
 
+// findFeature 查找项目内的功能及其所属版本
 func findFeature(project *Project, id string) (*Version, *Feature) {
 	if project != nil {
 		for i := range project.Versions {
@@ -111,6 +123,7 @@ func findFeature(project *Project, id string) (*Version, *Feature) {
 	return nil, nil
 }
 
+// findStep 查找步骤及其所属项目版本和功能
 func findStep(state *State, id string) (*Project, *Version, *Feature, *Step) {
 	for i := range state.Projects {
 		project := &state.Projects[i]

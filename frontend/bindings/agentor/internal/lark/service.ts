@@ -28,10 +28,10 @@ export function ConfirmNotDelivered(id: string, partID: string): $CancellablePro
 }
 
 /**
- * Connect 启动官方 SDK 长连接
+ * DeleteCandidate 删除指定类型的已发现身份记录
  */
-export function Connect(): $CancellablePromise<$models.Status> {
-    return $Call.ByID(2620565655);
+export function DeleteCandidate(kind: string, id: string): $CancellablePromise<void> {
+    return $Call.ByID(1744559085, kind, id);
 }
 
 /**
@@ -70,7 +70,7 @@ export function RetryNotificationPart(id: string, partID: string): $CancellableP
 }
 
 /**
- * SaveSettings 保存配置并重新建立已启用的连接
+ * SaveSettings 保存配置成功后建立连接
  */
 export function SaveSettings(input: $models.SettingsInput): $CancellablePromise<$models.View> {
     return $Call.ByID(2982112267, input);

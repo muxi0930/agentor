@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import * as Pipeline from "../../../bindings/agentor/internal/pipeline/service";
-import * as Work from "../../../bindings/agentor/internal/workspace/service";
 import * as Files from "../../../bindings/agentor/internal/artifact/service";
 import type { ActionSpec, Schedule, State, Task } from "../../../bindings/agentor/internal/pipeline/models";
-import type { State as WorkState } from "../../../bindings/agentor/internal/workspace/models";
 import type { Attachment } from "../../../bindings/agentor/internal/artifact/models";
 import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
 import type { Status } from "../../../bindings/agentor/internal/codex/models";
@@ -14,25 +12,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AttachmentView } from "@/features/chat/AttachmentView";
 import { executionLabels } from "@/features/workspace/ExecutionPanel";
-import { locate } from "@/features/workspace/selection";
 import { errorText } from "@/app/errors";
 import { TaskEditor } from "./TaskEditor";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { RunInputs } from "./RunInputs";
 import { PipelineSessions } from "./PipelineSessions";
 
-export function PipelinePage({settings,status,focusProjectId,focusRunId,focusRequestId}:{settings:Settings;status?:Status;focusProjectId?:string;focusRunId?:string;focusRequestId?:string}){
-  const [state,setState]=useState<State>(),[work,setWork]=useState<WorkState>(),[actions,setActions]=useState<ActionSpec[]>([]);
-  const [projectId,setProject]=useState(focusProjectId||""),[taskId,setTask]=useState(""),[runId,setRun]=useState(focusRunId||"");
+export function PipelinePage({settings,status,projectId,focusRunId,focusRequestId}:{settings:Settings;status?:Status;projectId:string;focusRunId?:string;focusRequestId?:string}){
+  const [state,setState]=useState<State>(),[actions,setActions]=useState<ActionSpec[]>([]);
+  const [taskId,setTask]=useState(""),[runId,setRun]=useState(focusRunId||"");
   const [tab,setTab]=useState(focusRunId?"runs":focusRequestId?"sessions":"tasks"),[inputs,setInputs]=useState<Record<string,unknown>>({});
   const [editor,setEditor]=useState<Task|null>(),[scheduleEditor,setScheduleEditor]=useState<Schedule|null>();
   const [deletion,setDeletion]=useState<{kind:string;id:string;name:string}>(),[error,setError]=useState(""),[busy,setBusy]=useState(false),[files,setFiles]=useState<Attachment[]>([]);
-  async function refresh(){try{const [next,definitions,specs]=await Promise.all([Pipeline.GetState(),Work.GetState(),Pipeline.GetActions()]);setState(next);setWork(definitions);setActions(specs||[]);setProject(old=>old||locate(definitions,definitions.selectedId)?.project.id||definitions.projects?.[0]?.id||"");}catch(error){setError(errorText(error));}}
+  async function refresh(){try{const [next,specs]=await Promise.all([Pipeline.GetState(),Pipeline.GetActions()]);setState(next);setActions(specs||[]);}catch(error){setError(errorText(error));}}
   useEffect(()=>{void refresh();return Events.On("pipeline:changed",()=>void refresh());},[]);
   const tasks=(state?.tasks||[]).filter(task=>task.projectId===projectId),schedules=(state?.schedules||[]).filter(schedule=>schedule.projectId===projectId);
   const task=tasks.find(task=>task.id===taskId)||tasks[0];
@@ -40,7 +36,7 @@ export function PipelinePage({settings,status,focusProjectId,focusRunId,focusReq
   useEffect(()=>setInputs({}),[task?.id,projectId]);
   useEffect(()=>{let cancelled=false;setFiles([]);if(current)void Files.GetPipelineArtifacts(current.id).then(value=>{if(!cancelled)setFiles(value||[]);}).catch(error=>{if(!cancelled)setError(errorText(error));});return()=>{cancelled=true;};},[current?.id,current?.status]);
   async function run(action:()=>Promise<unknown>){setBusy(true);setError("");try{await action();await refresh();}catch(error){setError(errorText(error));}finally{setBusy(false);}}
-  return <div className="mx-auto w-full max-w-6xl space-y-6 p-5 lg:p-8"><div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h1 className="text-2xl font-semibold tracking-tight">项目流水线</h1><p className="mt-2 text-sm text-muted-foreground">固定动作按顺序执行，结果与报告归属到每次运行。</p></div><NativeSelect aria-label="流水线项目" value={projectId} onChange={event=>{setProject(event.target.value);setTask("");setRun("");}}>{work?.projects?.map(project=><NativeSelectOption key={project.id} value={project.id}>{project.name}</NativeSelectOption>)}</NativeSelect></div>
+  return <div className="space-y-6"><p className="text-sm text-muted-foreground">固定动作按顺序执行，结果与报告归属到每次运行。</p>
     {error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {!projectId?<p className="text-sm text-muted-foreground">先在工作区创建项目，再配置流水线。</p>:<Tabs value={tab} onValueChange={setTab}><TabsList><TabsTrigger value="tasks">任务配置</TabsTrigger><TabsTrigger value="schedules">调度</TabsTrigger><TabsTrigger value="runs">运行记录</TabsTrigger><TabsTrigger value="sessions">管理与配置会话</TabsTrigger><TabsTrigger value="actions">动作目录</TabsTrigger></TabsList>
       <TabsContent value="tasks" className="space-y-5"><Card><CardHeader className="flex-row items-center justify-between"><CardTitle className="text-base">任务配置</CardTitle><Button size="sm" onClick={()=>setEditor(null)}>新建任务</Button></CardHeader><CardContent>{!tasks.length?<p className="text-sm text-muted-foreground">还没有任务。可以用表单、JSON 或配置会话创建。</p>:<Table><TableHeader><TableRow><TableHead>任务</TableHead><TableHead>动作数</TableHead><TableHead>操作</TableHead></TableRow></TableHeader><TableBody>{tasks.map(task=><TableRow key={task.id}><TableCell><Button variant="ghost" onClick={()=>setTask(task.id)}>{task.name}</Button></TableCell><TableCell>{task.actions?.length}</TableCell><TableCell><div className="flex gap-2"><Button size="xs" variant="outline" onClick={()=>setEditor(task)}>编辑</Button><Button size="xs" variant="ghost" onClick={()=>setDeletion({kind:"task",id:task.id,name:task.name})}>删除</Button></div></TableCell></TableRow>)}</TableBody></Table>}</CardContent></Card>{task&&<Card><CardHeader><CardTitle className="text-base">运行 · {task.name}</CardTitle></CardHeader><CardContent className="space-y-4"><RunInputs task={task} values={inputs} onChange={setInputs}/><div className="flex items-center gap-3"><Button disabled={busy||runs.some(run=>run.taskId===task.id&&(run.status==="queued"||run.status==="running"))} onClick={()=>void run(async()=>{const value=await Pipeline.RunTask({taskId:task.id,inputs,model:settings.model,effort:settings.effort,source:{type:"desktop",appId:"",chatId:"",senderId:"",messageId:crypto.randomUUID(),replyToMessageId:""},requestId:"",sessionRequestId:""});setRun(value.id);setTab("runs");})}>运行任务</Button><p className="text-xs text-muted-foreground">{settings.model||"默认模型"} · {settings.effort} · 同任务不重入</p></div></CardContent></Card>}</TabsContent>

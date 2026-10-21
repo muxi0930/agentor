@@ -2,6 +2,7 @@ package tasks
 
 import "errors"
 
+// resolveTarget 按明确步骤引用消息和来源历史解析执行目标
 func (s *Service) resolveTarget(input ControllerInput) (ControllerInput, bool, error) {
 	needsTarget, inferred := false, false
 	s.mu.Lock()
@@ -25,6 +26,7 @@ func (s *Service) resolveTarget(input ControllerInput) (ControllerInput, bool, e
 		inferred = true
 	}
 	s.mu.Unlock()
+
 	if input.StepID != "" {
 		context, err := s.work.GetStepContext(input.StepID)
 		if err != nil {

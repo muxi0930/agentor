@@ -32,10 +32,12 @@ func (s *Service) resumeParameters(threadID string) (map[string]any, error) {
 	if settings.ReuseCLI {
 		return params, nil
 	}
+
 	stored, err := s.profile(settings.ActiveAccountID)
 	if err != nil {
 		return nil, err
 	}
+
 	params["modelProvider"] = "openai"
 	if stored.Profile.Type == "api" {
 		params["modelProvider"] = "agentor_api"
@@ -47,6 +49,7 @@ func (s *Service) resumeParameters(threadID string) (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		for _, model := range models {
 			if model.IsDefault {
 				params["model"] = model.Model

@@ -17,9 +17,13 @@ func TestEnsureOpenSkipsHistoryForNewThreads(t *testing.T) {
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
+
 	c := &client{stdin: writer, done: make(chan struct{}), pending: map[string]chan packet{}}
 	s.client, s.status.Phase = c, "ready"
-	defer func() { s.client = nil }()
+	defer func() {
+		s.client = nil
+	}()
+
 	request := make(chan packet, 1)
 	go func() {
 		var message packet

@@ -68,7 +68,9 @@ func TestProfilesKeepCredentialsPrivateAndRestoreOwnAuth(t *testing.T) {
 	if strings.Contains(string(raw), "private-test-key") || strings.Contains(string(raw), "own-test-access") {
 		t.Fatal("公开账号列表泄露凭据")
 	}
-	s.SetAccountGuard(func(bool) error { return errors.New("queue active") })
+	s.SetAccountGuard(func(bool) error {
+		return errors.New("queue active")
+	})
 	if _, err = s.UseAccount(""); err == nil || s.data.GetSettings().ReuseCLI {
 		t.Fatal("活动队列下切换了账号")
 	}
@@ -101,14 +103,26 @@ func TestBalanceMappingCacheAndFailureStaySeparate(t *testing.T) {
 		fmt.Fprint(w, `{"data":{"balance":"12.5","used":2,"total":null,"unit":"credits"},"a/b":{"~key":[10]}}`)
 	}))
 	defer server.Close()
-	config := BalanceConfig{URL: server.URL, Method: "POST", HeaderName: "Authorization", HeaderPrefix: "Bearer ", Body: `{"key":"$API_KEY"}`, BalancePath: "/data/balance", UsedPath: "/data/used", TotalPath: "/data/total", UnitPath: "/data/unit"}
+
+	config := BalanceConfig{
+		URL:          server.URL,
+		Method:       "POST",
+		HeaderName:   "Authorization",
+		HeaderPrefix: "Bearer ",
+		Body:         `{"key":"$API_KEY"}`,
+		BalancePath:  "/data/balance",
+		UsedPath:     "/data/used",
+		TotalPath:    "/data/total",
+		UnitPath:     "/data/unit",
+	}
 	view, err := s.SaveProfile(ProfileInput{Name: "Balance check", Type: "api", BaseURL: server.URL, APIKey: "test-key", Balance: config})
 	if err != nil {
 		t.Fatal(err)
 	}
 	id := view.Profiles[0].ID
 	result, err := s.GetBalance(id, false)
-	if err != nil || result.Error != "" || result.Balance == nil || *result.Balance != 12.5 || result.Used == nil || *result.Used != 2 || result.Total != nil || result.Unit != "credits" {
+	if err != nil || result.Error != "" || result.Balance == nil || *result.Balance != 12.5 ||
+		result.Used == nil || *result.Used != 2 || result.Total != nil || result.Unit != "credits" {
 		t.Fatal(result, err)
 	}
 	s.GetBalance(id, false)
@@ -141,8 +155,11 @@ func TestNativeIndependentAccountsLoginAndCancel(t *testing.T) {
 		t.Skip("设置 AGENTOR_CODEX_ACCOUNTS_SMOKE=1 后验证原生独立账号")
 	}
 	s := accountFixture(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"data":[]}`) }))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[]}`)
+	}))
 	defer server.Close()
+
 	view, err := s.SaveProfile(ProfileInput{Name: "Native API check", Type: "api", Model: "local-custom-model", BaseURL: server.URL + "/v1", APIKey: "local-native-test-key"})
 	if err != nil {
 		t.Fatal(err)
@@ -165,6 +182,7 @@ func TestNativeIndependentAccountsLoginAndCancel(t *testing.T) {
 	for _, model := range models {
 		found = found || model.Model == "local-custom-model"
 	}
+
 	if !found {
 		t.Fatal("自定义 API 模型没有进入选择列表")
 	}
@@ -200,11 +218,14 @@ func TestNativeIndependentAccountsLoginAndCancel(t *testing.T) {
 func accountFixture(t *testing.T) *Service {
 	t.Helper()
 	t.Setenv("AGENTOR_DATA_DIR", t.TempDir())
-	data, err := appdata.NewService()
+	t.Setenv("CODEX_HOME", t.TempDir())
+	data, err := appdata.NewService("test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := NewService(data, nil)
-	t.Cleanup(func() { s.ServiceShutdown() })
+	t.Cleanup(func() {
+		s.ServiceShutdown()
+	})
 	return s
 }

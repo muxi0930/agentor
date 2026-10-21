@@ -17,6 +17,7 @@ func (s *Service) SetNotificationHandler(handler func(Notification)) {
 func (s *Service) GetNotification(id string) (Notification, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for _, item := range s.state.Notifications {
 		if item.ID == id {
 			return copyState(State{Notifications: []Notification{item}}).Notifications[0], nil
@@ -53,6 +54,7 @@ func (s *Service) AddNotificationParts(id string, parts []NotificationPart) erro
 func (s *Service) UpdateNotificationPart(id string, part NotificationPart) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if err := s.ctx.Err(); err != nil {
 		return err
 	}

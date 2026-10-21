@@ -9,17 +9,22 @@ import (
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
 	"agentor/internal/lark"
+	"agentor/internal/lifecycle"
 	"agentor/internal/pipeline"
 	"agentor/internal/tasks"
+	"agentor/internal/toolrouter"
 	"agentor/internal/workspace"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
+var version string = "0.1.0" // 应用版本
+
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// main 初始化业务服务并运行桌面窗口
 func main() {
-	data, err := appdata.NewService()
+	data, err := appdata.NewService(version)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,6 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	runtime := codex.NewService(data, files)
 	executions, err := tasks.NewService(data, runtime, work, files)
 	if err != nil {
@@ -44,10 +50,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	router := &toolRouter{tasks: executions, work: work, pipeline: pipelines, lark: remote}
-	executions.ConfigureTools(router.specs)
-	pipelines.ConfigureTools(router.specs)
-	runtime.SetToolHandler(router.call)
+	lifetime := lifecycle.NewService(data, runtime, executions, pipelines)
+
+	router := toolrouter.New(executions, work, pipelines, remote)
+	executions.ConfigureTools(router.Specs)
+	pipelines.ConfigureTools(router.Specs)
+	runtime.SetToolHandler(router.Call)
 	runtime.SetEventHandler(func(event codex.Event) { executions.OnCodexEvent(event); remote.OnCodexEvent(event) })
 	executions.SetNotificationHandler(remote.OnNotification)
 	work.SetDeleteGuard(executions.PrepareDelete)
@@ -60,7 +68,7 @@ func main() {
 		}
 		for _, request := range state.Requests {
 			if request.Status == "running" || changing && request.Status == "queued" {
-				return errors.New("请先结束或取消控制器请求，再切换连接")
+				return errors.New("请先结束或取消控制中心请求，再切换连接")
 			}
 		}
 		pipelineState := pipelines.GetState()
@@ -76,12 +84,18 @@ func main() {
 		}
 		return nil
 	})
+
 	var window *application.WebviewWindow
 	app := application.New(application.Options{
 		Name: "agentor", Description: "Codex 对话与工作编排",
-		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(runtime), application.NewService(work), application.NewService(executions), application.NewService(pipelines), application.NewService(remote)},
+		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(runtime), application.NewService(work), application.NewService(executions), application.NewService(pipelines), application.NewService(remote), application.NewService(lifetime)},
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: files.Middleware},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		PostShutdown: func() {
+			if err := lifetime.CompleteRestart(); err != nil {
+				log.Printf("应用重启失败：%v", err)
+			}
+		},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID: "io.agentor.desktop",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
@@ -92,10 +106,12 @@ func main() {
 			},
 		},
 	})
+
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title: "agentor", Width: 1360, Height: 900, MinWidth: 900, MinHeight: 640,
 		BackgroundColour: application.NewRGB(250, 250, 249), URL: "/",
 	})
+
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}

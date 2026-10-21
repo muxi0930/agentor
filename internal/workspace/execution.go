@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"errors"
 	"strings"
+	"time"
 )
 
+// BindStepThread 将工作区步骤绑定到业务会话
+//
 //wails:ignore
 func (s *Service) BindStepThread(stepID, threadID string) error {
 	_, err := s.mutate(func(state *State) error {
@@ -19,14 +22,19 @@ func (s *Service) BindStepThread(stepID, threadID string) error {
 	return err
 }
 
+// CreateFeature 在指定项目版本内创建功能
+//
 //wails:ignore
 func (s *Service) CreateFeature(projectID, versionID string, input Feature) (Feature, error) {
 	input.Title = strings.TrimSpace(input.Title)
 	if input.Title == "" {
 		return Feature{}, errors.New("请填写功能标题")
 	}
+
 	input.ID = rand.Text()
+	input.CreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	input.Steps = []Step{}
+	input.Completed, input.CompletedAt = false, ""
 	input.DocumentIDs = []string{}
 	_, err := s.mutate(func(state *State) error {
 		version := findVersion(findProject(state, projectID), versionID)
@@ -39,14 +47,19 @@ func (s *Service) CreateFeature(projectID, versionID string, input Feature) (Fea
 	return input, err
 }
 
+// CreateStep 在指定项目功能内创建步骤
+//
 //wails:ignore
 func (s *Service) CreateStep(projectID, featureID string, input Step) (Step, error) {
 	input.Title = strings.TrimSpace(input.Title)
 	if input.Title == "" {
 		return Step{}, errors.New("请填写步骤标题")
 	}
+
 	input.ID = rand.Text()
+	input.CreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	input.ThreadID = ""
+	input.Completed, input.CompletedAt = false, ""
 	input.PermissionMode = ""
 	_, err := s.mutate(func(state *State) error {
 		_, feature := findFeature(findProject(state, projectID), featureID)

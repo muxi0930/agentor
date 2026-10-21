@@ -27,7 +27,14 @@ func resolveBinary(path string) (string, error) {
 	}
 	if strings.EqualFold(filepath.Ext(resolved), ".js") {
 		// 官方 npm 包包含原生程序，定位后直接运行原生文件
-		triplets := map[string]string{"darwin/arm64": "aarch64-apple-darwin", "darwin/amd64": "x86_64-apple-darwin", "linux/arm64": "aarch64-unknown-linux-musl", "linux/amd64": "x86_64-unknown-linux-musl", "windows/arm64": "aarch64-pc-windows-msvc", "windows/amd64": "x86_64-pc-windows-msvc"}
+		triplets := map[string]string{
+			"darwin/arm64":  "aarch64-apple-darwin",
+			"darwin/amd64":  "x86_64-apple-darwin",
+			"linux/arm64":   "aarch64-unknown-linux-musl",
+			"linux/amd64":   "x86_64-unknown-linux-musl",
+			"windows/arm64": "aarch64-pc-windows-msvc",
+			"windows/amd64": "x86_64-pc-windows-msvc",
+		}
 		target := triplets[runtime.GOOS+"/"+runtime.GOARCH]
 		arch := runtime.GOARCH
 		if arch == "amd64" {
@@ -43,16 +50,20 @@ func resolveBinary(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("未找到原生 Codex，请手动选择可执行文件: %w", err)
 	}
+
 	defer file.Close()
+
 	var header [4]byte
 	if _, err := io.ReadFull(file, header[:]); err != nil {
 		return "", err
 	}
+
 	magic := binary.BigEndian.Uint32(header[:])
 	native := string(header[:]) == "\x7fELF" || string(header[:2]) == "MZ" || magic == 0xfeedfacf || magic == 0xcffaedfe || magic == 0xcafebabe || magic == 0xbebafeca
 	if !native {
 		return "", errors.New("请选择 Codex 原生可执行文件，不支持 Node、Shell 或其他脚本入口")
 	}
+
 	return filepath.Abs(resolved)
 }
 
@@ -73,5 +84,6 @@ func processEnvironment(home string, reuseCLI bool) []string {
 		}
 		env = append(env, entry)
 	}
+
 	return append(env, "CODEX_HOME="+home)
 }

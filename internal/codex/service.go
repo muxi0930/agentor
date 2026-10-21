@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -17,61 +15,78 @@ import (
 )
 
 type Status struct {
-	Phase      string `json:"phase"`
-	Message    string `json:"message"`
-	Path       string `json:"path"`
-	Version    string `json:"version"`
-	Home       string `json:"home"`
-	ReuseCLI   bool   `json:"reuseCLI"`
-	Generation uint64 `json:"generation"`
-	Revision   uint64 `json:"revision"`
+	Phase      string `json:"phase"`      // 当前连接阶段
+	Message    string `json:"message"`    // 可读提示信息
+	Path       string `json:"path"`       // 本地资源路径
+	Version    string `json:"version"`    // 原生程序版本
+	Home       string `json:"home"`       // 原生运行时数据目录
+	ReuseCLI   bool   `json:"reuseCLI"`   // 是否沿用 CLI 配置
+	Generation uint64 `json:"generation"` // 所属连接代次
+	Revision   uint64 `json:"revision"`   // 状态修订号
 }
 
 type Event struct {
-	Generation uint64 `json:"generation"`
-	Method     string `json:"method"`
-	Params     string `json:"params"`
+	Generation uint64 `json:"generation"` // 所属连接代次
+	Method     string `json:"method"`     // 协议请求方法
+	Params     string `json:"params"`     // 原始请求参数
 }
 
 type Service struct {
-	data           *appdata.Service
-	connectMu      sync.Mutex
-	mu             sync.Mutex
-	client         *client
-	status         Status
-	ctx            context.Context
-	cancel         context.CancelFunc
-	active         map[string]string
-	opened         map[string]bool
-	approvals      map[string]Approval
-	files          *artifact.Service
-	usage          map[string]*TokenUsage
-	pendingChanges map[string]map[string][]FileChange
-	toolHandler    func(ToolCall) (any, error)
-	eventHandler   func(Event)
-	profiles       profileStore             // 仅含本应用创建的独立账号
-	profilesErr    error                    // 账号文件读取错误
-	profileID      string                   // 当前原生进程实际使用的独立身份
-	login          LoginState               // 当前原生交互式登录状态
-	balances       map[string]BalanceResult // 按账号隔离的短时余额缓存
-	accountGuard   func(bool) error         // 参数指定是否禁止切换有排队任务的身份
+	data             *appdata.Service                   // 应用设置与数据服务
+	connectMu        sync.Mutex                         // 串行保护连接切换
+	mu               sync.Mutex                         // 保护连接状态
+	closing          bool                               // 应用退出时阻止提交新轮次
+	turnRequests     sync.WaitGroup                     // 等待退出前已提交的轮次启动请求
+	shutdownRequests sync.WaitGroup                     // 等待退出时发出的中断请求
+	client           *client                            // 当前原生协议连接
+	status           Status                             // 当前连接状态
+	ctx              context.Context                    // 服务生命周期上下文
+	cancel           context.CancelFunc                 // 取消服务生命周期
+	active           map[string]string                  // 按会话索引的活动轮次
+	activeText       map[string]string                  // 活动轮次的输入摘要
+	opened           map[string]bool                    // 当前连接已恢复的会话
+	approvals        map[string]Approval                // 按请求索引的审批记录
+	files            *artifact.Service                  // 附件与产物服务
+	usage            map[string]*TokenUsage             // 按会话索引的令牌用量
+	pendingChanges   map[string]map[string][]FileChange // 按会话与过程节点索引的文件变更
+	toolHandler      func(ToolCall) (any, error)        // 宿主工具执行入口
+	eventHandler     func(Event)                        // 上游事件业务观察者
+	profiles         profileStore                       // 仅含本应用创建的独立账号
+	profilesErr      error                              // 账号文件读取错误
+	profileID        string                             // 当前原生进程实际使用的独立身份
+	login            LoginState                         // 当前原生交互式登录状态
+	balances         map[string]BalanceResult           // 按账号隔离的短时余额缓存
+	accountGuard     func(bool) error                   // 参数指定是否禁止切换有排队任务的身份
 }
 
 type Account struct {
-	Type     string `json:"type"`
-	Email    string `json:"email"`
-	PlanType string `json:"planType"`
+	Type     string `json:"type"`     // 当前账号类型
+	Email    string `json:"email"`    // 当前账号邮箱
+	PlanType string `json:"planType"` // 当前账号套餐类型
 }
 
 type AccountInfo struct {
-	Account            *Account `json:"account"`
-	RequiresOpenAIAuth bool     `json:"requiresOpenaiAuth"`
+	Account            *Account `json:"account"`            // 当前认证账号
+	RequiresOpenAIAuth bool     `json:"requiresOpenaiAuth"` // 是否需要 OpenAI 登录
 }
 
 // NewService 初始化服务并读取本地记录
 func NewService(data *appdata.Service, files *artifact.Service) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Service{data: data, files: files, ctx: ctx, cancel: cancel, balances: map[string]BalanceResult{}, active: make(map[string]string), opened: make(map[string]bool), approvals: make(map[string]Approval), usage: make(map[string]*TokenUsage), pendingChanges: make(map[string]map[string][]FileChange), status: Status{Phase: "stopped", Message: "尚未连接 Codex"}}
+	s := &Service{
+		data:           data,
+		files:          files,
+		ctx:            ctx,
+		cancel:         cancel,
+		balances:       map[string]BalanceResult{},
+		active:         make(map[string]string),
+		activeText:     make(map[string]string),
+		opened:         make(map[string]bool),
+		approvals:      make(map[string]Approval),
+		usage:          make(map[string]*TokenUsage),
+		pendingChanges: make(map[string]map[string][]FileChange),
+		status:         Status{Phase: "stopped", Message: "尚未连接 Codex"},
+	}
 	if data != nil {
 		s.profilesErr = appdata.ReadJSON(s.profilesPath(), &s.profiles)
 	}
@@ -82,12 +97,15 @@ func NewService(data *appdata.Service, files *artifact.Service) *Service {
 func (s *Service) GetStatus() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return s.status
 }
 
 // ServiceStartup 在应用启动时建立原生连接
 func (s *Service) ServiceStartup(context.Context, application.ServiceOptions) error {
-	go func() { s.Connect() }()
+	go func() {
+		s.Connect()
+	}()
 	return nil
 }
 
@@ -95,9 +113,11 @@ func (s *Service) ServiceStartup(context.Context, application.ServiceOptions) er
 func (s *Service) Connect() (Status, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
+
 	if err := s.accountIdle(false); err != nil {
 		return s.GetStatus(), err
 	}
+
 	return s.connect()
 }
 
@@ -128,9 +148,13 @@ func (s *Service) GetAccount() (AccountInfo, error) {
 
 // ServiceShutdown 结束进程并保存本应用登录状态
 func (s *Service) ServiceShutdown() error {
+	s.PrepareShutdown()
+	s.turnRequests.Wait()
+	s.shutdownRequests.Wait()
 	s.cancel()
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
+
 	s.mu.Lock()
 	s.status.Generation++
 	c := s.client
@@ -181,12 +205,19 @@ func (s *Service) connect() (Status, error) {
 	if err := s.ctx.Err(); err != nil {
 		return s.GetStatus(), err
 	}
+
 	s.mu.Lock()
+	if s.closing {
+		status := s.status
+		s.mu.Unlock()
+		return status, errors.New("应用正在退出")
+	}
 	if len(s.active) > 0 {
 		status := s.status
 		s.mu.Unlock()
 		return status, errors.New("请先停止活动任务，再重新连接")
 	}
+
 	old := s.client
 	s.client = nil
 	s.opened = make(map[string]bool)
@@ -201,6 +232,7 @@ func (s *Service) connect() (Status, error) {
 	if err := s.captureAuth(); err != nil {
 		return s.connectionError(err)
 	}
+
 	s.mu.Lock()
 	s.profileID = ""
 	if s.login.Status == "pending" {
@@ -211,16 +243,7 @@ func (s *Service) connect() (Status, error) {
 	settings := s.data.GetSettings()
 	var selected storedProfile
 	home := s.data.GetInfo().CodexHome
-	if settings.ReuseCLI {
-		home = os.Getenv("CODEX_HOME")
-		if home == "" {
-			userHome, err := os.UserHomeDir()
-			if err != nil {
-				return s.connectionError(err)
-			}
-			home = filepath.Join(userHome, ".codex")
-		}
-	} else {
+	if !settings.ReuseCLI {
 		var err error
 		selected, err = s.profile(settings.ActiveAccountID)
 		if err != nil {
@@ -234,18 +257,21 @@ func (s *Service) connect() (Status, error) {
 	if err != nil {
 		return s.connectionError(err)
 	}
+
 	env := processEnvironment(home, settings.ReuseCLI)
 	if selected.Profile.Type == "api" {
 		env = append(env, "AGENTOR_ACCOUNT_API_KEY="+selected.APIKey)
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 	defer cancel()
+
 	versionCmd := exec.CommandContext(ctx, path, "--version")
 	versionCmd.Env = env
 	version, err := versionCmd.Output()
 	if err != nil {
 		return s.connectionError(err)
 	}
+
 	s.mu.Lock()
 	s.status.Path, s.status.Home, s.status.Version, s.status.ReuseCLI = path, home, strings.TrimSpace(string(version)), settings.ReuseCLI
 	s.mu.Unlock()
@@ -260,12 +286,17 @@ func (s *Service) connect() (Status, error) {
 			s.handleServerRequest(generation, message)
 			return
 		}
+
 		s.trackNotification(generation, message)
 		if message.Method == "account/login/completed" {
 			go s.trackLogin(generation, message.Params)
 		}
 		s.observe(Event{Generation: generation, Method: message.Method, Params: string(message.Params)})
-		if !strings.HasPrefix(message.Method, "thread/") && !strings.HasPrefix(message.Method, "turn/") && !strings.HasPrefix(message.Method, "item/") && !strings.HasPrefix(message.Method, "account/") && message.Method != "serverRequest/resolved" && message.Method != "error" {
+		if !strings.HasPrefix(message.Method, "thread/") &&
+			!strings.HasPrefix(message.Method, "turn/") &&
+			!strings.HasPrefix(message.Method, "item/") &&
+			!strings.HasPrefix(message.Method, "account/") &&
+			message.Method != "serverRequest/resolved" && message.Method != "error" {
 			return
 		}
 		if app := application.Get(); app != nil {
@@ -279,6 +310,7 @@ func (s *Service) connect() (Status, error) {
 			s.mu.Lock()
 			if s.status.Generation == generation {
 				s.active = make(map[string]string)
+				s.activeText = make(map[string]string)
 				s.opened = make(map[string]bool)
 				s.expireApprovalsLocked("", "")
 				if s.login.Status == "pending" {
@@ -292,11 +324,12 @@ func (s *Service) connect() (Status, error) {
 	if err != nil {
 		return s.connectionError(err)
 	}
+
 	s.mu.Lock()
 	s.client = c
 	s.mu.Unlock()
 	var initialized struct {
-		UserAgent string `json:"userAgent"`
+		UserAgent string `json:"userAgent"` // 原生初始化返回的客户端标识
 	}
 	err = c.request(ctx, "initialize", map[string]any{
 		"clientInfo":   map[string]string{"name": "agentor", "title": "agentor", "version": "0.1.0"},
@@ -309,6 +342,7 @@ func (s *Service) connect() (Status, error) {
 		c.close()
 		return s.connectionError(err)
 	}
+
 	s.mu.Lock()
 	s.profileID = selected.Profile.ID
 	s.mu.Unlock()
@@ -316,11 +350,15 @@ func (s *Service) connect() (Status, error) {
 	if status.Phase != "ready" {
 		return status, errors.New(status.Message)
 	}
+
 	return status, nil
 }
 
 // mustJSON 将协议内容编码为 JSON 字符串
-func mustJSON(value any) string { raw, _ := json.Marshal(value); return string(raw) }
+func mustJSON(value any) string {
+	raw, _ := json.Marshal(value)
+	return string(raw)
+}
 
 // observe 通知业务模块处理上游事件
 func (s *Service) observe(event Event) {
@@ -345,7 +383,9 @@ func (s *Service) call(method string, params, result any) error {
 	if c == nil || phase != "ready" {
 		return errors.New("Codex 尚未就绪，请先连接")
 	}
+
 	ctx, cancel := context.WithTimeout(s.ctx, 60*time.Second)
 	defer cancel()
+
 	return c.request(ctx, method, params, result)
 }

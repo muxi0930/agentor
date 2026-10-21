@@ -2,9 +2,11 @@ package codex
 
 import "testing"
 
+// TestOldConnectionCannotOverwriteStatus 验证旧连接不能覆盖当前连接状态
 func TestOldConnectionCannotOverwriteStatus(t *testing.T) {
 	s := NewService(nil, nil)
 	defer s.cancel()
+
 	s.status.Generation = 2
 	current := s.setStatus(2, "ready", "connected")
 	stale := s.setStatus(1, "error", "old process exited")
@@ -13,9 +15,11 @@ func TestOldConnectionCannotOverwriteStatus(t *testing.T) {
 	}
 }
 
+// TestClosedProcessCannotBecomeReady 验证已关闭进程不能进入就绪状态
 func TestClosedProcessCannotBecomeReady(t *testing.T) {
 	s := NewService(nil, nil)
 	defer s.cancel()
+
 	done := make(chan struct{})
 	close(done)
 	s.client = &client{done: done}

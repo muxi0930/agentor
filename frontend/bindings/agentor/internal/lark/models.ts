@@ -145,11 +145,6 @@ export interface Settings {
     "region": string;
 
     /**
-     * 是否启用连接
-     */
-    "enabled": boolean;
-
-    /**
      * 允许的单聊联系人
      */
     "allowedUsers": Identity[] | null;
@@ -175,11 +170,6 @@ export interface SettingsInput {
      * 服务区域
      */
     "region": string;
-
-    /**
-     * 是否启用连接
-     */
-    "enabled": boolean;
 
     /**
      * 允许的单聊联系人

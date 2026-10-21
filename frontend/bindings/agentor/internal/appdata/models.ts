@@ -18,17 +18,96 @@ export interface AccountPreferences {
     "permission": string;
 }
 
+export interface ControllerSettings {
+    /**
+     * 用户保存的安全提示词
+     */
+    "securityPrompt"?: string | null;
+
+    /**
+     * 执行者可选模型，空字符串表示跟随默认会话
+     */
+    "models": string[] | null;
+
+    /**
+     * 执行者可选推理强度，空字符串表示跟随默认会话
+     */
+    "efforts": string[] | null;
+
+    /**
+     * 控制中心默认提示词
+     */
+    "prompt": string;
+
+    /**
+     * 模型与推理强度决策的自定义提示词
+     */
+    "decisionPrompt": string;
+}
+
 export interface Info {
+    /**
+     * 应用名称
+     */
     "name": string;
+
+    /**
+     * 应用版本
+     */
     "version": string;
+
+    /**
+     * Go 运行时版本
+     */
     "goVersion": string;
+
+    /**
+     * 操作系统
+     */
     "os": string;
+
+    /**
+     * 处理器架构
+     */
     "arch": string;
+
+    /**
+     * 应用数据目录
+     */
     "dataDirectory": string;
+
+    /**
+     * 控制中心工作目录
+     */
+    "controllerDirectory": string;
+
+    /**
+     * 本应用的 Codex 数据目录
+     */
     "codexHome": string;
+
+    /**
+     * 系统默认 Codex 数据目录
+     */
+    "systemCodexHome": string;
 }
 
 export interface Settings {
+    /**
+     * 功能子代理最大执行秒数，零表示不限时
+     */
+    "agentTimeoutSeconds": number;
+
+    /**
+     * 工作队列功能任务的最大并发数
+     */
+    "maxConcurrentAgents": number;
+
+    /**
+     * 控制中心配置
+     */
+    "controller": ControllerSettings;
+
     /**
      * 当前独立账号，空值表示尚未选择
      */
@@ -38,22 +117,114 @@ export interface Settings {
      * 每个连接身份的模型与权限偏好
      */
     "accountPreferences": { [_ in string]?: AccountPreferences } | null;
+
+    /**
+     * 界面主题
+     */
     "theme": string;
+
+    /**
+     * 当前工作模式
+     */
     "mode": string;
+
+    /**
+     * 当前项目目录
+     */
     "projectDirectory": string;
+
+    /**
+     * 原生 Codex 程序路径
+     */
     "codexPath": string;
+
+    /**
+     * Codex 数据目录模式：system 或 custom
+     */
+    "codexHomeMode": string;
+
+    /**
+     * 自定义 Codex 数据目录
+     */
+    "codexHomePath": string;
+
+    /**
+     * 是否读取非本应用创建的会话
+     */
+    "readExternalThreads": boolean;
+
+    /**
+     * 在本应用打开过的外部会话
+     */
+    "externalThreads": { [_ in string]?: boolean } | null;
+
+    /**
+     * 是否沿用 CLI 配置
+     */
     "reuseCLI": boolean;
+
+    /**
+     * 当前模型
+     */
     "model": string;
+
+    /**
+     * 当前推理强度
+     */
     "effort": string;
+
+    /**
+     * 最近打开的会话
+     */
     "lastThreadId": string;
+
+    /**
+     * 本应用登记的会话及其目录
+     */
     "chatThreads": { [_ in string]?: string } | null;
+
+    /**
+     * 项目目录的显示别名
+     */
     "projectAliases": { [_ in string]?: string } | null;
+
+    /**
+     * 已隐藏的项目目录
+     */
     "hiddenProjects": string[] | null;
+
+    /**
+     * 当前账号的默认权限
+     */
     "permissionMode": string;
+
+    /**
+     * 项目权限覆盖值
+     */
     "projectPermissions": { [_ in string]?: string } | null;
+
+    /**
+     * 会话权限覆盖值
+     */
     "threadPermissions": { [_ in string]?: string } | null;
+
+    /**
+     * 已置顶的会话
+     */
     "pinnedThreads": { [_ in string]?: boolean } | null;
+
+    /**
+     * 各项目内的会话顺序
+     */
     "chatOrder": { [_ in string]?: string[] | null } | null;
+
+    /**
+     * 项目显示顺序
+     */
     "projectOrder": string[] | null;
+
+    /**
+     * 业务专用会话及其角色
+     */
     "managedThreads": { [_ in string]?: string } | null;
 }

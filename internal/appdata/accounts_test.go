@@ -5,7 +5,7 @@ import "testing"
 // TestAccountPreferencesStayWithIdentity 验证账号切换恢复各自的模型与默认权限
 func TestAccountPreferencesStayWithIdentity(t *testing.T) {
 	t.Setenv("AGENTOR_DATA_DIR", t.TempDir())
-	s, err := NewService()
+	s, err := NewService("test")
 	if err != nil {
 		t.Fatal(err)
 	}

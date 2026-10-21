@@ -1,4 +1,4 @@
-package main
+package toolrouter
 
 import (
 	"context"
@@ -16,12 +16,13 @@ import (
 	"agentor/internal/workspace"
 )
 
+// TestNativeStepKnowledgeTool 验证原生步骤会话调用知识工具
 func TestNativeStepKnowledgeTool(t *testing.T) {
 	if os.Getenv("AGENTOR_NATIVE_EXECUTION_SMOKE") != "1" {
 		t.Skip("opt-in native Codex execution")
 	}
 	t.Setenv("AGENTOR_DATA_DIR", t.TempDir())
-	data, err := appdata.NewService()
+	data, err := appdata.NewService("test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,11 +44,11 @@ func TestNativeStepKnowledgeTool(t *testing.T) {
 	}
 	defer runtime.ServiceShutdown()
 	defer executions.ServiceShutdown()
-	router := &toolRouter{tasks: executions, work: work}
-	executions.ConfigureTools(router.specs)
+	router := &Router{tasks: executions, work: work}
+	executions.ConfigureTools(router.Specs)
 	var reads atomic.Int32
 	runtime.SetToolHandler(func(call codex.ToolCall) (any, error) {
-		value, err := router.call(call)
+		value, err := router.Call(call)
 		if call.Tool == "read_knowledge" && err == nil {
 			reads.Add(1)
 		}
@@ -101,12 +102,13 @@ func TestNativeStepKnowledgeTool(t *testing.T) {
 	t.Logf("native execution %s thread %s turn %s completed via %d read_knowledge call(s)", result.ID, result.ThreadID, result.TurnID, reads.Load())
 }
 
+// TestNativeControllerDispatchAndReport 验证原生控制中心派发步骤并汇报结果
 func TestNativeControllerDispatchAndReport(t *testing.T) {
 	if os.Getenv("AGENTOR_NATIVE_CONTROLLER_SMOKE") != "1" {
 		t.Skip("opt-in native controller execution")
 	}
 	t.Setenv("AGENTOR_DATA_DIR", t.TempDir())
-	data, err := appdata.NewService()
+	data, err := appdata.NewService("test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,11 +130,11 @@ func TestNativeControllerDispatchAndReport(t *testing.T) {
 	}
 	defer runtime.ServiceShutdown()
 	defer executions.ServiceShutdown()
-	router := &toolRouter{tasks: executions, work: work}
-	executions.ConfigureTools(router.specs)
+	router := &Router{tasks: executions, work: work}
+	executions.ConfigureTools(router.Specs)
 	var dispatches atomic.Int32
 	runtime.SetToolHandler(func(call codex.ToolCall) (any, error) {
-		value, err := router.call(call)
+		value, err := router.Call(call)
 		if call.Tool == "dispatch_step" && err == nil {
 			dispatches.Add(1)
 		}

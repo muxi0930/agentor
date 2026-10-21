@@ -17,8 +17,7 @@ export function ChooseFiles(threadID: string): $CancellablePromise<$models.Attac
 }
 
 /**
- * Preview resources exist only while their message view is mounted. The original
- * source remains in Codex history; no second HTML history is stored here.
+ * CreateHTMLPreview 创建随消息视图挂载的临时预览，源码仍保留在 Codex 历史中
  */
 export function CreateHTMLPreview(threadID: string, source: string): $CancellablePromise<string> {
     return $Call.ByID(4101920568, threadID, source);
@@ -38,10 +37,16 @@ export function GetAttachments(threadID: string): $CancellablePromise<$models.At
     return $Call.ByID(358559999, threadID);
 }
 
+/**
+ * GetExecutionArtifacts 按创建顺序读取指定步骤执行的产物
+ */
 export function GetExecutionArtifacts(executionID: string): $CancellablePromise<$models.Attachment[] | null> {
     return $Call.ByID(806563538, executionID);
 }
 
+/**
+ * GetPipelineArtifacts 读取指定流水线运行的产物
+ */
 export function GetPipelineArtifacts(runID: string): $CancellablePromise<$models.Attachment[] | null> {
     return $Call.ByID(134736112, runID);
 }
@@ -67,6 +72,9 @@ export function OpenAttachment(id: string): $CancellablePromise<void> {
     return $Call.ByID(3446878856, id);
 }
 
+/**
+ * ReleaseHTMLPreview 释放消息视图不再使用的临时预览
+ */
 export function ReleaseHTMLPreview(url: string): $CancellablePromise<void> {
     return $Call.ByID(157870321, url);
 }

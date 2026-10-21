@@ -33,6 +33,7 @@ func (s *Service) RecordFailedInput(requestID, name, reason string) error {
 func (s *Service) GetRequestAttachments(requestID string) []Attachment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	result := []Attachment{}
 	for _, item := range s.items {
 		if item.RequestID == requestID && item.ThreadID == "" && item.Kind == "input" {
@@ -51,6 +52,7 @@ func (s *Service) CopyRequestInputs(requestID, threadID, executionID, stepID str
 	if requestID == "" {
 		return ids, nil
 	}
+
 	for _, item := range s.GetRequestAttachments(requestID) {
 		if item.Status != "ready" {
 			continue
@@ -78,6 +80,7 @@ func (s *Service) CopyRequestInputs(requestID, threadID, executionID, stepID str
 func (s *Service) GetAttachment(id string) (Attachment, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	item, ok := s.items[id]
 	if !ok {
 		return Attachment{}, errors.New("附件不存在")

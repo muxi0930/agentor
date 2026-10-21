@@ -9,121 +9,140 @@ import (
 )
 
 type ReasoningOption struct {
-	ReasoningEffort string `json:"reasoningEffort"`
-	Description     string `json:"description"`
+	ReasoningEffort string `json:"reasoningEffort"` // 支持的思考强度
+	Description     string `json:"description"`     // 说明文字
 }
 
 type Model struct {
-	ID                        string            `json:"id"`
-	Model                     string            `json:"model"`
-	DisplayName               string            `json:"displayName"`
-	Description               string            `json:"description"`
-	IsDefault                 bool              `json:"isDefault"`
-	Hidden                    bool              `json:"hidden"`
-	DefaultReasoningEffort    string            `json:"defaultReasoningEffort"`
-	SupportedReasoningEfforts []ReasoningOption `json:"supportedReasoningEfforts"`
-	InputModalities           []string          `json:"inputModalities"`
+	ID                        string            `json:"id"`                        // 模型目录标识
+	Model                     string            `json:"model"`                     // 模型标识
+	DisplayName               string            `json:"displayName"`               // 模型显示名称
+	Description               string            `json:"description"`               // 说明文字
+	IsDefault                 bool              `json:"isDefault"`                 // 是否为默认模型
+	Hidden                    bool              `json:"hidden"`                    // 是否在模型列表中隐藏
+	DefaultReasoningEffort    string            `json:"defaultReasoningEffort"`    // 模型默认思考强度
+	SupportedReasoningEfforts []ReasoningOption `json:"supportedReasoningEfforts"` // 模型支持的思考强度
+	InputModalities           []string          `json:"inputModalities"`           // 模型支持的输入类型
 }
 
 type ThreadStatus struct {
-	Type string `json:"type"`
+	Type string `json:"type"` // 会话状态类型
 }
 
 type Thread struct {
-	ID         string       `json:"id"`
-	Name       string       `json:"name"`
-	Preview    string       `json:"preview"`
-	Cwd        string       `json:"cwd"`
-	Model      string       `json:"model"`
-	Originator string       `json:"originator"`
-	CreatedAt  int64        `json:"createdAt"`
-	UpdatedAt  int64        `json:"updatedAt"`
-	Status     ThreadStatus `json:"status"`
+	ID         string       `json:"id"`         // 会话标识
+	Name       string       `json:"name"`       // 会话标题
+	Preview    string       `json:"preview"`    // 会话预览文字
+	Cwd        string       `json:"cwd"`        // 执行目录
+	Model      string       `json:"model"`      // 模型标识
+	Originator string       `json:"originator"` // 会话创建来源标识
+	CreatedAt  int64        `json:"createdAt"`  // 创建时间
+	UpdatedAt  int64        `json:"updatedAt"`  // 最后更新时间
+	Status     ThreadStatus `json:"status"`     // 当前处理状态
 }
 
 type ThreadPage struct {
-	Data       []Thread `json:"data"`
-	NextCursor *string  `json:"nextCursor"`
+	Data       []Thread `json:"data"`       // 当前分页数据
+	NextCursor *string  `json:"nextCursor"` // 下一页游标
 }
 
 type Input struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-	Path string `json:"path,omitempty"`
+	Type string `json:"type"`           // 输入类型
+	Text string `json:"text,omitempty"` // 文字内容
+	Path string `json:"path,omitempty"` // 本地资源路径
 }
 
 type Item struct {
-	ID               string       `json:"id"`
-	ClientID         string       `json:"clientId"`
-	Type             string       `json:"type"`
-	Text             string       `json:"text"`
-	Phase            string       `json:"phase"`
-	Content          []Input      `json:"content"`
-	Command          string       `json:"command"`
-	AggregatedOutput string       `json:"aggregatedOutput"`
-	Status           string       `json:"status"`
-	ExitCode         *int         `json:"exitCode"`
-	Summary          []string     `json:"summary"`
-	ReasoningContent []string     `json:"reasoningContent"`
-	DurationMs       *int64       `json:"durationMs,omitempty"`
-	Changes          []FileChange `json:"changes,omitempty"`
-	Path             string       `json:"path,omitempty"`
-	Query            string       `json:"query,omitempty"`
-	Server           string       `json:"server,omitempty"`
-	Tool             string       `json:"tool,omitempty"`
-	Details          string       `json:"details,omitempty"`
+	ID               string       `json:"id"`                   // 消息或过程节点标识
+	ClientID         string       `json:"clientId"`             // 客户端消息标识
+	Type             string       `json:"type"`                 // 消息或过程节点类型
+	Text             string       `json:"text"`                 // 文字内容
+	Phase            string       `json:"phase"`                // 助手消息阶段
+	Content          []Input      `json:"content"`              // 用户输入内容
+	Command          string       `json:"command"`              // 待执行命令
+	AggregatedOutput string       `json:"aggregatedOutput"`     // 累计命令输出
+	Status           string       `json:"status"`               // 当前处理状态
+	ExitCode         *int         `json:"exitCode"`             // 命令退出码
+	Summary          []string     `json:"summary"`              // 思考摘要分段
+	ReasoningContent []string     `json:"reasoningContent"`     // 上游提供的思考内容分段
+	DurationMs       *int64       `json:"durationMs,omitempty"` // 执行耗时毫秒数
+	Changes          []FileChange `json:"changes,omitempty"`    // 文件变更明细
+	Path             string       `json:"path,omitempty"`       // 本地资源路径
+	Query            string       `json:"query,omitempty"`      // 搜索关键词
+	Server           string       `json:"server,omitempty"`     // MCP 服务名称
+	Tool             string       `json:"tool,omitempty"`       // 宿主工具名称
+	Details          string       `json:"details,omitempty"`    // 补充请求详情
 }
 
 type FileChangeKind struct {
-	Type     string `json:"type"`
-	MovePath string `json:"move_path,omitempty"`
+	Type     string `json:"type"`                // 文件变更类型
+	MovePath string `json:"move_path,omitempty"` // 移动后的文件路径
 }
 
 type FileChange struct {
-	Path string         `json:"path"`
-	Kind FileChangeKind `json:"kind"`
-	Diff string         `json:"diff"`
+	Path string         `json:"path"` // 本地资源路径
+	Kind FileChangeKind `json:"kind"` // 文件变更类型
+	Diff string         `json:"diff"` // 文件变更补丁
 }
 
 type TurnError struct {
-	Message string `json:"message"`
+	Message string `json:"message"` // 可读提示信息
 }
 
 type Turn struct {
-	ID          string     `json:"id"`
-	Status      string     `json:"status"`
-	Items       []Item     `json:"items"`
-	Error       *TurnError `json:"error"`
-	StartedAt   *int64     `json:"startedAt,omitempty"`
-	CompletedAt *int64     `json:"completedAt,omitempty"`
-	DurationMs  *int64     `json:"durationMs,omitempty"`
+	ID          string     `json:"id"`                    // 轮次标识
+	Status      string     `json:"status"`                // 当前处理状态
+	Items       []Item     `json:"items"`                 // 本轮消息与过程节点
+	Error       *TurnError `json:"error"`                 // 失败原因
+	StartedAt   *int64     `json:"startedAt,omitempty"`   // 开始时间
+	CompletedAt *int64     `json:"completedAt,omitempty"` // 完成时间
+	DurationMs  *int64     `json:"durationMs,omitempty"`  // 执行耗时毫秒数
 }
 
 type TurnPage struct {
-	Data       []Turn  `json:"data"`
-	NextCursor *string `json:"nextCursor"`
+	Data       []Turn  `json:"data"`       // 当前分页数据
+	NextCursor *string `json:"nextCursor"` // 下一页游标
 }
 
 type Conversation struct {
-	Thread       Thread      `json:"thread"`
-	Turns        TurnPage    `json:"turns"`
-	ActiveTurnID string      `json:"activeTurnId"`
-	TokenUsage   *TokenUsage `json:"tokenUsage,omitempty"`
+	Thread       Thread      `json:"thread"`               // 原生会话元信息
+	Turns        TurnPage    `json:"turns"`                // 会话轮次分页
+	ActiveTurnID string      `json:"activeTurnId"`         // 当前活动轮次标识
+	TokenUsage   *TokenUsage `json:"tokenUsage,omitempty"` // 会话令牌用量
 }
 
 type TokenBreakdown struct {
-	InputTokens           int64 `json:"inputTokens"`
-	OutputTokens          int64 `json:"outputTokens"`
-	CachedInputTokens     int64 `json:"cachedInputTokens"`
-	CacheWriteInputTokens int64 `json:"cacheWriteInputTokens"`
-	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"`
-	TotalTokens           int64 `json:"totalTokens"`
+	InputTokens           int64 `json:"inputTokens"`           // 输入令牌数
+	OutputTokens          int64 `json:"outputTokens"`          // 输出令牌数
+	CachedInputTokens     int64 `json:"cachedInputTokens"`     // 缓存输入令牌数
+	CacheWriteInputTokens int64 `json:"cacheWriteInputTokens"` // 写入缓存的输入令牌数
+	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"` // 思考输出令牌数
+	TotalTokens           int64 `json:"totalTokens"`           // 令牌总数
 }
 
 type TokenUsage struct {
-	Total              TokenBreakdown `json:"total"`
-	Last               TokenBreakdown `json:"last"`
-	ModelContextWindow *int64         `json:"modelContextWindow"`
+	Total              TokenBreakdown `json:"total"`              // 累计令牌用量
+	Last               TokenBreakdown `json:"last"`               // 最近一轮令牌用量
+	ModelContextWindow *int64         `json:"modelContextWindow"` // 模型上下文窗口大小
+}
+
+// GetTokenUsage 读取会话最近一次上报的令牌用量快照
+//
+//wails:ignore
+func (s *Service) GetTokenUsage(threadID string) *TokenUsage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	usage := s.usage[threadID]
+	if usage == nil {
+		return nil
+	}
+	result := *usage
+	if usage.ModelContextWindow != nil {
+		window := *usage.ModelContextWindow
+		result.ModelContextWindow = &window
+	}
+	return &result
 }
 
 // GetModels 读取原生模型目录并补充当前 API 配置的自定义模型
@@ -132,8 +151,8 @@ func (s *Service) GetModels() ([]Model, error) {
 	cursor := ""
 	for {
 		var result struct {
-			Data       []Model `json:"data"`
-			NextCursor *string `json:"nextCursor"`
+			Data       []Model `json:"data"`       // 当前分页数据
+			NextCursor *string `json:"nextCursor"` // 下一页游标
 		}
 		params := map[string]any{"limit": 100}
 		if cursor != "" {
@@ -142,11 +161,13 @@ func (s *Service) GetModels() ([]Model, error) {
 		if err := s.call("model/list", params, &result); err != nil {
 			return nil, err
 		}
+
 		for _, model := range result.Data {
 			if !model.Hidden {
 				models = append(models, model)
 			}
 		}
+
 		if result.NextCursor == nil {
 			settings := s.data.GetSettings()
 			if !settings.ReuseCLI && settings.Model != "" {
@@ -155,12 +176,21 @@ func (s *Service) GetModels() ([]Model, error) {
 				for _, model := range models {
 					found = found || model.Model == settings.Model
 				}
+
 				if err == nil && stored.Profile.Type == "api" && !found {
-					models = append(models, Model{ID: settings.Model, Model: settings.Model, DisplayName: settings.Model + "（自定义）", Description: "由当前 API 账号配置，实际可用性以请求结果为准", InputModalities: []string{"text"}, SupportedReasoningEfforts: []ReasoningOption{}})
+					models = append(models, Model{
+						ID:                        settings.Model,
+						Model:                     settings.Model,
+						DisplayName:               settings.Model + "（自定义）",
+						Description:               "由当前 API 账号配置，实际可用性以请求结果为准",
+						InputModalities:           []string{"text"},
+						SupportedReasoningEfforts: []ReasoningOption{},
+					})
 				}
 			}
 			return models, nil
 		}
+
 		cursor = *result.NextCursor
 	}
 }
@@ -170,35 +200,41 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 	var result ThreadPage
 	params := map[string]any{"limit": 100, "sortKey": "updated_at"}
 	settings := s.data.GetSettings()
-	if settings.ReuseCLI {
-		// 复用 CLI 认证时，只展示本应用登记的会话
+	if !settings.ReadExternalThreads {
+		// 未开启外部会话时，仅查询本应用创建的会话所在目录
 		directories := make(map[string]bool)
-		for _, cwd := range settings.ChatThreads {
-			directories[cwd] = true
+		for id, cwd := range settings.ChatThreads {
+			if !settings.ExternalThreads[id] {
+				directories[cwd] = true
+			}
 		}
-		if settings.LastThreadID != "" && settings.ProjectDirectory != "" {
+
+		if settings.LastThreadID != "" && !settings.ExternalThreads[settings.LastThreadID] && settings.ProjectDirectory != "" {
 			directories[settings.ProjectDirectory] = true
 		}
 		if len(directories) == 0 {
 			return ThreadPage{Data: []Thread{}}, nil
 		}
+
 		paths := make([]string, 0, len(directories))
 		for cwd := range directories {
 			paths = append(paths, cwd)
 		}
+
 		params["cwd"] = paths
 	}
 	if cursor != "" {
 		params["cursor"] = cursor
 	}
 	err := s.call("thread/list", params, &result)
-	if settings.ReuseCLI {
+	if !settings.ReadExternalThreads {
 		owned := make([]Thread, 0, len(result.Data))
 		for _, thread := range result.Data {
-			if _, ok := settings.ChatThreads[thread.ID]; ok || thread.ID == settings.LastThreadID {
+			if _, ok := settings.ChatThreads[thread.ID]; !settings.ExternalThreads[thread.ID] && (ok || thread.ID == settings.LastThreadID) {
 				owned = append(owned, thread)
 			}
 		}
+
 		result.Data = owned
 	}
 	if result.Data == nil {
@@ -210,6 +246,7 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 			regular = append(regular, thread)
 		}
 	}
+
 	result.Data = regular
 	return result, err
 }
@@ -230,12 +267,13 @@ func (s *Service) CreateToolThread(cwd, model, permission, role, instructions st
 func (item *Item) UnmarshalJSON(data []byte) error {
 	type plain Item
 	payload := struct {
-		*plain
-		Content json.RawMessage `json:"content"`
+		*plain                  // 待解码的消息公共字段
+		Content json.RawMessage `json:"content"` // MCP 问答提交内容
 	}{plain: (*plain)(item)}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return err
 	}
+
 	switch item.Type {
 	case "userMessage":
 		if len(payload.Content) > 0 {
@@ -250,6 +288,7 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 			item.Details = string(data)
 		}
 	}
+
 	return nil
 }
 
@@ -272,6 +311,7 @@ func (s *Service) OpenThread(threadID string) (Conversation, error) {
 	if err := s.call(method, params, &result); err != nil {
 		return result, err
 	}
+
 	s.mu.Lock()
 	s.opened[threadID] = true
 	s.mu.Unlock()
@@ -279,7 +319,7 @@ func (s *Service) OpenThread(threadID string) (Conversation, error) {
 	result.Turns = turns
 	if err == nil {
 		if _, known := s.data.GetSettings().ChatThreads[threadID]; !known {
-			_, err = s.data.RememberThread(threadID, result.Thread.Cwd)
+			err = s.data.RememberExternalThread(threadID, result.Thread.Cwd)
 		}
 	}
 	s.mu.Lock()
@@ -322,16 +362,19 @@ func (s *Service) SteerTurn(threadID, text, clientMessageID string, attachmentID
 	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
 		return errors.New("请输入追加指令")
 	}
+
 	input, additionalContext, err := s.buildInput(threadID, text, attachmentIDs)
 	if err != nil {
 		return err
 	}
+
 	s.mu.Lock()
 	turnID := s.active[threadID]
 	s.mu.Unlock()
 	if turnID == "" || turnID == "starting" {
 		return errors.New("当前会话没有可追加的活动轮次")
 	}
+
 	params := map[string]any{"threadId": threadID, "expectedTurnId": turnID, "input": input, "clientUserMessageId": clientMessageID}
 	if len(additionalContext) > 0 {
 		params["additionalContext"] = additionalContext
@@ -342,6 +385,7 @@ func (s *Service) SteerTurn(threadID, text, clientMessageID string, attachmentID
 	if len(attachmentIDs) > 0 {
 		return s.files.BindTurn(threadID, turnID, clientMessageID, attachmentIDs)
 	}
+
 	return nil
 }
 
@@ -353,6 +397,7 @@ func (s *Service) StopTurn(threadID string) error {
 	if turnID == "" || turnID == "starting" {
 		return errors.New("当前会话没有可停止的活动轮次")
 	}
+
 	return s.call("turn/interrupt", map[string]string{"threadId": threadID, "turnId": turnID}, nil)
 }
 
@@ -362,6 +407,7 @@ func (s *Service) StopTurn(threadID string) error {
 func (s *Service) IsThreadActive(threadID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return s.active[threadID] != ""
 }
 
@@ -370,6 +416,7 @@ func (s *Service) RenameThread(threadID, name string) error {
 	if strings.TrimSpace(name) == "" {
 		return errors.New("请输入会话标题")
 	}
+
 	return s.call("thread/name/set", map[string]string{"threadId": threadID, "name": strings.TrimSpace(name)}, nil)
 }
 
@@ -381,6 +428,7 @@ func (s *Service) ArchiveThread(threadID string) error {
 	if active {
 		return errors.New("请先停止运行中的会话")
 	}
+
 	return s.call("thread/archive", map[string]string{"threadId": threadID}, nil)
 }
 
@@ -393,16 +441,19 @@ func (s *Service) ArchiveProject(cwd string) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+
 		for _, thread := range page.Data {
 			if thread.Cwd == cwd {
 				threads = append(threads, thread)
 			}
 		}
+
 		if page.NextCursor == nil {
 			break
 		}
 		cursor = *page.NextCursor
 	}
+
 	s.mu.Lock()
 	for _, thread := range threads {
 		if s.active[thread.ID] != "" {
@@ -410,12 +461,14 @@ func (s *Service) ArchiveProject(cwd string) (int, error) {
 			return 0, errors.New("项目中仍有活动任务，请先停止后再归档")
 		}
 	}
+
 	s.mu.Unlock()
 	for index, thread := range threads {
 		if err := s.ArchiveThread(thread.ID); err != nil {
 			return index, err
 		}
 	}
+
 	return len(threads), nil
 }
 
@@ -424,6 +477,7 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 	if cwd == "" {
 		return Thread{}, errors.New("请先选择项目目录")
 	}
+
 	info, err := os.Stat(cwd)
 	if err != nil {
 		return Thread{}, err
@@ -431,10 +485,12 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 	if !info.IsDir() {
 		return Thread{}, errors.New("项目目录无效")
 	}
+
 	cwd, err = filepath.Abs(cwd)
 	if err != nil {
 		return Thread{}, err
 	}
+
 	params := map[string]any{"cwd": cwd, "sandbox": permission, "approvalPolicy": "on-request", "approvalsReviewer": "user", "historyMode": "paginated"}
 	if role != "" && role != "step" {
 		params["approvalPolicy"] = "never"
@@ -449,7 +505,7 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 		params["model"] = model
 	}
 	var result struct {
-		Thread Thread `json:"thread"`
+		Thread Thread `json:"thread"` // 原生会话元信息
 	}
 	err = s.call("thread/start", params, &result)
 	if err == nil {
@@ -470,12 +526,14 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
 		return Turn{}, errors.New("请输入消息")
 	}
+
 	input, additionalContext, err := s.buildInput(threadID, text, attachmentIDs)
 	if err != nil {
 		return Turn{}, err
 	}
+
 	s.mu.Lock()
-	if s.status.Phase != "ready" {
+	if s.closing || s.status.Phase != "ready" {
 		s.mu.Unlock()
 		return Turn{}, errors.New("Codex 尚未就绪")
 	}
@@ -483,7 +541,15 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 		s.mu.Unlock()
 		return Turn{}, errors.New("当前会话正在运行，请追加指令或等待结束")
 	}
+
+	s.turnRequests.Add(1)
+	defer s.turnRequests.Done()
+
 	s.active[threadID] = "starting"
+	if s.activeText == nil {
+		s.activeText = make(map[string]string)
+	}
+	s.activeText[threadID] = text
 	s.mu.Unlock()
 	params := map[string]any{"threadId": threadID, "input": input, "clientUserMessageId": clientMessageID}
 	params["sandboxPolicy"] = sandboxPolicy(permission, cwd)
@@ -502,7 +568,7 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 		params["effort"] = effort
 	}
 	var result struct {
-		Turn Turn `json:"turn"`
+		Turn Turn `json:"turn"` // 上游轮次内容
 	}
 	err = s.call("turn/start", params, &result)
 	s.mu.Lock()
@@ -511,9 +577,15 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 			s.active[threadID] = result.Turn.ID
 		} else {
 			delete(s.active, threadID)
+			delete(s.activeText, threadID)
 		}
 	}
+	closing := s.closing
 	s.mu.Unlock()
+	if closing && err == nil {
+		s.StopTurn(threadID)
+		return Turn{}, errors.New("应用正在退出，轮次已中断")
+	}
 	if err == nil && len(attachmentIDs) > 0 {
 		err = s.files.BindTurn(threadID, result.Turn.ID, clientMessageID, attachmentIDs)
 	}
@@ -533,10 +605,12 @@ func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]I
 	if s.files == nil {
 		return nil, nil, errors.New("附件服务不可用")
 	}
+
 	files, err := s.files.ResolveInputs(threadID, attachmentIDs)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	for _, file := range files {
 		if strings.HasPrefix(file.MediaType, "image/") {
 			input = append(input, Input{Type: "localImage", Path: file.LocalPath})
@@ -545,6 +619,7 @@ func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]I
 			context["agentor/attachment/"+file.ID] = map[string]string{"kind": "untrusted", "value": "用户选定的本地附件，可按需读取：" + string(info)}
 		}
 	}
+
 	if len(input) == 0 {
 		input = append(input, Input{Type: "text", Text: "请查看所附文件。"})
 	}
@@ -555,12 +630,13 @@ func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]I
 func (s *Service) trackNotification(generation uint64, message packet) {
 	if message.Method == "item/started" || message.Method == "item/completed" {
 		var params struct {
-			ThreadID string `json:"threadId"`
-			Item     Item   `json:"item"`
+			ThreadID string `json:"threadId"` // 所属会话标识
+			Item     Item   `json:"item"`     // 上游过程节点
 		}
 		if json.Unmarshal(message.Params, &params) != nil || params.Item.Type != "fileChange" {
 			return
 		}
+
 		s.mu.Lock()
 		if s.status.Generation == generation {
 			if s.pendingChanges[params.ThreadID] == nil {
@@ -579,12 +655,13 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	}
 	if message.Method == "thread/tokenUsage/updated" {
 		var params struct {
-			ThreadID   string     `json:"threadId"`
-			TokenUsage TokenUsage `json:"tokenUsage"`
+			ThreadID   string     `json:"threadId"`   // 所属会话标识
+			TokenUsage TokenUsage `json:"tokenUsage"` // 会话令牌用量
 		}
 		if json.Unmarshal(message.Params, &params) != nil {
 			return
 		}
+
 		s.mu.Lock()
 		if s.status.Generation == generation {
 			s.usage[params.ThreadID] = &params.TokenUsage
@@ -594,12 +671,13 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	}
 	if message.Method == "serverRequest/resolved" {
 		var params struct {
-			RequestID json.RawMessage `json:"requestId"`
-			ThreadID  string          `json:"threadId"`
+			RequestID json.RawMessage `json:"requestId"` // 服务器请求标识
+			ThreadID  string          `json:"threadId"`  // 所属会话标识
 		}
 		if json.Unmarshal(message.Params, &params) != nil {
 			return
 		}
+
 		s.mu.Lock()
 		if approval, ok := s.approvals[string(params.RequestID)]; ok && approval.Generation == generation && approval.ThreadID == params.ThreadID && approval.Status == "pending" {
 			approval.Status = "expired"
@@ -608,9 +686,10 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 		s.mu.Unlock()
 		return
 	}
+
 	var params struct {
-		ThreadID string `json:"threadId"`
-		Turn     Turn   `json:"turn"`
+		ThreadID string `json:"threadId"` // 所属会话标识
+		Turn     Turn   `json:"turn"`     // 上游轮次内容
 	}
 	if message.Method != "turn/started" && message.Method != "turn/completed" {
 		return
@@ -618,8 +697,10 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	if json.Unmarshal(message.Params, &params) != nil {
 		return
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if s.status.Generation != generation {
 		return
 	}
@@ -628,6 +709,7 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	}
 	if message.Method == "turn/completed" && s.active[params.ThreadID] == params.Turn.ID {
 		delete(s.active, params.ThreadID)
+		delete(s.activeText, params.ThreadID)
 	}
 	if message.Method == "turn/completed" {
 		s.expireApprovalsLocked(params.ThreadID, params.Turn.ID)

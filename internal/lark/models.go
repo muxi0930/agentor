@@ -10,7 +10,6 @@ type Identity struct {
 type Settings struct {
 	AppID            string     `json:"appId"`            // 当前飞书应用
 	Region           string     `json:"region"`           // 服务区域
-	Enabled          bool       `json:"enabled"`          // 是否启用连接
 	AllowedUsers     []Identity `json:"allowedUsers"`     // 允许的单聊联系人
 	AllowedChats     []Identity `json:"allowedChats"`     // 允许接收任务的群
 	DefaultProjectID string     `json:"defaultProjectId"` // 默认项目范围

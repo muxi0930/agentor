@@ -30,10 +30,16 @@ export function MarkNotificationRead(id: string): $CancellablePromise<void> {
     return $Call.ByID(3727566219, id);
 }
 
+/**
+ * RebuildControllerContext 重建控制中心专用会话并恢复队列处理
+ */
 export function RebuildControllerContext(): $CancellablePromise<void> {
     return $Call.ByID(3938391139);
 }
 
+/**
+ * RebuildStepContext 重建步骤专用会话并恢复队列处理
+ */
 export function RebuildStepContext(stepID: string): $CancellablePromise<void> {
     return $Call.ByID(3746385509, stepID);
 }
@@ -60,14 +66,14 @@ export function StopExecution(id: string): $CancellablePromise<void> {
 }
 
 /**
- * StopRequest 取消排队或正在处理的控制器请求
+ * StopRequest 取消排队或正在处理的控制中心请求
  */
 export function StopRequest(id: string): $CancellablePromise<void> {
     return $Call.ByID(4279013546, id);
 }
 
 /**
- * SubmitRequest 将用户指令加入控制器队列
+ * SubmitRequest 将用户指令加入控制中心队列
  */
 export function SubmitRequest(input: $models.ControllerInput): $CancellablePromise<$models.Request> {
     return $Call.ByID(3848601978, input);

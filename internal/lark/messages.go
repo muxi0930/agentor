@@ -33,6 +33,7 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 	if event == nil || event.Event == nil || event.Event.Message == nil || event.Event.Sender == nil || event.Event.Sender.SenderId == nil {
 		return result, errors.New("消息缺少来源")
 	}
+
 	message, sender := event.Event.Message, event.Event.Sender
 	result.Source = tasks.Source{Type: "lark", AppID: appID, ChatID: value(message.ChatId), SenderID: value(sender.SenderId.OpenId), MessageID: value(message.MessageId), ReplyToMessageID: value(message.ParentId)}
 	if result.Source.ReplyToMessageID == "" {
@@ -44,7 +45,12 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 	if err := json.Unmarshal([]byte(value(message.Content)), &content); err != nil {
 		return result, err
 	}
-	read := func(name string) string { var text string; json.Unmarshal(content[name], &text); return text }
+	read := func(name string) string {
+		var text string
+		json.Unmarshal(content[name], &text)
+		return text
+	}
+
 	switch value(message.MessageType) {
 	case "text":
 		result.Text = read("text")
@@ -57,6 +63,7 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 	case "post":
 		post := content
 		if post["content"] == nil {
+			// 多语言富文本优先读取简体中文，再按语言键顺序查找可用正文
 			keys := make([]string, 0, len(content))
 			for key := range content {
 				keys = append(keys, key)
@@ -112,6 +119,7 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 	default:
 		return result, errors.New("当前支持文本、富文本、图片与文件消息")
 	}
+
 	for _, mention := range message.Mentions {
 		if mention == nil || mention.Id == nil {
 			continue
@@ -122,6 +130,7 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 			result.Text = strings.ReplaceAll(result.Text, value(mention.Key), "")
 		}
 	}
+
 	result.Text = strings.TrimSpace(result.Text)
 	if result.Source.SenderID == "" || result.Source.MessageID == "" || result.Source.ChatID == "" {
 		return result, errors.New("消息来源不完整")
@@ -136,7 +145,7 @@ func hasIdentity(values []Identity, id string) bool {
 
 // authorized 核验单聊联系人或群内对当前机器人的提及
 func authorized(config Settings, botID string, message Message) bool {
-	if !config.Enabled || message.SenderType != "user" {
+	if message.SenderType != "user" {
 		return false
 	}
 	if message.ChatType == "p2p" {
@@ -185,12 +194,14 @@ func (s *Service) receive(ctx context.Context, generation uint64, client *larksd
 		s.changed()
 		return nil
 	}
+
 	for _, incoming := range s.state.Incoming {
 		if incoming.Source.AppID == message.Source.AppID && incoming.Source.MessageID == message.Source.MessageID {
 			s.mu.Unlock()
 			return nil
 		}
 	}
+
 	requestID := rand.Text()
 	s.state.Incoming = append(s.state.Incoming, Incoming{Source: message.Source, RequestID: requestID, Status: "receiving", CreatedAt: now()})
 	err := s.persistLocked()
@@ -229,7 +240,7 @@ func (s *Service) updateIncoming(source tasks.Source, status string, err error) 
 	s.changed()
 }
 
-// processMessage 下载请求附件并提交统一控制器入口
+// processMessage 下载请求附件并提交统一控制中心入口
 func (s *Service) processMessage(ctx context.Context, generation uint64, client *larksdk.Client, message Message, requestID, projectID string) {
 	if handled, err := s.textControl(message); handled {
 		s.updateIncoming(message.Source, "control", err)
@@ -240,6 +251,7 @@ func (s *Service) processMessage(ctx context.Context, generation uint64, client 
 		s.tasks.RecordNotification(tasks.Notification{Title: "飞书控制响应", Body: body, Source: message.Source})
 		return
 	}
+
 	s.startReaction(ctx, client, message.Source)
 	for _, resource := range message.Resources {
 		var savedID string
@@ -270,8 +282,9 @@ func (s *Service) processMessage(ctx context.Context, generation uint64, client 
 			message.Text += "\n附件 " + name + " 未能载入：" + err.Error()
 		}
 	}
+
 	s.mu.Lock()
-	current := s.status.Generation == generation && s.config.Enabled
+	current := s.status.Generation == generation
 	s.mu.Unlock()
 	if !current || ctx.Err() != nil {
 		s.updateIncoming(message.Source, "interrupted", errors.New("接收期间连接已关闭，未提交任务"))

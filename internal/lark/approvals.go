@@ -52,7 +52,9 @@ func (s *Service) OnCodexEvent(event codex.Event) {
 }
 
 // configPath 返回当前应用的飞书私有配置路径
-func (s *Service) configPath() string { return filepath.Join(s.root, "config.json") }
+func (s *Service) configPath() string {
+	return filepath.Join(s.root, "config.json")
+}
 
 // pair 核验配对码并绑定原单聊
 func (s *Service) pair(source tasks.Source, code string) error {

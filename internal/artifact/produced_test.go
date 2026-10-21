@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestProducedArtifactKeepsOwnershipAndCannotEscapeProject 验证产物归属及项目目录边界
 func TestProducedArtifactKeepsOwnershipAndCannotEscapeProject(t *testing.T) {
 	s, err := NewService(t.TempDir())
 	if err != nil {

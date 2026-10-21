@@ -9,6 +9,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+/**
+ * AnswerElicitation 校验并回复当前 MCP 问答请求
+ */
 export function AnswerElicitation(id: string, action: string, contentJSON: string): $CancellablePromise<void> {
     return $Call.ByID(1000786857, id, action, contentJSON);
 }

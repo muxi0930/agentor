@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 )
 
+// ReadJSON 读取 JSON 文件，文件不存在时保留目标原值
 func ReadJSON(path string, target any) error {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -22,7 +23,7 @@ func ReadJSON(path string, target any) error {
 	return nil
 }
 
-// WriteJSON replaces a file only after the complete new document is written.
+// WriteJSON 完整写入临时文件后再替换目标 JSON 文件
 func WriteJSON(path string, value any) error {
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
@@ -31,11 +32,13 @@ func WriteJSON(path string, value any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
+
 	file, err := os.CreateTemp(filepath.Dir(path), ".agentor-*.tmp")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(file.Name())
+
 	if _, err := file.Write(append(data, '\n')); err != nil {
 		file.Close()
 		return err

@@ -9,22 +9,37 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+/**
+ * DeleteSchedule 移除当前项目的指定调度
+ */
 export function DeleteSchedule(projectID: string, id: string): $CancellablePromise<void> {
     return $Call.ByID(1034194719, projectID, id);
 }
 
+/**
+ * DeleteTask 移除没有调度或活动运行的任务
+ */
 export function DeleteTask(projectID: string, id: string): $CancellablePromise<void> {
     return $Call.ByID(3147363287, projectID, id);
 }
 
+/**
+ * GetActions 读取流水线支持的固定动作目录
+ */
 export function GetActions(): $CancellablePromise<$models.ActionSpec[] | null> {
     return $Call.ByID(1288283818);
 }
 
+/**
+ * GetState 读取流水线状态副本
+ */
 export function GetState(): $CancellablePromise<$models.State> {
     return $Call.ByID(922627848);
 }
 
+/**
+ * ResolveScheduleTime 将指定时区的本地时间转换为 UTC
+ */
 export function ResolveScheduleTime(local: string, timezone: string): $CancellablePromise<string> {
     return $Call.ByID(537429147, local, timezone);
 }
@@ -36,22 +51,37 @@ export function ResumeSessions(): $CancellablePromise<void> {
     return $Call.ByID(80372407);
 }
 
+/**
+ * RunTask 启动指定流水线任务
+ */
 export function RunTask(input: $models.RunInput): $CancellablePromise<$models.Run> {
     return $Call.ByID(2143386199, input);
 }
 
+/**
+ * SaveSchedule 校验并保存任务调度
+ */
 export function SaveSchedule(input: $models.Schedule): $CancellablePromise<$models.Schedule> {
     return $Call.ByID(3433996389, input);
 }
 
+/**
+ * SaveTask 校验并保存当前项目的流水线任务
+ */
 export function SaveTask(projectID: string, text: string): $CancellablePromise<$models.Task> {
     return $Call.ByID(3261606461, projectID, text);
 }
 
+/**
+ * SetScheduleEnabled 切换调度状态并恢复下次触发时间
+ */
 export function SetScheduleEnabled(projectID: string, id: string, enabled: boolean): $CancellablePromise<void> {
     return $Call.ByID(3143581367, projectID, id, enabled);
 }
 
+/**
+ * StopRun 取消指定流水线运行
+ */
 export function StopRun(id: string): $CancellablePromise<void> {
     return $Call.ByID(575014234, id);
 }
@@ -70,10 +100,16 @@ export function SubmitSession(input: $models.SessionInput): $CancellablePromise<
     return $Call.ByID(4193303399, input);
 }
 
+/**
+ * TriggerSchedule 手动触发调度并记录调度来源
+ */
 export function TriggerSchedule(projectID: string, id: string): $CancellablePromise<$models.Run> {
     return $Call.ByID(266186586, projectID, id);
 }
 
+/**
+ * ValidateTask 解析并校验当前项目的任务配置
+ */
 export function ValidateTask(projectID: string, text: string): $CancellablePromise<$models.Task> {
     return $Call.ByID(1212362154, projectID, text);
 }

@@ -1,26 +1,53 @@
-import { useState } from "react";
-import { FolderOpen, FileSearch, ExternalLink, Save, Monitor } from "lucide-react";
+import { Page, PageContent, PageHeader } from "@/components/ui/page";
+import { useEffect, useState } from "react";
+import { FolderOpen, FileSearch, Save } from "lucide-react";
 import * as Data from "../../bindings/agentor/internal/appdata/service";
 import type { Info, Settings } from "../../bindings/agentor/internal/appdata/models";
-import type { Status } from "../../bindings/agentor/internal/codex/models";
+import * as Codex from "../../bindings/agentor/internal/codex/service";
+import type { Model, Status } from "../../bindings/agentor/internal/codex/models";
 import { RuntimeConnection } from "@/features/accounts/RuntimeConnection";
 import { AccountSettings } from "@/features/accounts/AccountSettings";
 import { PermissionSelect } from "@/features/accounts/PermissionSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
+import { Accordion } from "@/components/ui/accordion";
+import { SettingsField, SettingsSection } from "@/components/ui/settings-section";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { HelpText } from "@/components/ui/help-text";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { errorText } from "./errors";
+import { ControllerConfiguration } from "@/features/controller/ControllerConfiguration";
+import { ExitApplication } from "./ExitApplication";
+import { AgentsMonitor } from "./AgentsMonitor";
 
-export function SettingsPage({ info, settings, onSettings, status, onStatus }: {
-  info: Info; settings: Settings; onSettings: (settings: Settings) => void; status?: Status; onStatus: (status: Status) => void;
+export function SettingsPage({ info, settings, onSettings, status, onStatus, onOpenThread, initialTab = "system" }: {
+  info: Info; settings: Settings; onSettings: (settings: Settings) => void; status?: Status; onStatus: (status: Status) => void; onOpenThread: (threadId: string) => void; initialTab?: string;
 }) {
+  const [tab, setTab] = useState(initialTab);
+  const [models, setModels] = useState<Model[]>([]);
+  const [systemSections, setSystemSections] = useState<string[]>(["information", "agents"]);
+  const [sessionSections, setSessionSections] = useState<string[]>(["permissions"]);
+  const [codexSections, setCodexSections] = useState<string[]>(["executable"]);
+  const [agentSections, setAgentSections] = useState<string[]>(["queue", "timeout"]);
   const [path, setPath] = useState(settings.codexPath);
+  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(String(settings.maxConcurrentAgents));
+  const [agentTimeoutMinutes, setAgentTimeoutMinutes] = useState(String(settings.agentTimeoutSeconds / 60));
+  const [homeMode, setHomeMode] = useState(settings.codexHomeMode);
+  const [homePath, setHomePath] = useState(settings.codexHomePath);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (tab !== "controller" || status?.phase !== "ready") return;
+    let cancelled = false;
+    void Codex.GetModels().then(value => { if (!cancelled) setModels(value || []); }).catch(error => { if (!cancelled) setError(errorText(error)); });
+    return () => { cancelled = true; };
+  }, [tab, status?.generation, status?.phase]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true); setError(""); setMessage("");
@@ -28,58 +55,131 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus }: {
     finally { setBusy(false); }
   }
 
-  return <div className="mx-auto w-full max-w-3xl space-y-6 p-6 lg:p-10">
-    <div><h1 className="text-2xl font-semibold tracking-tight">设置</h1>
-      <p className="mt-2 text-sm text-muted-foreground">连接您的工具，安排舒适的工作环境。</p></div>
+  return <Page>
+    <Tabs value={tab} onValueChange={value => {
+      setTab(String(value));
+      if (value === "system") setSystemSections(["information", "agents"]);
+      else if (value === "session") setSessionSections(["permissions"]);
+      else if (value === "codex") setCodexSections(["executable"]);
+      else if (value === "agents") setAgentSections(["queue", "timeout"]);
+    }} className="gap-6">
+      <PageHeader title="设置" description="连接您的工具，安排舒适的工作环境。"><TabsList aria-label="设置分组">
+        <TabsTrigger value="system">系统信息</TabsTrigger>
+        <TabsTrigger value="codex">Codex配置</TabsTrigger>
+        <TabsTrigger value="session">会话配置</TabsTrigger>
+        <TabsTrigger value="agents">子代理配置</TabsTrigger>
+        <TabsTrigger value="controller">控制中心配置</TabsTrigger>
+      </TabsList></PageHeader>
+      <PageContent>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
-    <Card>
-      <CardHeader><CardTitle>工作环境</CardTitle><CardDescription>偏好保存在 agentor 的独立数据目录中。</CardDescription></CardHeader>
-      <CardContent><FieldGroup>
-        <Field><FieldLabel htmlFor="theme">外观</FieldLabel>
-          <NativeSelect id="theme" value={settings.theme} disabled={busy} onChange={event => void run(async () => {
-            onSettings(await Data.SetTheme(event.target.value));
-          })}><NativeSelectOption value="light">浅色</NativeSelectOption><NativeSelectOption value="dark">深色</NativeSelectOption></NativeSelect>
-        </Field>
-        <Field><FieldLabel htmlFor="default-permission">默认执行权限</FieldLabel><PermissionSelect id="default-permission" disabled={busy} value={settings.permissionMode} onChange={mode => void run(async () => onSettings(await Data.SetPermission("default", "", mode)))} /><FieldDescription>会话设置优先于项目设置，再继承此默认值。只读可查看文件；项目内读写可修改当前项目；完全访问允许项目外文件与网络操作。</FieldDescription></Field>
-        <Field><FieldLabel>当前项目目录</FieldLabel>
-          <p className="break-all rounded-lg border bg-muted/40 p-3 text-sm">{settings.projectDirectory || "尚未选择"}</p>
-          <div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void run(async () => {
-            const directory = await Data.ChooseDirectory();
-            if (directory) onSettings(await Data.SetProjectDirectory(directory));
-          })}><FolderOpen />选择目录</Button>
-            {settings.projectDirectory && <Button variant="ghost" disabled={busy} onClick={() => void run(() => Data.OpenDirectory(settings.projectDirectory))}>打开目录<ExternalLink /></Button>}
-          </div>
-        </Field>
-      </FieldGroup></CardContent>
-    </Card>
-    <Card>
-      <CardHeader><CardTitle>Codex 原生程序</CardTitle><CardDescription>指定原生可执行文件；留空时从 PATH 查找。</CardDescription></CardHeader>
-      <CardContent><form onSubmit={event => { event.preventDefault(); void run(async () => {
-        onSettings(await Data.SetCodexPath(path.trim())); setMessage("Codex 路径已保存");
-      }); }}><FieldGroup>
-        <Field><FieldLabel htmlFor="codex-path">可执行文件路径</FieldLabel>
-          <div className="flex gap-2"><Input id="codex-path" value={path} placeholder="Codex 原生二进制路径" onChange={event => setPath(event.target.value)} />
-            <Button variant="outline" type="button" aria-label="选择 Codex 程序" disabled={busy} onClick={() => void run(async () => {
-              const file = await Data.ChooseFile(); if (file) setPath(file);
-            })}><FileSearch /></Button></div>
-          <FieldDescription>{settings.reuseCLI ? "当前沿用 CLI 的登录状态与连接配置。" : "使用 agentor 独立的 Codex 数据与登录信息。"}</FieldDescription>
-        </Field>
-        <div><Button type="submit" disabled={busy}><Save />保存路径</Button></div>
-      </FieldGroup></form><div className="mt-5"><RuntimeConnection status={status} onStatus={onStatus} /></div></CardContent>
-    </Card>
-    <AccountSettings status={status} onStatus={onStatus} onSettings={onSettings}/>
-    <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2"><Monitor className="size-4" />应用信息</CardTitle></CardHeader>
-      <CardContent className="space-y-4 text-sm">
+
+      <TabsContent value="system" keepMounted>
+        <Accordion multiple value={systemSections} onValueChange={setSystemSections} className="gap-4">
+    <SettingsSection value="information" title="应用信息" description="查看应用版本、运行平台与目录。">
+      <div className="space-y-4 text-sm">
         <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-3">
           <dt className="text-muted-foreground">版本</dt><dd>{info.version}</dd>
           <dt className="text-muted-foreground">运行平台</dt><dd>{info.os} / {info.arch} · {info.goVersion}</dd>
-          <dt className="text-muted-foreground">数据目录</dt><dd className="min-w-0 break-all">{info.dataDirectory}</dd>
-          <dt className="text-muted-foreground">CODEX_HOME</dt><dd className="min-w-0 break-all">{info.codexHome}</dd>
+          <dt className="text-muted-foreground">软件配置目录</dt><dd className="min-w-0 break-all">{info.dataDirectory}</dd>
+          <dt className="text-muted-foreground">控制中心工作目录</dt><dd className="min-w-0 break-all">{info.controllerDirectory}</dd>
+          <dt className="text-muted-foreground">CODEX_HOME</dt><dd className="min-w-0 break-all">{status?.home || info.codexHome}</dd>
         </dl>
-        <Button variant="outline" disabled={busy} onClick={() => void run(() => Data.OpenDirectory(info.dataDirectory))}><FolderOpen />打开数据目录</Button>
-      </CardContent>
-    </Card>
-  </div>;
+        <div className="flex justify-end"><Button variant="outline" disabled={busy} onClick={() => void run(() => Data.OpenDirectory(info.dataDirectory))}><FolderOpen />打开软件配置目录</Button></div>
+      </div>
+    </SettingsSection>
+    <SettingsSection value="runtime" title="app-server" description="查看 Codex 运行时状态与连接信息。">
+      <RuntimeConnection status={status} onStatus={onStatus} />
+    </SettingsSection>
+    {tab === "system" && <AgentsMonitor limit={settings.maxConcurrentAgents} onOpenThread={onOpenThread} />}
+        </Accordion>
+      </TabsContent>
+      <TabsContent value="agents" keepMounted>
+        <Accordion multiple value={agentSections} onValueChange={setAgentSections} className="gap-4">
+    <SettingsSection value="queue" title="工作队列" description="仅限制功能任务的并发数。保存后立即生效，已运行任务继续执行。">
+      <form onSubmit={event => { event.preventDefault(); void run(async () => {
+        onSettings(await Data.SetMaxConcurrentAgents(Number(maxConcurrentAgents))); setMessage("工作队列并发上限已保存");
+      }); }}><FieldGroup>
+        <SettingsField><FieldLabel htmlFor="max-concurrent-agents">最大并发 agent 数</FieldLabel>
+          <div className="flex flex-wrap items-center gap-2"><Input id="max-concurrent-agents" className="w-32" type="number" min={1} max={50} step={1} required value={maxConcurrentAgents} onChange={event => setMaxConcurrentAgents(event.target.value)} />
+            <Button type="submit" variant="outline" disabled={busy}><Save />保存</Button>
+          </div>
+        </SettingsField>
+      </FieldGroup></form>
+    </SettingsSection>
+    <SettingsSection value="timeout" title="最大执行时间" description="仅影响保存后新启动的功能任务，超时后中断对应 session 并取消任务。0 表示不限时。">
+      <form onSubmit={event => { event.preventDefault(); void run(async () => {
+        onSettings(await Data.SetAgentTimeoutSeconds(Number(agentTimeoutMinutes) * 60)); setMessage("子代理最大执行时间已保存");
+      }); }}><FieldGroup>
+        <SettingsField><FieldLabel htmlFor="agent-timeout-minutes">执行时间（分钟）</FieldLabel>
+          <div className="flex flex-wrap items-center gap-2"><Input id="agent-timeout-minutes" className="w-32" type="number" min={0} step={1} required value={agentTimeoutMinutes} onChange={event => setAgentTimeoutMinutes(event.target.value)} />
+            <Button type="submit" variant="outline" disabled={busy}><Save />保存</Button>
+          </div>
+        </SettingsField>
+      </FieldGroup></form>
+    </SettingsSection>
+        </Accordion>
+      </TabsContent>
+      <TabsContent value="session" keepMounted>
+        <Accordion multiple value={sessionSections} onValueChange={setSessionSections} className="gap-4">
+          <SettingsSection value="permissions" title="执行权限" description="设置会话默认权限，项目和会话可分别覆盖。">
+            <FieldGroup>
+              <SettingsField><FieldLabel htmlFor="default-permission"><Tooltip><TooltipTrigger render={<span tabIndex={0} className="relative cursor-help rounded-sm pr-2 outline-none focus-visible:ring-2 focus-visible:ring-ring" />}>默认执行权限<span aria-hidden="true" className="absolute -top-1 right-0 text-[10px] leading-none text-muted-foreground">?</span></TooltipTrigger><TooltipContent>会话设置优先于项目设置，再继承此默认值。只读可查看文件；项目内读写可修改当前项目；完全访问允许项目外文件与网络操作。</TooltipContent></Tooltip></FieldLabel><PermissionSelect id="default-permission" className="text-sm" disabled={busy} value={settings.permissionMode} onChange={mode => void run(async () => onSettings(await Data.SetPermission("default", "", mode)))} /></SettingsField>
+            </FieldGroup>
+          </SettingsSection>
+        </Accordion>
+      </TabsContent>
+      <TabsContent value="codex" keepMounted>
+        <Accordion multiple value={codexSections} onValueChange={setCodexSections} className="gap-4">
+    <SettingsSection value="executable" title="可执行路径" description="指定原生可执行文件；留空时从 PATH 查找。">
+      <div><form onSubmit={event => { event.preventDefault(); void run(async () => {
+        onSettings(await Data.SetCodexPath(path.trim())); setMessage("Codex 路径已保存");
+      }); }}><FieldGroup>
+        <SettingsField><FieldLabel htmlFor="codex-path">可执行文件路径</FieldLabel>
+          <div className="flex flex-wrap items-center gap-2"><Input className="min-w-32 flex-1" id="codex-path" value={path} placeholder="留空使用默认路径" onChange={event => setPath(event.target.value)} />
+            <Button variant="outline" type="button" aria-label="选择 Codex 程序" disabled={busy} onClick={() => void run(async () => {
+              const file = await Data.ChooseFile(); if (file) setPath(file);
+            })}><FileSearch /></Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => void run(async () => {
+              onSettings(await Data.SetCodexPath("")); setPath(""); setMessage("已使用默认路径");
+            })}>使用默认路径</Button>
+            <Button type="submit" variant="outline" disabled={busy}><Save />保存路径</Button>
+          </div>
+        </SettingsField>
+      </FieldGroup></form></div>
+    </SettingsSection>
+    <SettingsSection value="home" title="数据目录" description="目录与账号分别选择。切换目录需要确认并完全重启应用。">
+      <div><FieldGroup>
+        <SettingsField><FieldLabel htmlFor="codex-home-mode">Home 路径</FieldLabel>
+          <Select value={homeMode} disabled={busy} onValueChange={selectedValue => { if (selectedValue === null) return; setHomeMode(selectedValue); }} items={[{ value: "system", label: "共用系统默认 CODEX_HOME" }, { value: "custom", label: "自定义 CODEX_HOME" }]}><SelectTrigger id="codex-home-mode"><SelectValue /></SelectTrigger><SelectContent>
+            <SelectItem value="system">共用系统默认 CODEX_HOME</SelectItem>
+            <SelectItem value="custom">自定义 CODEX_HOME</SelectItem>
+          </SelectContent></Select>
+        </SettingsField>
+        {homeMode === "custom" && <SettingsField><FieldLabel htmlFor="codex-home-path">自定义目录</FieldLabel>
+          <div className="flex gap-2"><Input id="codex-home-path" value={homePath} placeholder="选择或输入绝对路径" onChange={event => setHomePath(event.target.value)} />
+            <Button type="button" variant="outline" aria-label="选择 CODEX_HOME 目录" disabled={busy} onClick={() => void run(async () => {
+              const directory = await Data.ChooseDirectory(); if (directory) setHomePath(directory);
+            })}><FolderOpen /></Button></div>
+        </SettingsField>}
+        <Field orientation="horizontal">
+          <Checkbox id="read-external-threads" checked={settings.readExternalThreads} disabled={busy} onCheckedChange={enabled => void run(async () => {
+            onSettings(await Data.SetReadExternalThreads(enabled));
+          })} />
+          <div className="space-y-1"><FieldLabel htmlFor="read-external-threads"><HelpText help="包含所选 CODEX_HOME 中其他应用创建的会话，保存后立即生效，无需重启。">读取非本应用创建的会话</HelpText></FieldLabel></div>
+        </Field>
+        {(homeMode !== settings.codexHomeMode || homeMode === "custom" && homePath.trim() !== settings.codexHomePath) && <ExitApplication restart={{ mode: homeMode, directory: homePath.trim(), currentHome: status?.home || info.codexHome, targetHome: homeMode === "system" ? info.systemCodexHome : homePath.trim() }} />}
+      </FieldGroup></div>
+    </SettingsSection>
+          <AccountSettings status={status} onStatus={onStatus} onSettings={onSettings}/>
+        </Accordion>
+      </TabsContent>
+      <TabsContent value="controller" keepMounted>
+        <ControllerConfiguration settings={settings} models={models} busy={busy} run={run} onSettings={onSettings} />
+      </TabsContent>
+      </PageContent>
+    </Tabs>
+    <PageContent><ExitApplication />
+    <p className="text-right text-xs text-muted-foreground">version {info.version}</p></PageContent>
+  </Page>;
 }

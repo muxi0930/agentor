@@ -19,6 +19,28 @@ import (
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
+// TestConnectionWithoutEnableSwitch 验证连接不再依赖启用开关
+func TestConnectionWithoutEnableSwitch(t *testing.T) {
+	s, err := NewService(t.TempDir(), nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.ServiceShutdown() })
+
+	view, err := s.SaveSettings(SettingsInput{Settings: Settings{Region: "feishu"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Status.Phase != "unconfigured" {
+		t.Fatal("缺少凭据时应提示待配置")
+	}
+
+	s.Disconnect()
+	if s.GetState().Status.Phase != "disconnected" {
+		t.Fatal("断开后应显示已断开")
+	}
+}
+
 // TestNormalizeOrderAndAuthorization 验证富文本顺序和机器人身份授权
 func TestNormalizeOrderAndAuthorization(t *testing.T) {
 	content := `{"zh_cn":{"title":"Task","content":[[{"tag":"text","text":"first"},{"tag":"img","image_key":"img-1"},{"tag":"text","text":"last"}]]}}`
@@ -32,7 +54,7 @@ func TestNormalizeOrderAndAuthorization(t *testing.T) {
 	if message.Text != "Task\nfirst[图片 image-1.png]last" || len(message.Resources) != 1 || message.Source.ChatType != "group" {
 		t.Fatal(message)
 	}
-	config := Settings{Enabled: true, AllowedUsers: []Identity{{ID: "test-user"}}, AllowedChats: []Identity{{ID: "group"}}}
+	config := Settings{AllowedUsers: []Identity{{ID: "test-user"}}, AllowedChats: []Identity{{ID: "group"}}}
 	if !authorized(config, "test-bot", message) {
 		t.Fatal("authorized @bot rejected")
 	}
@@ -50,7 +72,10 @@ func TestNormalizeOrderAndAuthorization(t *testing.T) {
 // TestUnauthorizedMediaAndDuplicatePairingDoNotSubmitTasks 验证未授权资源不下载且配对消息不重复入队
 func TestUnauthorizedMediaAndDuplicatePairingDoNotSubmitTasks(t *testing.T) {
 	var requests atomic.Int32
-	s, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) { requests.Add(1); fmt.Fprint(w, `{"code":0}`) })
+	s, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		fmt.Fprint(w, `{"code":0}`)
+	})
 	message := Message{Source: tasks.Source{Type: "lark", AppID: "test-app", SenderID: "stranger", ChatID: "chat", MessageID: "blocked", ChatType: "p2p"}, ChatType: "p2p", SenderType: "user", Text: "image", Resources: []Resource{{Key: "img", Kind: "image", Name: "image.png"}}}
 	if err := s.receive(s.ctx, 1, s.client, message); err != nil {
 		t.Fatal(err)
@@ -122,7 +147,12 @@ func TestDeliveryRecordsSentFailedUnknownAndRetriesOnlyFailure(t *testing.T) {
 		return len(s.tasks.GetState().Notifications) == 3
 	})
 	parts := map[string]tasks.NotificationPart{}
-	wait(t, func() bool { s.mu.Lock(); defer s.mu.Unlock(); return len(s.sending) == 0 })
+	wait(t, func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		return len(s.sending) == 0
+	})
 	for _, notification := range s.tasks.GetState().Notifications {
 		parts[notification.ID] = notification.Parts[1]
 	}
@@ -140,7 +170,12 @@ func TestDeliveryRecordsSentFailedUnknownAndRetriesOnlyFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	wait(t, func() bool { return calls.Load() > before })
-	wait(t, func() bool { s.mu.Lock(); defer s.mu.Unlock(); return len(s.sending) == 0 })
+	wait(t, func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		return len(s.sending) == 0
+	})
 	if err := s.IgnoreNotificationPart("notification-ok", parts["notification-ok"].ID, "ignore"); err == nil {
 		t.Fatal("sent item ignored")
 	}
@@ -202,7 +237,7 @@ func TestResourceDownloadKeepsPartialFailure(t *testing.T) {
 func fixture(t *testing.T, handler http.HandlerFunc) (*Service, *httptest.Server) {
 	t.Helper()
 	t.Setenv("AGENTOR_DATA_DIR", t.TempDir())
-	data, err := appdata.NewService()
+	data, err := appdata.NewService("test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,11 +266,16 @@ func fixture(t *testing.T, handler http.HandlerFunc) (*Service, *httptest.Server
 		}
 		handler(w, r)
 	}))
-	s.config = credentials{Settings: Settings{AppID: "test-app", Region: "feishu", Enabled: true, AllowedUsers: []Identity{{ID: "test-user"}}}, AppSecret: "local-test-secret"}
+	s.config = credentials{Settings: Settings{AppID: "test-app", Region: "feishu", AllowedUsers: []Identity{{ID: "test-user"}}}, AppSecret: "local-test-secret"}
 	s.status = Status{Phase: "ready", BotOpenID: "test-bot", Generation: 1}
 	s.client = larksdk.NewClient("test-app", "local-test-secret", larksdk.WithOpenBaseUrl(server.URL), larksdk.WithHttpClient(server.Client()), larksdk.WithLogger(quietLogger{}))
 	s.connectionCtx = s.ctx
-	t.Cleanup(func() { s.ServiceShutdown(); executions.ServiceShutdown(); runtime.ServiceShutdown(); server.Close() })
+	t.Cleanup(func() {
+		s.ServiceShutdown()
+		executions.ServiceShutdown()
+		runtime.ServiceShutdown()
+		server.Close()
+	})
 	return s, server
 }
 

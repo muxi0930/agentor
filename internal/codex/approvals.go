@@ -10,64 +10,68 @@ import (
 )
 
 type QuestionOption struct {
-	Label       string `json:"label"`
-	Description string `json:"description"`
+	Label       string `json:"label"`       // 选项显示文字
+	Description string `json:"description"` // 说明文字
 }
 
 type Question struct {
-	ID       string           `json:"id"`
-	Header   string           `json:"header"`
-	Question string           `json:"question"`
-	IsOther  bool             `json:"isOther"`
-	IsSecret bool             `json:"isSecret"`
-	Options  []QuestionOption `json:"options"`
+	ID       string           `json:"id"`       // 问题标识
+	Header   string           `json:"header"`   // 问题分组标题
+	Question string           `json:"question"` // 问题正文
+	IsOther  bool             `json:"isOther"`  // 是否允许填写其他答案
+	IsSecret bool             `json:"isSecret"` // 是否隐藏答案文字
+	Options  []QuestionOption `json:"options"`  // 可用选项
 }
 
 type Approval struct {
-	ID                 string             `json:"id"`
-	Method             string             `json:"method"`
-	ThreadID           string             `json:"threadId"`
-	TurnID             string             `json:"turnId"`
-	ItemID             string             `json:"itemId"`
-	Command            string             `json:"command"`
-	Reason             string             `json:"reason"`
-	Cwd                string             `json:"cwd"`
-	GrantRoot          string             `json:"grantRoot"`
-	AvailableDecisions []string           `json:"availableDecisions"`
-	Questions          []Question         `json:"questions"`
-	Status             string             `json:"status"`
-	Generation         uint64             `json:"generation"`
-	DecisionOptions    []DecisionOption   `json:"decisionOptions"`
-	PermissionsJSON    string             `json:"permissionsJSON"`
-	Details            string             `json:"details"`
-	ServerName         string             `json:"serverName"`
-	Mode               string             `json:"mode"`
-	Message            string             `json:"message"`
-	URL                string             `json:"url"`
-	SchemaJSON         string             `json:"schemaJSON"`
-	Fields             []ElicitationField `json:"fields"`
-	Changes            []FileChange       `json:"changes"`
+	ID                 string             `json:"id"`                 // 审批请求标识
+	Method             string             `json:"method"`             // 协议请求方法
+	ThreadID           string             `json:"threadId"`           // 所属会话标识
+	TurnID             string             `json:"turnId"`             // 所属轮次标识
+	ItemID             string             `json:"itemId"`             // 所属过程节点标识
+	Command            string             `json:"command"`            // 待执行命令
+	Reason             string             `json:"reason"`             // 申请原因
+	Cwd                string             `json:"cwd"`                // 执行目录
+	GrantRoot          string             `json:"grantRoot"`          // 申请授权的根目录
+	AvailableDecisions []string           `json:"availableDecisions"` // 上游允许的决策
+	Questions          []Question         `json:"questions"`          // 待回答的问题
+	Status             string             `json:"status"`             // 当前处理状态
+	Generation         uint64             `json:"generation"`         // 所属连接代次
+	DecisionOptions    []DecisionOption   `json:"decisionOptions"`    // 可展示的审批选项
+	PermissionsJSON    string             `json:"permissionsJSON"`    // 原始权限请求
+	Details            string             `json:"details"`            // 补充请求详情
+	ServerName         string             `json:"serverName"`         // 发起请求的 MCP 服务
+	Mode               string             `json:"mode"`               // MCP 问答模式
+	Message            string             `json:"message"`            // 可读提示信息
+	URL                string             `json:"url"`                // 请求提供的链接
+	SchemaJSON         string             `json:"schemaJSON"`         // 原始表单结构
+	Fields             []ElicitationField `json:"fields"`             // 可展示的表单字段
+	Changes            []FileChange       `json:"changes"`            // 待审批的文件变更
 }
 
 type DecisionOption struct {
-	Value   string `json:"value"`
-	Label   string `json:"label"`
-	Details string `json:"details"`
+	Value   string `json:"value"`   // 选项值
+	Label   string `json:"label"`   // 选项显示文字
+	Details string `json:"details"` // 补充请求详情
 }
 
 type QuestionAnswer struct {
-	Answers []string `json:"answers"`
+	Answers []string `json:"answers"` // 用户选择或填写的答案
 }
 
 // GetApprovals 返回审批和问答记录
 func (s *Service) GetApprovals() []Approval {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	result := make([]Approval, 0, len(s.approvals))
 	for _, approval := range s.approvals {
 		result = append(result, approval)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
 	return result
 }
 
@@ -79,15 +83,18 @@ func (s *Service) RespondApproval(id, decision string) error {
 	if !found || (approval.Method != "item/commandExecution/requestApproval" && approval.Method != "item/fileChange/requestApproval") {
 		return errors.New("该请求不是命令或文件审批")
 	}
+
 	valid := false
 	for _, available := range approval.AvailableDecisions {
 		if decision == available {
 			valid = true
 		}
 	}
+
 	if !valid {
 		return errors.New("该审批不支持此选项")
 	}
+
 	var value any = decision
 	if len(decision) > 0 && decision[0] == '{' {
 		if err := json.Unmarshal([]byte(decision), &value); err != nil {
@@ -108,6 +115,7 @@ func (s *Service) RespondPermissions(id string, allow bool, scope string) error 
 	if scope != "turn" && scope != "session" {
 		return errors.New("请选择本轮或本会话")
 	}
+
 	permissions := json.RawMessage(`{}`)
 	if allow {
 		permissions = json.RawMessage(approval.PermissionsJSON)
@@ -123,11 +131,13 @@ func (s *Service) AnswerQuestions(id string, answers map[string]QuestionAnswer) 
 	if !found || approval.Method != "item/tool/requestUserInput" {
 		return errors.New("该请求不是用户问答")
 	}
+
 	for _, question := range approval.Questions {
 		if len(answers[question.ID].Answers) == 0 {
 			return errors.New("请回答所有问题")
 		}
 	}
+
 	return s.resolveApproval(id, map[string]any{"answers": answers})
 }
 
@@ -138,6 +148,7 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 		s.mu.Unlock()
 		return
 	}
+
 	c := s.client
 	s.mu.Unlock()
 	if c == nil {
@@ -151,22 +162,28 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 		c.write(map[string]any{"id": message.ID, "result": map[string]int64{"currentTimeAt": time.Now().Unix()}})
 		return
 	}
-	if message.Method != "item/commandExecution/requestApproval" && message.Method != "item/fileChange/requestApproval" && message.Method != "item/tool/requestUserInput" && message.Method != "item/permissions/requestApproval" && message.Method != "mcpServer/elicitation/request" {
+	if message.Method != "item/commandExecution/requestApproval" &&
+		message.Method != "item/fileChange/requestApproval" &&
+		message.Method != "item/tool/requestUserInput" &&
+		message.Method != "item/permissions/requestApproval" &&
+		message.Method != "mcpServer/elicitation/request" {
 		c.write(packet{ID: message.ID, Error: &rpcError{Code: -32601, Message: "agentor 尚不支持该服务器请求: " + message.Method}})
 		return
 	}
+
 	var params struct {
-		Approval
-		AvailableDecisions     []json.RawMessage `json:"availableDecisions"`
-		Permissions            json.RawMessage   `json:"permissions"`
-		RequestedSchema        json.RawMessage   `json:"requestedSchema"`
-		AdditionalPermissions  json.RawMessage   `json:"additionalPermissions"`
-		NetworkApprovalContext json.RawMessage   `json:"networkApprovalContext"`
+		Approval                                 // 上游审批基本信息
+		AvailableDecisions     []json.RawMessage `json:"availableDecisions"`     // 上游允许的决策
+		Permissions            json.RawMessage   `json:"permissions"`            // 原始权限范围
+		RequestedSchema        json.RawMessage   `json:"requestedSchema"`        // MCP 请求的表单结构
+		AdditionalPermissions  json.RawMessage   `json:"additionalPermissions"`  // 额外申请的权限
+		NetworkApprovalContext json.RawMessage   `json:"networkApprovalContext"` // 网络审批上下文
 	}
 	if err := json.Unmarshal(message.Params, &params); err != nil {
 		c.write(packet{ID: message.ID, Error: &rpcError{Code: -32602, Message: err.Error()}})
 		return
 	}
+
 	approval := params.Approval
 	approval.ID, approval.Method, approval.Status, approval.Generation = string(message.ID), message.Method, "pending", generation
 	for _, raw := range params.AvailableDecisions {
@@ -176,6 +193,7 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 		}
 		approval.AvailableDecisions = append(approval.AvailableDecisions, decision)
 	}
+
 	if params.AvailableDecisions == nil {
 		approval.AvailableDecisions = []string{"accept", "acceptForSession", "decline", "cancel"}
 	}
@@ -196,6 +214,7 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 			approval.DecisionOptions = append(approval.DecisionOptions, option)
 		}
 	}
+
 	if len(params.Permissions) > 0 {
 		approval.PermissionsJSON = string(params.Permissions)
 	}
@@ -240,6 +259,7 @@ func (s *Service) resolveApproval(id string, result any) error {
 		s.mu.Unlock()
 		return errors.New("该请求已处理或失效")
 	}
+
 	c := s.client
 	approval.Status = "resolved"
 	s.approvals[id] = approval

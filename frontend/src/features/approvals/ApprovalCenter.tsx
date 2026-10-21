@@ -52,7 +52,10 @@ function ApprovalCard({ approval, refresh }: { approval: Approval; refresh: () =
           <QuestionnaireError>请填写答案。</QuestionnaireError>
         </QuestionnaireItem>)}
         <QuestionnaireActions><QuestionnairePrevious disabled={busy}>上一步</QuestionnairePrevious><QuestionnaireNext disabled={busy}>下一步</QuestionnaireNext><QuestionnaireSubmit disabled={busy}>提交回答</QuestionnaireSubmit></QuestionnaireActions>
-      </Questionnaire> : pending && <div className="space-y-2">{(approval.decisionOptions || []).map(option => <div key={option.value}>{option.details && <CodeView code={option.details} language="将保存的规则" />}<Button disabled={busy} size="sm" variant={option.value === "accept" ? "default" : "outline"} onClick={() => void respond(() => Codex.RespondApproval(approval.id, option.value))}>{option.label}</Button></div>)}</div>}
+      </Questionnaire> : pending && <div className="space-y-3">
+        {(approval.decisionOptions || []).filter(option => option.details).map(option => <div key={option.value}><p className="mb-1 text-xs text-muted-foreground">{option.label}</p><CodeView code={option.details} language="将保存的规则" /></div>)}
+        <div className="flex flex-wrap gap-2">{(approval.decisionOptions || []).map(option => <Button key={option.value} disabled={busy} size="sm" variant={option.value === "accept" ? "default" : "outline"} onClick={() => void respond(() => Codex.RespondApproval(approval.id, option.value))}>{option.label}</Button>)}</div>
+      </div>}
     </CardContent>
   </Card>;
 }

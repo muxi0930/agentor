@@ -1,0 +1,69 @@
+.sidebar-selection-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.sidebar-selection-button[data-active] {
+  background-color: transparent;
+  color: var(--sidebar-foreground);
+}
+
+.sidebar-selection-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: inherit;
+}
+
+.sidebar-selection-content > span:last-child,
+.sidebar-selection-fill > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-selection-fill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  padding: inherit;
+  border-radius: inherit;
+  pointer-events: none;
+  clip-path: circle(0% at var(--selection-x, 50%) var(--selection-y, 50%));
+}
+
+.sidebar-selection-fill[data-active] {
+  clip-path: circle(150% at var(--selection-x, 50%) var(--selection-y, 50%));
+  transition: clip-path 200ms linear;
+}
+
+.sidebar-selection-strong .sidebar-selection-fill {
+  background-color: var(--foreground);
+  color: var(--background);
+  clip-path: inset(0 50%);
+}
+
+.sidebar-selection-strong .sidebar-selection-fill[data-active] {
+  clip-path: inset(0 0);
+}
+
+.sidebar-selection-subtle .sidebar-selection-fill {
+  background-color: color-mix(in oklch, var(--foreground) 10%, transparent);
+  color: var(--sidebar-foreground);
+}
+
+.sidebar-selection-strong[data-active]::after {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-selection-fill[data-active] {
+    transition: none;
+  }
+}

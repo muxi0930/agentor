@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// ToggleThreadPin 切换会话的置顶状态
 func (s *Service) ToggleThreadPin(threadID string) (Settings, error) {
 	return s.update(func(settings *Settings) {
 		next := map[string]bool{}
@@ -26,6 +27,7 @@ func (s *Service) ToggleThreadPin(threadID string) (Settings, error) {
 	})
 }
 
+// SetChatOrder 保存项目或项目内会话的显示顺序
 func (s *Service) SetChatOrder(cwd string, ids []string) (Settings, error) {
 	return s.update(func(settings *Settings) {
 		previous := settings.ProjectOrder
@@ -51,6 +53,7 @@ func (s *Service) SetChatOrder(cwd string, ids []string) (Settings, error) {
 	})
 }
 
+// CreateWorktree 基于当前提交创建分支工作树并选中其目录
 func (s *Service) CreateWorktree(cwd, branch, directory string) (Settings, error) {
 	if cwd == "" || strings.TrimSpace(branch) == "" || strings.TrimSpace(directory) == "" {
 		return Settings{}, errors.New("请填写源项目、分支和 worktree 目录")
@@ -59,12 +62,14 @@ func (s *Service) CreateWorktree(cwd, branch, directory string) (Settings, error
 	if err != nil {
 		return Settings{}, err
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	check := exec.CommandContext(ctx, "git", "check-ref-format", "--branch", branch)
 	if output, err := check.CombinedOutput(); err != nil {
 		return Settings{}, fmt.Errorf("分支名称无效：%s", strings.TrimSpace(string(output)))
 	}
+
 	command := exec.CommandContext(ctx, "git", "-C", cwd, "worktree", "add", "-b", branch, directory, "HEAD")
 	if output, err := command.CombinedOutput(); err != nil {
 		return Settings{}, fmt.Errorf("创建 worktree 失败：%s (%w)", strings.TrimSpace(string(output)), err)

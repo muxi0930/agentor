@@ -3,7 +3,7 @@ import { Code, Eye, RefreshCw } from "lucide-react";
 import * as Files from "../../../bindings/agentor/internal/artifact/service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CodeView } from "./CodeView";
@@ -51,7 +51,7 @@ export function HTMLView({ source }: { source: string }) {
   return <Card className="my-3 gap-3 overflow-hidden py-3">
     <CardHeader className="flex flex-row items-center gap-2 px-3"><CardTitle className="mr-auto text-sm">HTML 可视化</CardTitle>
       <Button variant="ghost" size="sm" onClick={() => setPreview(!preview)}>{preview ? <Code /> : <Eye />}{preview ? "查看源码" : "预览 HTML"}</Button>
-      {preview && <><NativeSelect aria-label="预览宽度" value={width} onChange={event => setWidth(event.target.value)} className="h-8 w-28 text-xs"><NativeSelectOption value="100%">适应宽度</NativeSelectOption><NativeSelectOption value="640px">640 px</NativeSelectOption><NativeSelectOption value="960px">960 px</NativeSelectOption></NativeSelect><Button variant="ghost" size="icon-sm" aria-label="重新加载预览" onClick={() => setRevision(value => value + 1)}><RefreshCw /></Button></>}
+      {preview && <><Select value={width} onValueChange={selectedValue => { if (selectedValue === null) return; setWidth(selectedValue); }} items={[{ value: "100%", label: "适应宽度" }, { value: "640px", label: "640 px" }, { value: "960px", label: "960 px" }]}><SelectTrigger aria-label="预览宽度" className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="100%">适应宽度</SelectItem><SelectItem value="640px">640 px</SelectItem><SelectItem value="960px">960 px</SelectItem></SelectContent></Select><Button variant="ghost" size="icon-sm" aria-label="重新加载预览" onClick={() => setRevision(value => value + 1)}><RefreshCw /></Button></>}
     </CardHeader>
     <CardContent className="space-y-3 px-3">
       {!preview ? <CodeView code={source} language="html" /> : <>

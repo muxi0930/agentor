@@ -6,26 +6,83 @@
 import * as tasks$0 from "../tasks/models.js";
 
 export interface Action {
+    /**
+     * 动作标识
+     */
     "id": string;
+
+    /**
+     * 固定动作名称
+     */
     "type": string;
+
+    /**
+     * 动作参数及完整值引用
+     */
     "params": { [_ in string]?: any } | null;
 }
 
 export interface ActionResult {
+    /**
+     * 对应动作标识
+     */
     "id": string;
+
+    /**
+     * 固定动作名称
+     */
     "type": string;
+
+    /**
+     * 动作执行状态
+     */
     "status": string;
+
+    /**
+     * 解析引用后的实际参数
+     */
     "inputs": { [_ in string]?: any } | null;
+
+    /**
+     * 动作返回结果
+     */
     "output": any;
+
+    /**
+     * 动作错误说明
+     */
     "error": string;
+
+    /**
+     * 动作开始时间
+     */
     "startedAt": string;
+
+    /**
+     * 动作结束时间
+     */
     "completedAt": string;
 }
 
 export interface ActionSpec {
+    /**
+     * 固定动作名称
+     */
     "name": string;
+
+    /**
+     * 动作行为说明
+     */
     "description": string;
+
+    /**
+     * 动作接受的参数
+     */
     "parameters": Parameter[] | null;
+
+    /**
+     * 动作返回值说明
+     */
     "result": string;
 }
 
@@ -33,103 +90,394 @@ export interface Changed {
 }
 
 export interface InputField {
+    /**
+     * 输入字段名称
+     */
     "name": string;
+
+    /**
+     * 支持的值类型
+     */
     "type": string;
+
+    /**
+     * 是否必须提供输入
+     */
     "required": boolean;
 }
 
 export interface Parameter {
+    /**
+     * 参数名称
+     */
     "name": string;
+
+    /**
+     * 参数值类型
+     */
     "type": string;
+
+    /**
+     * 是否为必填参数
+     */
     "required": boolean;
 }
 
 export interface Run {
+    /**
+     * 发起运行的专用会话请求标识
+     */
     "sessionRequestId": string;
+
+    /**
+     * 运行记录标识
+     */
     "id": string;
+
+    /**
+     * 所属项目标识
+     */
     "projectId": string;
+
+    /**
+     * 对应任务标识
+     */
     "taskId": string;
+
+    /**
+     * 本次运行冻结的任务定义
+     */
     "task": Task;
+
+    /**
+     * 本次运行冻结的输入值
+     */
     "inputs": { [_ in string]?: any } | null;
+
+    /**
+     * 实际使用的模型
+     */
     "model": string;
+
+    /**
+     * 实际使用的推理强度
+     */
     "effort": string;
+
+    /**
+     * 任务请求来源
+     */
     "source": tasks$0.Source;
+
+    /**
+     * 关联的外部请求标识
+     */
     "requestId": string;
+
+    /**
+     * 发起运行的调度标识
+     */
     "scheduleId": string;
+
+    /**
+     * 流水线运行状态
+     */
     "status": string;
+
+    /**
+     * 运行错误说明
+     */
     "error": string;
+
+    /**
+     * 运行创建时间
+     */
     "createdAt": string;
+
+    /**
+     * 运行结束时间
+     */
     "completedAt": string;
+
+    /**
+     * 按执行顺序保存的动作结果
+     */
     "actions": ActionResult[] | null;
+
+    /**
+     * 本次运行生成的报告产物标识
+     */
     "artifactIds": string[] | null;
 }
 
 export interface RunInput {
+    /**
+     * 发起运行的专用会话请求标识
+     */
     "sessionRequestId": string;
+
+    /**
+     * 待运行任务标识
+     */
     "taskId": string;
+
+    /**
+     * 本次运行的输入值
+     */
     "inputs": { [_ in string]?: any } | null;
+
+    /**
+     * 本次使用的模型
+     */
     "model": string;
+
+    /**
+     * 本次使用的推理强度
+     */
     "effort": string;
+
+    /**
+     * 任务请求来源
+     */
     "source": tasks$0.Source;
+
+    /**
+     * 关联的外部请求标识
+     */
     "requestId": string;
 }
 
 export interface Schedule {
+    /**
+     * 调度标识
+     */
     "id": string;
+
+    /**
+     * 所属项目标识
+     */
     "projectId": string;
+
+    /**
+     * 触发的任务标识
+     */
     "taskId": string;
+
+    /**
+     * 调度显示名称
+     */
     "name": string;
+
+    /**
+     * once 或 interval 触发类型
+     */
     "kind": string;
+
+    /**
+     * 是否启用调度
+     */
     "enabled": boolean;
+
+    /**
+     * 一次性触发的 UTC 时间
+     */
     "at": string;
+
+    /**
+     * 间隔触发的固定锚点时间
+     */
     "anchor": string;
+
+    /**
+     * 重复触发的间隔秒数
+     */
     "intervalSeconds": number;
+
+    /**
+     * 解释本地时间的 IANA 时区
+     */
     "timezone": string;
+
+    /**
+     * 错过触发时的处理策略
+     */
     "misfirePolicy": string;
+
+    /**
+     * 触发任务时使用的输入值
+     */
     "inputs": { [_ in string]?: any } | null;
+
+    /**
+     * 下次触发时间
+     */
     "nextAt": string;
+
+    /**
+     * 最近检查到期的时间
+     */
     "lastAt": string;
+
+    /**
+     * 最近触发结果说明
+     */
     "lastOutcome": string;
+
+    /**
+     * 最近创建的运行标识
+     */
     "lastRunId": string;
 }
 
 export interface SessionInput {
+    /**
+     * 专用会话所属项目标识
+     */
     "projectId": string;
+
+    /**
+     * 管理或配置会话角色
+     */
     "role": string;
+
+    /**
+     * 用户请求或完成结果正文
+     */
     "text": string;
+
+    /**
+     * 请求使用的模型
+     */
     "model": string;
+
+    /**
+     * 请求使用的推理强度
+     */
     "effort": string;
+
+    /**
+     * 会话请求来源
+     */
     "source": tasks$0.Source;
+
+    /**
+     * 关联的外部请求标识
+     */
     "requestId": string;
 }
 
 export interface SessionRequest {
+    /**
+     * 用户指令或运行完成事件类型
+     */
     "kind": string;
+
+    /**
+     * 完成事件对应的运行标识
+     */
     "completionRunId": string;
+
+    /**
+     * 专用会话请求标识
+     */
     "id": string;
+
+    /**
+     * 本次请求冻结的输入参数
+     */
     "input": SessionInput;
+
+    /**
+     * 会话请求状态
+     */
     "status": string;
+
+    /**
+     * 对应的原生会话标识
+     */
     "threadId": string;
+
+    /**
+     * 对应的原生轮次标识
+     */
     "turnId": string;
+
+    /**
+     * 会话处理结果正文
+     */
     "result": string;
+
+    /**
+     * 会话错误说明
+     */
     "error": string;
+
+    /**
+     * 请求创建时间
+     */
     "createdAt": string;
+
+    /**
+     * 请求结束时间
+     */
     "completedAt": string;
 }
 
 export interface State {
+    /**
+     * 已配置的流水线任务
+     */
     "tasks": Task[] | null;
+
+    /**
+     * 任务调度配置
+     */
     "schedules": Schedule[] | null;
+
+    /**
+     * 流水线运行记录
+     */
     "runs": Run[] | null;
+
+    /**
+     * 专用会话请求队列
+     */
     "requests": SessionRequest[] | null;
+
+    /**
+     * 按项目与角色保存的会话标识
+     */
     "threads": { [_ in string]?: string } | null;
+
+    /**
+     * 专用会话队列是否暂停
+     */
     "paused": boolean;
 }
 
 export interface Task {
+    /**
+     * 任务标识
+     */
     "id": string;
+
+    /**
+     * 所属项目标识
+     */
     "projectId": string;
+
+    /**
+     * 任务显示名称
+     */
     "name": string;
+
+    /**
+     * 运行输入字段
+     */
     "inputs": InputField[] | null;
+
+    /**
+     * 按顺序执行的固定动作
+     */
     "actions": Action[] | null;
 }

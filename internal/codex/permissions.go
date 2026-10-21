@@ -1,5 +1,6 @@
 package codex
 
+// sandboxPolicy 将权限模式转换为原生沙盒策略
 func sandboxPolicy(mode, cwd string) map[string]any {
 	switch mode {
 	case "workspace-write":

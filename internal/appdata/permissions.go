@@ -16,6 +16,7 @@ func (s *Service) SetPermission(scope, id, mode string) (Settings, error) {
 	if scope != "default" && id == "" {
 		return Settings{}, errors.New("请选择项目或会话")
 	}
+
 	return s.update(func(settings *Settings) {
 		if scope == "default" {
 			settings.PermissionMode = mode
@@ -49,6 +50,7 @@ func (s *Service) SetPermission(scope, id, mode string) (Settings, error) {
 func (s *Service) EffectivePermission(threadID, cwd string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if value := s.settings.ThreadPermissions[threadID]; value != "" {
 		return value
 	}

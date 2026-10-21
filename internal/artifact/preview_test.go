@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestPreviewIsIsolatedAndReleased 验证 HTML 预览的沙箱隔离与释放
 func TestPreviewIsIsolatedAndReleased(t *testing.T) {
 	s, err := NewService(t.TempDir())
 	if err != nil {

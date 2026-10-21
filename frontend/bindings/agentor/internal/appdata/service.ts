@@ -23,6 +23,9 @@ export function ChooseFile(): $CancellablePromise<string> {
     return $Call.ByID(321432725);
 }
 
+/**
+ * CreateWorktree 基于当前提交创建分支工作树并选中其目录
+ */
 export function CreateWorktree(cwd: string, branch: string, directory: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(1332525903, cwd, branch, directory);
 }
@@ -76,6 +79,16 @@ export function RememberThread(threadID: string, cwd: string): $CancellablePromi
     return $Call.ByID(1357629041, threadID, cwd);
 }
 
+/**
+ * SetAgentTimeoutSeconds 保存功能子代理最大执行时间
+ */
+export function SetAgentTimeoutSeconds(seconds: number): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(3583929511, seconds);
+}
+
+/**
+ * SetChatOrder 保存项目或项目内会话的显示顺序
+ */
 export function SetChatOrder(cwd: string, ids: string[] | null): $CancellablePromise<$models.Settings> {
     return $Call.ByID(3630318876, cwd, ids);
 }
@@ -88,10 +101,24 @@ export function SetCodexPath(path: string): $CancellablePromise<$models.Settings
 }
 
 /**
+ * SetControllerSettings 保存控制中心提示词与执行者选择范围
+ */
+export function SetControllerSettings(input: $models.ControllerSettings): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(392778279, input);
+}
+
+/**
  * SetLastThread 保存最近打开的会话
  */
 export function SetLastThread(threadID: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(2478289546, threadID);
+}
+
+/**
+ * SetMaxConcurrentAgents 保存工作队列功能任务的并发上限
+ */
+export function SetMaxConcurrentAgents(limit: number): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(2045238823, limit);
 }
 
 /**
@@ -130,12 +157,22 @@ export function SetProjectDirectory(path: string): $CancellablePromise<$models.S
 }
 
 /**
+ * SetReadExternalThreads 保存会话读取范围，不改变目录与账号选择
+ */
+export function SetReadExternalThreads(enabled: boolean): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(1287320394, enabled);
+}
+
+/**
  * SetTheme 保存浅色或深色主题
  */
 export function SetTheme(theme: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(155652315, theme);
 }
 
+/**
+ * ToggleThreadPin 切换会话的置顶状态
+ */
 export function ToggleThreadPin(threadID: string): $CancellablePromise<$models.Settings> {
     return $Call.ByID(117760941, threadID);
 }

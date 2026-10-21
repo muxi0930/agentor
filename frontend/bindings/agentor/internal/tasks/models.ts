@@ -3,17 +3,43 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as appdata$0 from "../appdata/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as workspace$0 from "../workspace/models.js";
 
 export interface Changed {
 }
 
 export interface ControllerInput {
+    /**
+     * 请求正文
+     */
     "text": string;
+
+    /**
+     * 所属项目
+     */
     "projectId": string;
+
+    /**
+     * 目标工作区步骤
+     */
     "stepId": string;
+
+    /**
+     * 使用的模型
+     */
     "model": string;
+
+    /**
+     * 推理强度
+     */
     "effort": string;
+
+    /**
+     * 原始请求来源
+     */
     "source": Source;
 }
 
@@ -22,14 +48,50 @@ export interface DispatchInput {
      * 附件原始请求，独立于完成汇报请求
      */
     "attachmentRequestId": string;
+
+    /**
+     * 所属流水线运行
+     */
     "pipelineRunId": string;
+
+    /**
+     * 目标工作区步骤
+     */
     "stepId": string;
+
+    /**
+     * 本次执行指令
+     */
     "instruction": string;
+
+    /**
+     * 完成标准
+     */
     "completionCriteria": string;
+
+    /**
+     * 使用的模型
+     */
     "model": string;
+
+    /**
+     * 推理强度
+     */
     "effort": string;
+
+    /**
+     * 原始请求来源
+     */
     "source": Source;
+
+    /**
+     * 所属控制中心请求
+     */
     "requestId": string;
+
+    /**
+     * 执行超时秒数，零表示不限时
+     */
     "timeoutSeconds": number;
 }
 
@@ -38,43 +100,182 @@ export interface Execution {
      * 附件原始请求，独立于完成汇报请求
      */
     "attachmentRequestId": string;
+
+    /**
+     * 所属流水线运行
+     */
     "pipelineRunId": string;
+
+    /**
+     * 稳定标识
+     */
     "id": string;
+
+    /**
+     * 目标工作区步骤
+     */
     "stepId": string;
+
+    /**
+     * 所属项目
+     */
     "projectId": string;
+
+    /**
+     * 所属功能
+     */
     "featureId": string;
+
+    /**
+     * 本次执行指令
+     */
     "instruction": string;
+
+    /**
+     * 完成标准
+     */
     "completionCriteria": string;
+
+    /**
+     * 使用的模型
+     */
     "model": string;
+
+    /**
+     * 推理强度
+     */
     "effort": string;
+
+    /**
+     * 执行权限
+     */
     "permission": string;
+
+    /**
+     * 原始请求来源
+     */
     "source": Source;
+
+    /**
+     * 所属控制中心请求
+     */
     "requestId": string;
+
+    /**
+     * 派发时冻结的步骤上下文
+     */
     "context": workspace$0.StepContext;
+
+    /**
+     * 处理状态
+     */
     "status": string;
+
+    /**
+     * 执行会话
+     */
     "threadId": string;
+
+    /**
+     * 执行轮次
+     */
     "turnId": string;
+
+    /**
+     * 执行结果正文
+     */
     "result": string;
+
+    /**
+     * 失败原因
+     */
     "error": string;
+
+    /**
+     * 创建时间
+     */
     "createdAt": string;
+
+    /**
+     * 开始时间
+     */
     "startedAt": string;
+
+    /**
+     * 结束时间
+     */
     "completedAt": string;
+
+    /**
+     * 用户是否已请求停止
+     */
     "stopRequested": boolean;
+
+    /**
+     * 执行超时秒数，零表示不限时
+     */
     "timeoutSeconds": number;
 }
 
 export interface Notification {
+    /**
+     * 所属流水线专用会话请求
+     */
     "pipelineSessionId": string;
+
+    /**
+     * 所属流水线运行
+     */
     "pipelineRunId": string;
+
+    /**
+     * 所属项目
+     */
     "projectId": string;
+
+    /**
+     * 原始请求来源
+     */
     "source": Source;
+
+    /**
+     * 稳定标识
+     */
     "id": string;
+
+    /**
+     * 显示标题
+     */
     "title": string;
+
+    /**
+     * 通知正文
+     */
     "body": string;
+
+    /**
+     * 所属步骤执行
+     */
     "executionId": string;
+
+    /**
+     * 所属控制中心请求
+     */
     "requestId": string;
+
+    /**
+     * 创建时间
+     */
     "createdAt": string;
+
+    /**
+     * 是否已读
+     */
     "read": boolean;
+
+    /**
+     * 各渠道的分项发送记录
+     */
     "parts": NotificationPart[] | null;
 }
 
@@ -98,34 +299,142 @@ export interface NotificationPart {
      * 官方卡片消息内容
      */
     "payloadJSON": string;
+
+    /**
+     * 稳定标识
+     */
     "id": string;
+
+    /**
+     * 业务类型
+     */
     "kind": string;
+
+    /**
+     * 发送渠道
+     */
     "channel": string;
+
+    /**
+     * 发送目标
+     */
     "target": string;
+
+    /**
+     * 处理状态
+     */
     "status": string;
+
+    /**
+     * 失败原因
+     */
     "error": string;
+
+    /**
+     * 发送正文
+     */
     "content": string;
+
+    /**
+     * 关联产物
+     */
     "artifactId": string;
 }
 
 export interface Request {
+    /**
+     * 入队时冻结并解析默认值的控制中心配置
+     */
+    "executor": appdata$0.ControllerSettings;
+
+    /**
+     * 稳定标识
+     */
     "id": string;
+
+    /**
+     * 业务类型
+     */
     "kind": string;
+
+    /**
+     * 请求正文
+     */
     "text": string;
+
+    /**
+     * 所属项目
+     */
     "projectId": string;
+
+    /**
+     * 目标工作区步骤
+     */
     "stepId": string;
+
+    /**
+     * 使用的模型
+     */
     "model": string;
+
+    /**
+     * 推理强度
+     */
     "effort": string;
+
+    /**
+     * 原始请求来源
+     */
     "source": Source;
+
+    /**
+     * 处理状态
+     */
     "status": string;
+
+    /**
+     * 执行会话
+     */
     "threadId": string;
+
+    /**
+     * 执行轮次
+     */
     "turnId": string;
+
+    /**
+     * 执行结果正文
+     */
     "result": string;
+
+    /**
+     * 失败原因
+     */
     "error": string;
+
+    /**
+     * 创建时间
+     */
     "createdAt": string;
+
+    /**
+     * 结束时间
+     */
     "completedAt": string;
+
+    /**
+     * 待汇报的完成事件标识
+     */
     "completionId": string;
+
+    /**
+     * 是否需要用户明确执行目标
+     */
     "needsTarget": boolean;
+
+    /**
+     * 是否限制为请求已指定的步骤
+     */
     "lockedTarget": boolean;
 }
 
@@ -134,23 +443,71 @@ export interface Source {
      * 单聊或群聊
      */
     "chatType"?: string;
+
+    /**
+     * 来源类型
+     */
     "type": string;
+
+    /**
+     * 来源应用
+     */
     "appId": string;
+
+    /**
+     * 来源会话
+     */
     "chatId": string;
+
+    /**
+     * 原始发送者
+     */
     "senderId": string;
 
     /**
      * 上游实际消息标识
      */
     "messageId": string;
+
+    /**
+     * 被引用的上游消息
+     */
     "replyToMessageId": string;
 }
 
 export interface State {
+    /**
+     * 当前控制中心上下文使用的完整提示词
+     */
+    "controllerInstructions": string;
+
+    /**
+     * 步骤执行记录
+     */
     "executions": Execution[] | null;
+
+    /**
+     * 通知记录
+     */
     "notifications": Notification[] | null;
+
+    /**
+     * 是否暂停自动出队
+     */
     "paused": boolean;
+
+    /**
+     * 控制中心请求记录
+     */
     "requests": Request[] | null;
+
+    /**
+     * 控制中心专用会话
+     */
     "controllerThreadId": string;
+
+    /**
+     * 各来源最近派发的步骤
+     */
     "lastSteps": { [_ in string]?: string } | null;
 }

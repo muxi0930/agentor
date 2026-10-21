@@ -70,7 +70,7 @@ func (s *Service) RecordNotification(notification Notification) error {
 	return err
 }
 
-// ReportExternalResult 将外部业务结果交还原始控制器请求
+// ReportExternalResult 将外部业务结果交还原始控制中心请求
 //
 //wails:ignore
 func (s *Service) ReportExternalResult(requestID, kind, resultID, projectID, text string) error {
@@ -87,7 +87,7 @@ func (s *Service) ReportExternalResult(requestID, kind, resultID, projectID, tex
 	}
 	s.mu.Unlock()
 	if original.ID == "" {
-		return errors.New("原始控制器请求不存在")
+		return errors.New("原始控制中心请求不存在")
 	}
 	_, err := s.submitRequest(ControllerInput{Text: text, ProjectID: projectID, Model: original.Model, Effort: original.Effort, Source: original.Source}, kind, resultID)
 	return err

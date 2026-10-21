@@ -1,4 +1,4 @@
-package main
+package toolrouter
 
 import (
 	"encoding/json"
@@ -11,24 +11,20 @@ import (
 	"agentor/internal/workspace"
 )
 
-type toolRouter struct {
-	tasks    *tasks.Service
-	work     *workspace.Service
-	pipeline *pipeline.Service
-	lark     *lark.Service
+type Router struct {
+	tasks    *tasks.Service     // 步骤与控制中心任务
+	work     *workspace.Service // 工作区与知识文档
+	pipeline *pipeline.Service  // 流水线任务与会话
+	lark     *lark.Service      // 飞书消息与产物分享
 }
 
-func tool(name, description string, properties map[string]any, required ...string) codex.DynamicToolSpec {
-	if required == nil {
-		required = []string{}
-	}
-	return codex.DynamicToolSpec{Type: "function", Name: name, Description: description, InputSchema: map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}}
-}
-func stringField(description string) map[string]any {
-	return map[string]any{"type": "string", "description": description}
+// New 组合宿主工具路由依赖
+func New(executions *tasks.Service, work *workspace.Service, pipelines *pipeline.Service, remote *lark.Service) *Router {
+	return &Router{tasks: executions, work: work, pipeline: pipelines, lark: remote}
 }
 
-func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
+// Specs 返回当前业务角色可以调用的工具
+func (r *Router) Specs(role string) []codex.DynamicToolSpec {
 	if role == "pipeline_manager" || role == "pipeline_config" {
 		return r.pipelineSpecs(role)
 	}
@@ -38,24 +34,26 @@ func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
 			tool("get_work_item", "按稳定 ID 读取项目、版本、功能或步骤的详细定义。", map[string]any{"kind": stringField("project / version / feature / step"), "id": stringField("对象 ID")}, "kind", "id"),
 			tool("create_feature", "在本次请求范围内的版本创建功能，不改变桌面选择。", map[string]any{"versionId": stringField("版本 ID"), "title": stringField("功能标题"), "description": stringField("功能说明"), "context": stringField("功能上下文"), "prompt": stringField("功能提示词")}, "versionId", "title", "description", "context", "prompt"),
 			tool("create_step", "在本次请求范围内的功能创建步骤，执行权限继承项目配置。", map[string]any{"featureId": stringField("功能 ID"), "title": stringField("步骤标题"), "description": stringField("步骤说明"), "prompt": stringField("步骤提示词")}, "featureId", "title", "description", "prompt"),
-			tool("dispatch_step", "正式派发步骤；同一步骤会排队。模型与 effort 使用本次请求入队时固定的值。", map[string]any{"stepId": stringField("明确的步骤 ID"), "instruction": stringField("执行指令"), "completionCriteria": stringField("完成标准，可为空")}, "stepId", "instruction", "completionCriteria"),
+			tool("dispatch_step", "正式派发步骤；同一功能下的步骤按派发顺序排队，不同功能可并行。从本次请求允许范围中选择执行模型与 effort。", map[string]any{"stepId": stringField("明确的步骤 ID"), "instruction": stringField("执行指令"), "completionCriteria": stringField("完成标准，可为空"), "model": stringField("从允许范围选择模型，空字符串跟随默认会话"), "effort": stringField("从允许范围选择兼容的 effort，空字符串跟随默认会话")}, "stepId", "instruction", "completionCriteria", "model", "effort"),
 			tool("list_executions", "查询本次项目范围内的执行状态与结果。", map[string]any{}),
 			tool("stop_execution", "停止一项明确的执行，或取消该项排队。", map[string]any{"executionId": stringField("执行记录 ID")}, "executionId"),
 			tool("rebuild_step_context", "在步骤空闲时重建会话，保留已有执行记录，不重放任务。", map[string]any{"stepId": stringField("步骤 ID")}, "stepId"),
 			tool("list_pipeline_tasks", "查询本次项目范围内的流水线任务、调度与运行记录。", map[string]any{}),
-			tool("run_pipeline", "运行已有流水线任务，同一任务不重入。", map[string]any{"taskId": stringField("任务 ID"), "inputs": map[string]any{"type": "object", "description": "任务契约要求的输入值"}}, "taskId", "inputs"),
-			tool("request_pipeline_session", "给项目专用管理/配置会话提交请求。管理会话运行已有任务，配置会话维护 JSON 和调度。", map[string]any{"projectId": stringField("当前范围内的项目 ID"), "role": stringField("pipeline_manager / pipeline_config"), "text": stringField("会话请求")}, "projectId", "role", "text"),
+			tool("run_pipeline", "运行已有流水线任务，同一任务不重入。", map[string]any{"taskId": stringField("任务 ID"), "inputs": map[string]any{"type": "object", "description": "任务契约要求的输入值"}, "model": stringField("从允许范围选择模型，空字符串跟随默认会话"), "effort": stringField("从允许范围选择兼容的 effort，空字符串跟随默认会话")}, "taskId", "inputs", "model", "effort"),
+			tool("request_pipeline_session", "给项目专用管理/配置会话提交请求。管理会话运行已有任务，配置会话维护 JSON 和调度。", map[string]any{"projectId": stringField("当前范围内的项目 ID"), "role": stringField("pipeline_manager / pipeline_config"), "text": stringField("会话请求"), "model": stringField("从允许范围选择模型，空字符串跟随默认会话"), "effort": stringField("从允许范围选择兼容的 effort，空字符串跟随默认会话")}, "projectId", "role", "text", "model", "effort"),
 			tool("set_schedule_enabled", "启用或停用当前项目的调度。", map[string]any{"scheduleId": stringField("调度 ID"), "enabled": map[string]any{"type": "boolean"}}, "scheduleId", "enabled"),
-			tool("trigger_schedule", "手动触发已有调度，同任务不重入。", map[string]any{"scheduleId": stringField("调度 ID")}, "scheduleId"),
+			tool("trigger_schedule", "手动触发已有调度，同任务不重入。", map[string]any{"scheduleId": stringField("调度 ID"), "model": stringField("从允许范围选择模型，空字符串跟随默认会话"), "effort": stringField("从允许范围选择兼容的 effort，空字符串跟随默认会话")}, "scheduleId", "model", "effort"),
 			tool("share_artifact", "将当前项目的已登记产物发送到原始飞书会话；桌面任务使用已配对接收者。", map[string]any{"artifactId": stringField("产物 ID")}, "artifactId"),
 		}
 	}
+
 	if role != "step" {
 		return nil
 	}
+
 	return []codex.DynamicToolSpec{
 		tool("get_step_context", "读取宿主绑定的当前步骤、项目和功能上下文，以及可读取的知识文档索引。", map[string]any{}),
-		tool("search_knowledge", "在当前项目共享和当前功能绑定的 Markdown 中搜索标题与正文。", map[string]any{"query": stringField("检索文字")}, "query"),
+		tool("search_knowledge", "在当前项目、所属版本和当前功能绑定的 Markdown 中搜索标题与正文。", map[string]any{"query": stringField("检索文字")}, "query"),
 		tool("read_knowledge", "读取当前步骤范围内的完整 Markdown。", map[string]any{"documentId": stringField("文档索引中的稳定 ID")}, "documentId"),
 		tool("prepare_knowledge_document", "创建托管 Markdown 文档并绑定至当前功能；随后用 sync_knowledge_document 写入正文。", map[string]any{"title": stringField("文档标题")}, "title"),
 		tool("bind_knowledge_document", "将当前项目内的文档绑定至当前功能。", map[string]any{"documentId": stringField("当前项目内的文档 ID")}, "documentId"),
@@ -65,7 +63,8 @@ func (r *toolRouter) specs(role string) []codex.DynamicToolSpec {
 	}
 }
 
-func (r *toolRouter) call(call codex.ToolCall) (any, error) {
+// Call 按会话角色转交实际宿主工具请求
+func (r *Router) Call(call codex.ToolCall) (any, error) {
 	scope, err := r.tasks.ScopeForThread(call.ThreadID)
 	if err != nil {
 		if r.pipeline != nil {
@@ -75,8 +74,9 @@ func (r *toolRouter) call(call codex.ToolCall) (any, error) {
 		}
 		return nil, err
 	}
+
 	allowed := false
-	for _, spec := range r.specs(scope.Role) {
+	for _, spec := range r.Specs(scope.Role) {
 		if spec.Name == call.Tool {
 			allowed = true
 			break
@@ -85,20 +85,22 @@ func (r *toolRouter) call(call codex.ToolCall) (any, error) {
 	if !allowed {
 		return nil, errors.New("当前会话角色不能调用此工具")
 	}
+
 	if scope.Role == "controller" {
 		return r.controllerCall(scope, call)
 	}
 	var args struct {
-		Query      string `json:"query"`
-		DocumentID string `json:"documentId"`
-		Title      string `json:"title"`
-		Content    string `json:"content"`
-		Path       string `json:"path"`
-		ArtifactID string `json:"artifactId"`
+		Query      string `json:"query"`      // 知识检索内容
+		DocumentID string `json:"documentId"` // 知识文档标识
+		Title      string `json:"title"`      // 新建文档标题
+		Content    string `json:"content"`    // 完整文档正文
+		Path       string `json:"path"`       // 待登记文件路径
+		ArtifactID string `json:"artifactId"` // 待分享产物标识
 	}
 	if err = json.Unmarshal(call.Arguments, &args); err != nil {
 		return nil, err
 	}
+
 	switch call.Tool {
 	case "get_step_context":
 		return r.work.GetStepContext(scope.StepID)
@@ -127,18 +129,20 @@ func (r *toolRouter) call(call codex.ToolCall) (any, error) {
 	return nil, errors.New("未知工具")
 }
 
-func (r *toolRouter) controllerCall(scope tasks.Scope, call codex.ToolCall) (any, error) {
+// controllerCall 在控制中心绑定的项目范围内处理工具调用
+func (r *Router) controllerCall(scope tasks.Scope, call codex.ToolCall) (any, error) {
 	request, err := r.tasks.CurrentRequest(call.ThreadID)
 	if err != nil {
 		return nil, err
 	}
+
 	readOnly := call.Tool == "list_workspaces" || call.Tool == "get_work_item" || call.Tool == "list_executions" || call.Tool == "list_pipeline_tasks"
 	if !readOnly && (request.NeedsTarget || request.Kind != "instruction") {
 		return nil, errors.New("此请求需要明确目标或仅用于完成汇报，不能修改或再次派发")
 	}
 	if call.Tool == "share_artifact" {
 		var args struct {
-			ArtifactID string `json:"artifactId"`
+			ArtifactID string `json:"artifactId"` // 待分享产物标识
 		}
 		if err := json.Unmarshal(call.Arguments, &args); err != nil {
 			return nil, err
@@ -153,18 +157,20 @@ func (r *toolRouter) controllerCall(scope tasks.Scope, call codex.ToolCall) (any
 		}
 	}
 	var args struct {
-		Kind               string `json:"kind"`
-		ID                 string `json:"id"`
-		VersionID          string `json:"versionId"`
-		FeatureID          string `json:"featureId"`
-		StepID             string `json:"stepId"`
-		ExecutionID        string `json:"executionId"`
-		Title              string `json:"title"`
-		Description        string `json:"description"`
-		Context            string `json:"context"`
-		Prompt             string `json:"prompt"`
-		Instruction        string `json:"instruction"`
-		CompletionCriteria string `json:"completionCriteria"`
+		Kind               string `json:"kind"`               // 工作项类型
+		ID                 string `json:"id"`                 // 工作项标识
+		VersionID          string `json:"versionId"`          // 所属版本标识
+		FeatureID          string `json:"featureId"`          // 所属功能标识
+		StepID             string `json:"stepId"`             // 步骤标识
+		ExecutionID        string `json:"executionId"`        // 执行记录标识
+		Title              string `json:"title"`              // 工作项标题
+		Description        string `json:"description"`        // 工作项说明
+		Context            string `json:"context"`            // 工作项上下文
+		Prompt             string `json:"prompt"`             // 步骤提示词
+		Instruction        string `json:"instruction"`        // 本次执行指令
+		CompletionCriteria string `json:"completionCriteria"` // 本次完成标准
+		Model              string `json:"model"`              // 执行者模型
+		Effort             string `json:"effort"`             // 执行者推理强度
 	}
 	if err = json.Unmarshal(call.Arguments, &args); err != nil {
 		return nil, err
@@ -203,7 +209,7 @@ func (r *toolRouter) controllerCall(scope tasks.Scope, call codex.ToolCall) (any
 		return result, nil
 	}
 	if call.Tool == "dispatch_step" {
-		return r.tasks.DispatchFromController(call.ThreadID, args.StepID, args.Instruction, args.CompletionCriteria)
+		return r.tasks.DispatchFromController(call.ThreadID, args.StepID, args.Instruction, args.CompletionCriteria, args.Model, args.Effort)
 	}
 	if call.Tool == "stop_execution" {
 		for _, execution := range r.tasks.GetState().Executions {
@@ -258,4 +264,20 @@ func (r *toolRouter) controllerCall(scope tasks.Scope, call codex.ToolCall) (any
 		}
 	}
 	return nil, errors.New("对象不存在或不属于本次请求范围")
+}
+
+// tool 构造宿主工具的协议定义
+func tool(name, description string, properties map[string]any, required ...string) codex.DynamicToolSpec {
+	if required == nil {
+		required = []string{}
+	}
+	return codex.DynamicToolSpec{
+		Type: "function", Name: name, Description: description,
+		InputSchema: map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false},
+	}
+}
+
+// stringField 构造字符串类型的工具参数
+func stringField(description string) map[string]any {
+	return map[string]any{"type": "string", "description": description}
 }

@@ -1,4 +1,4 @@
-package main
+package toolrouter
 
 import (
 	"encoding/json"
@@ -9,15 +9,18 @@ import (
 	"agentor/internal/tasks"
 )
 
-func (r *toolRouter) pipelineSpecs(role string) []codex.DynamicToolSpec {
+// pipelineSpecs 返回管理或配置会话允许调用的流水线工具
+func (r *Router) pipelineSpecs(role string) []codex.DynamicToolSpec {
 	specs := []codex.DynamicToolSpec{
 		tool("list_actions", "读取固定 Go 动作及参数/结果契约。", map[string]any{}),
 		tool("list_pipeline_tasks", "查询当前项目的任务、调度和运行记录。", map[string]any{}),
 		tool("validate_pipeline_task", "只读验证 JSON 任务，不执行动作。任务字段为 id（新建可空）、name、inputs、actions。", map[string]any{"json": stringField("完整 JSON 配置")}, "json"),
 	}
+
 	if role == "pipeline_manager" {
 		return append(specs, tool("run_pipeline", "运行当前项目已有任务；模型和来源沿用此会话请求。", map[string]any{"taskId": stringField("任务 ID"), "inputs": map[string]any{"type": "object"}}, "taskId", "inputs"), tool("share_artifact", "显式分享当前项目的报告或步骤产物到原飞书会话。", map[string]any{"artifactId": stringField("已登记产物 ID")}, "artifactId"))
 	}
+
 	return append(specs,
 		tool("save_pipeline_task", "验证并保存当前项目 JSON 任务；新建 ID 留空，修改保留 ID。", map[string]any{"json": stringField("完整 JSON 配置")}, "json"),
 		tool("delete_pipeline_task", "删除当前项目的空闲任务；有关联调度时需先移除调度。", map[string]any{"taskId": stringField("任务 ID")}, "taskId"),
@@ -25,7 +28,9 @@ func (r *toolRouter) pipelineSpecs(role string) []codex.DynamicToolSpec {
 		tool("delete_pipeline_schedule", "删除当前项目调度。", map[string]any{"scheduleId": stringField("调度 ID")}, "scheduleId"),
 	)
 }
-func (r *toolRouter) pipelineState(projectID string) pipeline.State {
+
+// pipelineState 读取指定项目范围内的流水线状态
+func (r *Router) pipelineState(projectID string) pipeline.State {
 	state := r.pipeline.GetState()
 	result := pipeline.State{Tasks: []pipeline.Task{}, Schedules: []pipeline.Schedule{}, Runs: []pipeline.Run{}}
 	for _, task := range state.Tasks {
@@ -33,19 +38,24 @@ func (r *toolRouter) pipelineState(projectID string) pipeline.State {
 			result.Tasks = append(result.Tasks, task)
 		}
 	}
+
 	for _, schedule := range state.Schedules {
 		if projectID == "" || schedule.ProjectID == projectID {
 			result.Schedules = append(result.Schedules, schedule)
 		}
 	}
+
 	for _, run := range state.Runs {
 		if projectID == "" || run.ProjectID == projectID {
 			result.Runs = append(result.Runs, run)
 		}
 	}
+
 	return result
 }
-func (r *toolRouter) pipelineCall(request pipeline.SessionRequest, call codex.ToolCall) (any, error) {
+
+// pipelineCall 在项目专用会话范围内处理流水线工具请求
+func (r *Router) pipelineCall(request pipeline.SessionRequest, call codex.ToolCall) (any, error) {
 	allowed := false
 	for _, spec := range r.pipelineSpecs(request.Input.Role) {
 		if spec.Name == call.Tool {
@@ -56,19 +66,22 @@ func (r *toolRouter) pipelineCall(request pipeline.SessionRequest, call codex.To
 	if !allowed {
 		return nil, errors.New("当前流水线角色不能调用此工具")
 	}
+
 	if request.Kind != "instruction" && call.Tool != "list_actions" && call.Tool != "list_pipeline_tasks" && call.Tool != "validate_pipeline_task" {
 		return nil, errors.New("完成汇报只能查询，不能重新运行或修改配置")
 	}
+
 	var args struct {
-		JSON       string         `json:"json"`
-		TaskID     string         `json:"taskId"`
-		ScheduleID string         `json:"scheduleId"`
-		Inputs     map[string]any `json:"inputs"`
-		ArtifactID string         `json:"artifactId"`
+		JSON       string         `json:"json"`       // 任务或调度定义
+		TaskID     string         `json:"taskId"`     // 流水线任务标识
+		ScheduleID string         `json:"scheduleId"` // 调度标识
+		Inputs     map[string]any `json:"inputs"`     // 任务输入参数
+		ArtifactID string         `json:"artifactId"` // 待分享产物标识
 	}
 	if err := json.Unmarshal(call.Arguments, &args); err != nil {
 		return nil, err
 	}
+
 	projectID := request.Input.ProjectID
 	switch call.Tool {
 	case "list_actions":
@@ -108,18 +121,31 @@ func (r *toolRouter) pipelineCall(request pipeline.SessionRequest, call codex.To
 	}
 	return nil, errors.New("未知流水线工具")
 }
-func (r *toolRouter) controllerPipelineCall(request tasks.Request, call codex.ToolCall) (any, error) {
+
+// controllerPipelineCall 处理控制中心派发的项目流水线操作
+func (r *Router) controllerPipelineCall(request tasks.Request, call codex.ToolCall) (any, error) {
 	var args struct {
-		TaskID     string         `json:"taskId"`
-		ProjectID  string         `json:"projectId"`
-		Role       string         `json:"role"`
-		Text       string         `json:"text"`
-		ScheduleID string         `json:"scheduleId"`
-		Enabled    bool           `json:"enabled"`
-		Inputs     map[string]any `json:"inputs"`
+		Model      string         `json:"model"`      // 执行者模型
+		Effort     string         `json:"effort"`     // 执行者推理强度
+		TaskID     string         `json:"taskId"`     // 流水线任务标识
+		ProjectID  string         `json:"projectId"`  // 目标项目标识
+		Role       string         `json:"role"`       // 专用会话角色
+		Text       string         `json:"text"`       // 会话请求正文
+		ScheduleID string         `json:"scheduleId"` // 调度标识
+		Enabled    bool           `json:"enabled"`    // 调度是否启用
+		Inputs     map[string]any `json:"inputs"`     // 任务输入参数
 	}
 	if err := json.Unmarshal(call.Arguments, &args); err != nil {
 		return nil, err
+	}
+
+	model, effort := request.Model, request.Effort
+	if call.Tool == "request_pipeline_session" || call.Tool == "run_pipeline" || call.Tool == "trigger_schedule" {
+		var err error
+		model, effort, err = r.tasks.SelectExecutor(request, args.Model, args.Effort)
+		if err != nil {
+			return nil, err
+		}
 	}
 	state := r.pipelineState(request.ProjectID)
 	switch call.Tool {
@@ -129,18 +155,18 @@ func (r *toolRouter) controllerPipelineCall(request tasks.Request, call codex.To
 		if request.ProjectID != "" && request.ProjectID != args.ProjectID {
 			return nil, errors.New("项目不属于本次请求范围")
 		}
-		return r.pipeline.SubmitSession(pipeline.SessionInput{ProjectID: args.ProjectID, Role: args.Role, Text: args.Text, Model: request.Model, Effort: request.Effort, Source: request.Source, RequestID: request.ID})
+		return r.pipeline.SubmitSession(pipeline.SessionInput{ProjectID: args.ProjectID, Role: args.Role, Text: args.Text, Model: model, Effort: effort, Source: request.Source, RequestID: request.ID})
 	case "run_pipeline":
 		for _, task := range state.Tasks {
 			if task.ID == args.TaskID {
-				return r.pipeline.RunTask(pipeline.RunInput{TaskID: task.ID, Inputs: args.Inputs, Model: request.Model, Effort: request.Effort, Source: request.Source, RequestID: request.ID})
+				return r.pipeline.RunTask(pipeline.RunInput{TaskID: task.ID, Inputs: args.Inputs, Model: model, Effort: effort, Source: request.Source, RequestID: request.ID})
 			}
 		}
 	case "set_schedule_enabled", "trigger_schedule":
 		for _, schedule := range state.Schedules {
 			if schedule.ID == args.ScheduleID {
 				if call.Tool == "trigger_schedule" {
-					return r.pipeline.TriggerScheduleFor(schedule.ProjectID, schedule.ID, pipeline.RunInput{Model: request.Model, Effort: request.Effort, Source: request.Source, RequestID: request.ID})
+					return r.pipeline.TriggerScheduleFor(schedule.ProjectID, schedule.ID, pipeline.RunInput{Model: model, Effort: effort, Source: request.Source, RequestID: request.ID})
 				}
 				err := r.pipeline.SetScheduleEnabled(schedule.ProjectID, schedule.ID, args.Enabled)
 				return map[string]bool{"updated": err == nil}, err

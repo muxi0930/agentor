@@ -7,7 +7,7 @@ import type { Attachment } from "../../../bindings/agentor/internal/artifact/mod
 import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
 import type { Conversation, Item, Model, Status, Thread } from "../../../bindings/agentor/internal/codex/models";
 import { errorText } from "@/app/errors";
-import { applyNotification, mergeTurn, type ConversationState, type Notification } from "./state";
+import { applyNotification, inputStatus, mergeItem, mergeTurn, type ConversationState, type Notification } from "./state";
 
 function fromConversation(value: Conversation): ConversationState {
   return { thread: value.thread, turns: [...(value.turns.data || [])].reverse(), cursor: value.turns.nextCursor, activeTurnId: value.activeTurnId };
@@ -65,19 +65,24 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
       if (request !== selectionRequest.current || generation !== statusRef.current?.generation) return;
       setConversations(old => {
         const loaded = fromConversation(value);
-        // Notifications may have arrived while history was loading.
+        // 历史加载期间可能已收到新的增量内容
         const live = old[threadId];
         loaded.tokenUsage = value.tokenUsage || live?.tokenUsage;
         loaded.turnDiffs = live?.turnDiffs;
         if (live) for (const turn of live.turns) {
           const saved = loaded.turns.find(saved => saved.id === turn.id);
           if (!saved || (saved.status === "inProgress" && turn.status !== "inProgress")) loaded.turns = mergeTurn(loaded.turns, turn);
-          else if (saved.status === "inProgress" && turn.status === "inProgress") {
+          else {
             const items = [...(saved.items || [])];
             for (const item of turn.items || []) {
               const index = items.findIndex(saved => saved.id === item.id || (!!item.clientId && item.clientId === saved.clientId));
-              if (index < 0) items.push(item);
-              else if ((item.text?.length || 0) > (items[index].text?.length || 0) || (item.aggregatedOutput?.length || 0) > (items[index].aggregatedOutput?.length || 0)) items[index] = item;
+              if (item.type === "reasoning") {
+                if (index < 0) items.push({ ...item, status: saved.status === "inProgress" ? item.status : "completed" });
+                else items[index] = mergeItem(item, items[index]);
+              } else if (saved.status === "inProgress" && turn.status === "inProgress") {
+                if (index < 0) items.push(item);
+                else if ((item.text?.length || 0) > (items[index].text?.length || 0) || (item.aggregatedOutput?.length || 0) > (items[index].aggregatedOutput?.length || 0)) items[index] = item;
+              }
             }
             loaded.turns = mergeTurn(loaded.turns, { ...saved, items });
           }
@@ -89,6 +94,11 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
     } catch (error) { if (request === selectionRequest.current) setError(errorText(error)); }
     finally { if (request === selectionRequest.current) setLoading(false); }
   }, [onSettings]);
+
+  useEffect(() => {
+    if (statusRef.current?.phase !== "ready") return;
+    void refreshThreads().catch(error => setError(errorText(error)));
+  }, [settings.readExternalThreads, refreshThreads]);
 
   useEffect(() => {
     if (status?.phase !== "ready") return;
@@ -166,6 +176,7 @@ export function useChat(settings: Settings, onSettings: (value: Settings) => voi
 
   async function send() {
     const threadId = selected, text = drafts[selected] || "";
+    if (inputStatus(loading, conversations[threadId])) return;
     const fileIds = draftAttachments[threadId] || [];
     if ((!text.trim() && !fileIds.length) || sending[threadId] || uploading[threadId]) return;
     setSending(old => ({ ...old, [threadId]: true })); setError("");

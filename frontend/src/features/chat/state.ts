@@ -4,24 +4,48 @@ export type ConversationState = {
   thread: Thread; turns: Turn[]; cursor: string | null; activeTurnId: string;
   tokenUsage?: TokenUsage; turnDiffs?: Record<string, string>; transientError?: { message: string; willRetry: boolean; turnId?: string };
 };
+
+export function inputStatus(loading: boolean, conversation?: ConversationState): string {
+  if (loading) return "正在加载会话，暂时无法输入，请稍候…";
+  if (!conversation) return "会话尚未成功读取，暂时无法输入，请重新打开会话。";
+  if (conversation.activeTurnId === "starting") return "当前任务正在启动，暂时无法追加指令，请稍候…";
+  return "";
+}
 export type Notification = {
   threadId?: string; turnId?: string; itemId?: string; delta?: string;
-  turn?: Turn; item?: Item; thread?: Thread; summaryIndex?: number; threadName?: string;
+  turn?: Turn; item?: IncomingItem; thread?: Thread; summaryIndex?: number; contentIndex?: number; threadName?: string;
   tokenUsage?: TokenUsage; diff?: string; error?: TurnError; willRetry?: boolean;
 };
+type IncomingItem = Omit<Item, "content"> & { content: Item["content"] | string[] };
+
+export function mergeItem(previous: Item | undefined, incoming: IncomingItem): Item {
+  const item = { ...previous, ...incoming } as Item;
+  if (item.type === "reasoning") {
+    item.content = null;
+    for (const key of ["summary", "reasoningContent"] as const) {
+      const parts = [...(previous?.[key] || [])];
+      const incomingParts = key === "reasoningContent" ? incoming.reasoningContent || incoming.content as string[] | null : incoming.summary;
+      for (const [index, text] of (incomingParts || []).entries()) {
+        if (typeof text === "string" && text.trim() && text.trim().length >= (parts[index]?.trim().length || 0)) parts[index] = text;
+      }
+      item[key] = parts;
+    }
+  }
+  return item;
+}
 
 function mergeItems(previous: Item[], incoming: Item[]): Item[] {
   const items = [...previous];
   for (const item of incoming) {
     const index = items.findIndex(existing => existing.id === item.id || (!!item.clientId && existing.clientId === item.clientId));
-    if (index < 0) items.push(item); else items[index] = { ...items[index], ...item };
+    if (index < 0) items.push(mergeItem(undefined, item)); else items[index] = mergeItem(items[index], item);
   }
   return items;
 }
 
 export function mergeTurn(turns: Turn[], next: Turn): Turn[] {
   const found = turns.find(turn => turn.id === next.id);
-  if (!found) return [...turns, { ...next, items: next.items || [] }];
+  if (!found) return [...turns, { ...next, items: mergeItems([], next.items || []) }];
   return turns.map(turn => turn.id === next.id
     ? { ...turn, ...next, items: mergeItems(turn.items || [], next.items || []) } : turn);
 }
@@ -45,17 +69,18 @@ export function applyNotification(state: ConversationState, method: string, para
     const itemId = params.item?.id || params.itemId;
     const item = items.find(item => item.id === itemId || (!!params.item?.clientId && item.clientId === params.item.clientId));
     if (params.item) {
-      const finalItem = { ...item, ...params.item, status: params.item.status || (method === "item/started" ? "inProgress" : "completed") };
+      const finalItem = mergeItem(item, { ...params.item, status: params.item.status || (method === "item/started" ? "inProgress" : "completed") });
       if (item) items.splice(items.indexOf(item), 1, finalItem); else items.push(finalItem);
     } else if (itemId && params.delta !== undefined) {
       const type = method === "item/commandExecution/outputDelta" ? "commandExecution" : method.startsWith("item/reasoning/") ? "reasoning" : "agentMessage";
       const updated = item ? { ...item } : { id: itemId, clientId: "", type, text: "", summary: [], content: [], command: "", aggregatedOutput: "", status: "inProgress", phase: "", exitCode: null, reasoningContent: [] };
       if (type === "commandExecution") updated.aggregatedOutput = (updated.aggregatedOutput || "") + params.delta;
       else if (type === "reasoning") {
-        const summary = [...(updated.summary || [])];
-        const index = params.summaryIndex || 0;
-        summary[index] = (summary[index] || "") + params.delta;
-        updated.summary = summary;
+        const key = method === "item/reasoning/textDelta" ? "reasoningContent" : "summary";
+        const parts = [...(updated[key] || [])];
+        const index = (key === "reasoningContent" ? params.contentIndex : params.summaryIndex) ?? 0;
+        parts[index] = (parts[index] || "") + params.delta;
+        updated[key] = parts;
       } else updated.text = (updated.text || "") + params.delta;
       if (item) items.splice(items.indexOf(item), 1, updated); else items.push(updated);
     }
