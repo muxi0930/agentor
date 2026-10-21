@@ -253,12 +253,12 @@ func (s *Service) connect() (Status, error) {
 			return s.connectionError(err)
 		}
 	}
-	path, err := resolveBinary(settings.CodexPath)
+	path, searchPath, err := resolveBinary(settings.CodexPath)
 	if err != nil {
 		return s.connectionError(err)
 	}
 
-	env := processEnvironment(home, settings.ReuseCLI)
+	env := processEnvironment(home, settings.ReuseCLI, searchPath)
 	if selected.Profile.Type == "api" {
 		env = append(env, "AGENTOR_ACCOUNT_API_KEY="+selected.APIKey)
 	}
