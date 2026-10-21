@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowUp, ChevronRight, Folder, FolderOpen, LoaderCircle, Paperclip, Pencil, Pin, Plus, RefreshCw, Square, Terminal } from "lucide-react";
+import { Archive, ArrowUp, ChevronRight, Folder, FolderOpen, LoaderCircle, LockKeyhole, Paperclip, Pencil, Pin, Plus, RefreshCw, Square, Terminal } from "lucide-react";
 import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
 import type { Status, Thread } from "../../../bindings/agentor/internal/codex/models";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
@@ -156,7 +156,7 @@ export function ChatPage({ settings, onSettings, status, openSettings, sidebarCo
             </MessageScrollerContent></MessageScrollerViewport><MessageScrollerButton /></MessageScroller>
           </MessageScrollerProvider></PreviewContext.Provider>
         </div>
-        {unavailable ? <div role="status" className="mx-auto w-full max-w-3xl shrink-0 px-5 pb-5 pt-2"><Alert><AlertDescription>{unavailable}</AlertDescription></Alert></div> : <form className="mx-auto w-full max-w-3xl shrink-0 px-5 pb-5 pt-2" onSubmit={event => { event.preventDefault(); if (!invalidImages) void chat.send(); }}>
+        {unavailable ? <div role="status" className="mx-auto w-full max-w-3xl shrink-0 px-5 pb-5 pt-2">{chat.conversation?.readOnly && !chat.loading ? <div className="flex items-center gap-4 rounded-2xl border bg-card p-5"><LockKeyhole aria-hidden="true" className="size-5 shrink-0" /><div className="min-w-0 space-y-1"><p className="text-sm font-medium">已在另一个应用中打开</p><p className="text-sm text-muted-foreground">请先在那边关闭会话，才能在这里继续。</p></div></div> : <Alert><AlertDescription>{unavailable}</AlertDescription></Alert>}</div> : <form className="mx-auto w-full max-w-3xl shrink-0 px-5 pb-5 pt-2" onSubmit={event => { event.preventDefault(); if (!invalidImages) void chat.send(); }}>
           <div className="rounded-2xl border bg-card p-3 shadow-sm focus-within:ring-2 focus-within:ring-ring/30">
             {chat.draftFiles.length > 0 && <div className="mb-3"><AttachmentView files={chat.draftFiles} onRemove={chat.removeDraftFile} onError={chat.setError} /></div>}
             <label htmlFor="chat-input" className="sr-only">{active ? "追加指令" : "发送消息"}</label>

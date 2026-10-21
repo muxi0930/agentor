@@ -14,6 +14,22 @@ import (
 	"time"
 )
 
+// CheckPath 检测指定路径的原生程序能否运行，不改变当前连接
+func (s *Service) CheckPath(path string) error {
+	resolved, searchPath, err := resolveBinary(path)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, resolved, "--version")
+	hideProcessWindow(command)
+	command.Env = processEnvironment(s.data.GetInfo().CodexHome, s.data.GetSettings().ReuseCLI, searchPath)
+	_, err = command.Output()
+	return err
+}
+
 // resolveBinary 定位原生 Codex，并返回子进程应继承的搜索路径
 func resolveBinary(path string) (string, string, error) {
 	searchPath := os.Getenv("PATH")

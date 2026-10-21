@@ -10,6 +10,9 @@ func TestAccountPreferencesStayWithIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.SetModelSelection("cli-model", "medium")
+	if _, err := s.SetPermission("default", "", "read-only"); err != nil {
+		t.Fatal(err)
+	}
 	s.SelectAccount("independent", false)
 	s.SetModelSelection("own-model", "high")
 	s.SetPermission("default", "", "workspace-write")

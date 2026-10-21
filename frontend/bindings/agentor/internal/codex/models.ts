@@ -322,6 +322,11 @@ export interface Conversation {
     "activeTurnId": string;
 
     /**
+     * 是否因其他应用占用而只读
+     */
+    "readOnly": boolean;
+
+    /**
      * 会话令牌用量
      */
     "tokenUsage"?: TokenUsage | null;

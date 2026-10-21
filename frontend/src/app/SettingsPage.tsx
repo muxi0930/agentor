@@ -29,7 +29,7 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
 }) {
   const [tab, setTab] = useState(initialTab);
   const [models, setModels] = useState<Model[]>([]);
-  const [systemSections, setSystemSections] = useState<string[]>(["information", "agents"]);
+  const [systemSections, setSystemSections] = useState<string[]>(["information"]);
   const [sessionSections, setSessionSections] = useState<string[]>(["permissions"]);
   const [codexSections, setCodexSections] = useState<string[]>(["executable"]);
   const [agentSections, setAgentSections] = useState<string[]>(["queue", "timeout"]);
@@ -58,7 +58,7 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
   return <Page>
     <Tabs value={tab} onValueChange={value => {
       setTab(String(value));
-      if (value === "system") setSystemSections(["information", "agents"]);
+      if (value === "system") setSystemSections(["information"]);
       else if (value === "session") setSessionSections(["permissions"]);
       else if (value === "codex") setCodexSections(["executable"]);
       else if (value === "agents") setAgentSections(["queue", "timeout"]);

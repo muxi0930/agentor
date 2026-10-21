@@ -2,12 +2,14 @@ import type { Item, Thread, TokenUsage, Turn, TurnError } from "../../../binding
 
 export type ConversationState = {
   thread: Thread; turns: Turn[]; cursor: string | null; activeTurnId: string;
+  readOnly?: boolean;
   tokenUsage?: TokenUsage; turnDiffs?: Record<string, string>; transientError?: { message: string; willRetry: boolean; turnId?: string };
 };
 
 export function inputStatus(loading: boolean, conversation?: ConversationState): string {
   if (loading) return "正在加载会话，暂时无法输入，请稍候…";
   if (!conversation) return "会话尚未成功读取，暂时无法输入，请重新打开会话。";
+  if (conversation.readOnly) return "已在另一个应用中打开";
   if (conversation.activeTurnId === "starting") return "当前任务正在启动，暂时无法追加指令，请稍候…";
   return "";
 }

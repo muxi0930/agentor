@@ -266,6 +266,7 @@ func (s *Service) connect() (Status, error) {
 	defer cancel()
 
 	versionCmd := exec.CommandContext(ctx, path, "--version")
+	hideProcessWindow(versionCmd)
 	versionCmd.Env = env
 	version, err := versionCmd.Output()
 	if err != nil {

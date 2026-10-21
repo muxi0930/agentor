@@ -42,8 +42,13 @@ func (s *Service) executorSettings(model, effort string) appdata.ControllerSetti
 // controllerPrompt 组合控制中心指令、派发提示词与末尾安全提示词
 func controllerPrompt(config appdata.ControllerSettings) string {
 	prompt := config.Prompt + "\n\n" + fmt.Sprintf("你可以在 [ %s ] 模型中选择，并在 [ %s ] 中决定 effort；", strings.Join(config.Models, ","), strings.Join(config.Efforts, ",")) + "\n" + config.DecisionPrompt + "\n派发步骤、运行流水线或请求专用会话时，必须通过工具的 model 和 effort 参数明确选择。空字符串表示跟随本次默认会话，但只有解析后的值在允许范围内时才可使用。仅选择模型支持的 effort；工具返回不兼容或超出范围时，重新选择允许的组合，不要重复提交相同组合。"
-	if config.SecurityPrompt != nil && *config.SecurityPrompt != "" {
-		prompt += "\n\n" + *config.SecurityPrompt
+	prompt += "\n创建项目版本时使用 create_version，显式传入本次请求范围内的 projectId；无法唯一确定目标项目时先询问用户。"
+	securityPrompt := appdata.DefaultControllerSecurityPrompt
+	if config.SecurityPrompt != nil {
+		securityPrompt = *config.SecurityPrompt
+	}
+	if securityPrompt != "" {
+		prompt += "\n\n" + securityPrompt
 	}
 	return prompt
 }

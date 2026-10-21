@@ -42,6 +42,7 @@ type client struct {
 // startClient 启动原生进程并监听协议消息和退出状态
 func startClient(path, home string, env []string, onMessage func(packet), onExit func(error)) (*client, error) {
 	cmd := exec.Command(path, "app-server")
+	hideProcessWindow(cmd)
 	cmd.Env = env
 	cmd.Dir = home
 	stdin, err := cmd.StdinPipe()

@@ -22,6 +22,19 @@ func (s *Service) BindStepThread(stepID, threadID string) error {
 	return err
 }
 
+// CreateVersion 在指定项目内创建版本并保留桌面选择
+//
+//wails:ignore
+func (s *Service) CreateVersion(projectID string, input Version) (Version, error) {
+	input.ID = ""
+	state, err := s.saveVersion(projectID, input, false)
+	if err != nil {
+		return Version{}, err
+	}
+	project := findProject(&state, projectID)
+	return project.Versions[len(project.Versions)-1], nil
+}
+
 // CreateFeature 在指定项目版本内创建功能
 //
 //wails:ignore

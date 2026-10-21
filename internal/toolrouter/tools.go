@@ -32,6 +32,7 @@ func (r *Router) Specs(role string) []codex.DynamicToolSpec {
 		return []codex.DynamicToolSpec{
 			tool("list_workspaces", "查询本次请求范围内的项目、版本、功能和步骤摘要及稳定 ID。", map[string]any{}),
 			tool("get_work_item", "按稳定 ID 读取项目、版本、功能或步骤的详细定义。", map[string]any{"kind": stringField("project / version / feature / step"), "id": stringField("对象 ID")}, "kind", "id"),
+			tool("create_version", "在本次请求范围内的指定项目创建版本，不改变桌面选择；无法唯一确定项目时先询问用户。", map[string]any{"projectId": stringField("当前范围内明确的项目 ID"), "name": stringField("版本名称"), "description": stringField("版本说明，可为空")}, "projectId", "name", "description"),
 			tool("create_feature", "在本次请求范围内的版本创建功能，不改变桌面选择。", map[string]any{"versionId": stringField("版本 ID"), "title": stringField("功能标题"), "description": stringField("功能说明"), "context": stringField("功能上下文"), "prompt": stringField("功能提示词")}, "versionId", "title", "description", "context", "prompt"),
 			tool("create_step", "在本次请求范围内的功能创建步骤，执行权限继承项目配置。", map[string]any{"featureId": stringField("功能 ID"), "title": stringField("步骤标题"), "description": stringField("步骤说明"), "prompt": stringField("步骤提示词")}, "featureId", "title", "description", "prompt"),
 			tool("dispatch_step", "正式派发步骤；同一功能下的步骤按派发顺序排队，不同功能可并行。从本次请求允许范围中选择执行模型与 effort。", map[string]any{"stepId": stringField("明确的步骤 ID"), "instruction": stringField("执行指令"), "completionCriteria": stringField("完成标准，可为空"), "model": stringField("从允许范围选择模型，空字符串跟随默认会话"), "effort": stringField("从允许范围选择兼容的 effort，空字符串跟随默认会话")}, "stepId", "instruction", "completionCriteria", "model", "effort"),
@@ -159,6 +160,8 @@ func (r *Router) controllerCall(scope tasks.Scope, call codex.ToolCall) (any, er
 	var args struct {
 		Kind               string `json:"kind"`               // 工作项类型
 		ID                 string `json:"id"`                 // 工作项标识
+		ProjectID          string `json:"projectId"`          // 所属项目标识
+		Name               string `json:"name"`               // 版本名称
 		VersionID          string `json:"versionId"`          // 所属版本标识
 		FeatureID          string `json:"featureId"`          // 所属功能标识
 		StepID             string `json:"stepId"`             // 步骤标识
@@ -240,6 +243,9 @@ func (r *Router) controllerCall(scope tasks.Scope, call codex.ToolCall) (any, er
 		}
 		if call.Tool == "get_work_item" && args.Kind == "project" && args.ID == project.ID {
 			return project, nil
+		}
+		if call.Tool == "create_version" && args.ProjectID == project.ID {
+			return r.work.CreateVersion(project.ID, workspace.Version{Name: args.Name, Description: args.Description})
 		}
 		for _, version := range project.Versions {
 			if call.Tool == "get_work_item" && args.Kind == "version" && args.ID == version.ID {

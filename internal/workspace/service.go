@@ -99,33 +99,7 @@ func (s *Service) SaveProject(input Project) (State, error) {
 
 // SaveVersion 创建或更新项目版本
 func (s *Service) SaveVersion(projectID string, input Version) (State, error) {
-	input.Name = strings.TrimSpace(input.Name)
-	if input.Name == "" {
-		return State{}, errors.New("请填写版本名称")
-	}
-
-	return s.mutate(func(state *State) error {
-		project := findProject(state, projectID)
-		if project == nil {
-			return errors.New("项目不存在")
-		}
-		for _, id := range input.TagIDs {
-			if !slices.ContainsFunc(project.Tags, func(tag Tag) bool { return tag.ID == id }) {
-				return errors.New("标签不属于当前项目")
-			}
-		}
-		version := findVersion(project, input.ID)
-		if input.ID == "" {
-			project.Versions = append(project.Versions, Version{ID: rand.Text(), CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Features: []Feature{}})
-			version = &project.Versions[len(project.Versions)-1]
-		}
-		if version == nil {
-			return errors.New("版本不存在")
-		}
-		version.Name, version.Description, version.TagIDs = input.Name, input.Description, input.TagIDs
-		state.SelectedID = version.ID
-		return nil
-	})
+	return s.saveVersion(projectID, input, true)
 }
 
 // SaveFeature 创建或更新版本内的功能
@@ -270,4 +244,37 @@ func (s *Service) mutate(change func(*State) error) (State, error) {
 	}
 	s.state = next
 	return clone(next), nil
+}
+
+// saveVersion 保存项目版本并按调用入口决定是否更新桌面选择
+func (s *Service) saveVersion(projectID string, input Version, selectVersion bool) (State, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Name == "" {
+		return State{}, errors.New("请填写版本名称")
+	}
+
+	return s.mutate(func(state *State) error {
+		project := findProject(state, projectID)
+		if project == nil {
+			return errors.New("项目不存在")
+		}
+		for _, id := range input.TagIDs {
+			if !slices.ContainsFunc(project.Tags, func(tag Tag) bool { return tag.ID == id }) {
+				return errors.New("标签不属于当前项目")
+			}
+		}
+		version := findVersion(project, input.ID)
+		if input.ID == "" {
+			project.Versions = append(project.Versions, Version{ID: rand.Text(), CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Features: []Feature{}})
+			version = &project.Versions[len(project.Versions)-1]
+		}
+		if version == nil {
+			return errors.New("版本不存在")
+		}
+		version.Name, version.Description, version.TagIDs = input.Name, input.Description, input.TagIDs
+		if selectVersion {
+			state.SelectedID = version.ID
+		}
+		return nil
+	})
 }

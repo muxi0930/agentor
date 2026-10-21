@@ -52,6 +52,13 @@ export function CheckAccountConnection(id: string): $CancellablePromise<string> 
 }
 
 /**
+ * CheckPath 检测指定路径的原生程序能否运行，不改变当前连接
+ */
+export function CheckPath(path: string): $CancellablePromise<void> {
+    return $Call.ByID(1394520125, path);
+}
+
+/**
  * Connect 启动当前所选身份的原生运行时
  */
 export function Connect(): $CancellablePromise<$models.Status> {

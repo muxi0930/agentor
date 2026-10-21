@@ -2,6 +2,8 @@ package toolrouter
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -202,6 +204,115 @@ func TestNativeControllerDispatchAndReport(t *testing.T) {
 		case <-ticker.C:
 		case <-ctx.Done():
 			t.Fatalf("controller workflow timed out: %#v", snapshot)
+		}
+	}
+}
+
+// TestNativeControllerCreateVersion 验证原生控制中心创建版本并经现有查询读取及拒绝越界
+func TestNativeControllerCreateVersion(t *testing.T) {
+	if os.Getenv("AGENTOR_NATIVE_CONTROLLER_SMOKE") != "1" {
+		t.Skip("opt-in native controller execution")
+	}
+	t.Setenv("AGENTOR_DATA_DIR", t.TempDir())
+	data, err := appdata.NewService("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = data.SetModelSelection(os.Getenv("AGENTOR_SMOKE_MODEL"), "medium"); err != nil {
+		t.Fatal(err)
+	}
+	files, err := artifact.NewService(data.GetInfo().DataDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	work, err := workspace.NewService(data.GetInfo().DataDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := work.SaveProject(workspace.Project{Name: "创建版本验证", Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectID := state.SelectedID
+	state, err = work.SaveProject(workspace.Project{Name: "范围外项目", Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherID := state.SelectedID
+	runtime := codex.NewService(data, files)
+	executions, err := tasks.NewService(data, runtime, work, files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.ServiceShutdown()
+	defer executions.ServiceShutdown()
+	router := New(executions, work, nil, nil)
+	executions.ConfigureTools(router.Specs)
+	var creates, reads, lists atomic.Int32
+	runtime.SetToolHandler(func(call codex.ToolCall) (any, error) {
+		if call.Tool == "create_version" {
+			for _, target := range []string{otherID, "missing", ""} {
+				arguments, _ := json.Marshal(map[string]string{"projectId": target, "name": "禁止创建", "description": ""})
+				if _, err := router.Call(codex.ToolCall{ThreadID: call.ThreadID, Tool: "create_version", Arguments: arguments}); err == nil {
+					return nil, fmt.Errorf("越界或缺失项目未被拒绝：%q", target)
+				}
+			}
+		}
+		value, err := router.Call(call)
+		if err == nil {
+			switch call.Tool {
+			case "create_version":
+				creates.Add(1)
+			case "get_work_item":
+				if version, ok := value.(workspace.Version); ok && version.Name == "0.2.0" {
+					reads.Add(1)
+				}
+			case "list_workspaces":
+				payload, _ := json.Marshal(value)
+				if strings.Contains(string(payload), "0.2.0") {
+					lists.Add(1)
+				}
+			}
+		}
+		return value, err
+	})
+	runtime.SetEventHandler(executions.OnCodexEvent)
+	if _, err = runtime.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	request, err := executions.SubmitRequest(tasks.ControllerInput{
+		ProjectID: projectID,
+		Text:      fmt.Sprintf("请用 create_version 在项目 %s 下创建名称为 0.2.0、说明为宿主工具验证的版本，只创建一次。随后用 get_work_item 按返回的版本 ID 读取，再用 list_workspaces 确认版本存在。不要使用 shell 或派发步骤。", projectID),
+		Source:    tasks.Source{Type: "desktop", MessageID: "create-version-smoke"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		for _, current := range executions.GetState().Requests {
+			if current.ID != request.ID {
+				continue
+			}
+			if current.Status == "error" || current.Status == "interrupted" {
+				t.Fatal(current)
+			}
+			if current.Status == "completed" {
+				state = work.GetState()
+				if creates.Load() != 1 || reads.Load() == 0 || lists.Load() == 0 || state.SelectedID != otherID || len(state.Projects[0].Versions) != 1 || len(state.Projects[1].Versions) != 0 {
+					t.Fatalf("creates=%d reads=%d lists=%d state=%#v", creates.Load(), reads.Load(), lists.Load(), state)
+				}
+				t.Logf("控制中心创建版本并通过两项现有查询读取：%s", state.Projects[0].Versions[0].ID)
+				return
+			}
+		}
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			t.Fatal("控制中心创建版本超时", executions.GetState())
 		}
 	}
 }

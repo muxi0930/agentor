@@ -21,7 +21,7 @@ func (s *Service) SetAccountModel(id, model string) (Settings, error) {
 		}
 		preferences.Model = model
 		if preferences.Permission == "" {
-			preferences.Permission = "read-only"
+			preferences.Permission = "workspace-write"
 		}
 		next[id] = preferences
 		settings.AccountPreferences = next
@@ -44,7 +44,7 @@ func (s *Service) SelectAccount(id string, reuseCLI bool) (Settings, error) {
 		}
 		preferences, exists := settings.AccountPreferences[key]
 		if !exists {
-			preferences.Permission = "read-only"
+			preferences.Permission = "workspace-write"
 		}
 		settings.Model, settings.Effort, settings.PermissionMode = preferences.Model, preferences.Effort, preferences.Permission
 	})

@@ -77,7 +77,7 @@ func NewService(version string) (*Service, error) {
 	if err := os.MkdirAll(filepath.Join(root, "control_session"), 0700); err != nil {
 		return nil, err
 	}
-	s := &Service{root: root, version: version, settings: Settings{AgentTimeoutSeconds: 7200, Controller: ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: DefaultControllerPrompt}, Theme: "light", Mode: "chat", ReuseCLI: true, PermissionMode: "read-only"}}
+	s := &Service{root: root, version: version, settings: Settings{AgentTimeoutSeconds: 7200, Controller: ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: DefaultControllerPrompt}, Theme: "light", Mode: "chat", ReuseCLI: true, PermissionMode: "workspace-write"}}
 	if err := ReadJSON(filepath.Join(root, "settings.json"), &s.settings); err != nil {
 		return nil, err
 	}

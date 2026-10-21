@@ -108,6 +108,7 @@ type Conversation struct {
 	Thread       Thread      `json:"thread"`               // 原生会话元信息
 	Turns        TurnPage    `json:"turns"`                // 会话轮次分页
 	ActiveTurnID string      `json:"activeTurnId"`         // 当前活动轮次标识
+	ReadOnly     bool        `json:"readOnly"`             // 是否因其他应用占用而只读
 	TokenUsage   *TokenUsage `json:"tokenUsage,omitempty"` // 会话令牌用量
 }
 
@@ -309,11 +310,21 @@ func (s *Service) OpenThread(threadID string) (Conversation, error) {
 		}
 	}
 	if err := s.call(method, params, &result); err != nil {
-		return result, err
+		if opened || !strings.Contains(err.Error(), "thread "+threadID+" already has an active writer") {
+			return result, err
+		}
+
+		// 写入权被其他应用持有时，仅通过只读接口加载历史
+		if err := s.call("thread/read", map[string]any{"threadId": threadID}, &result); err != nil {
+			return result, err
+		}
+		result.ReadOnly = true
 	}
 
 	s.mu.Lock()
-	s.opened[threadID] = true
+	if !result.ReadOnly {
+		s.opened[threadID] = true
+	}
 	s.mu.Unlock()
 	turns, err := s.ListTurns(threadID, "")
 	result.Turns = turns
@@ -345,6 +356,10 @@ func (s *Service) ListTurns(threadID, cursor string) (TurnPage, error) {
 
 // StartTurn 按会话实际权限发起一轮普通对话
 func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (Turn, error) {
+	if err := s.EnsureOpen(threadID); err != nil {
+		return Turn{}, err
+	}
+
 	settings := s.data.GetSettings()
 	cwd := settings.ChatThreads[threadID]
 	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd)

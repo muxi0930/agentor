@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyNotification, inputStatus, mergeTurn, type ConversationState } from "../src/features/chat/state.ts";
+
+test("occupied history stays readable while sending is blocked until reopened", () => {
+  const state = { turns: [{ id: "history", status: "completed", items: [] }], activeTurnId: "", readOnly: true } as unknown as ConversationState;
+  assert.equal(inputStatus(false, state), "已在另一个应用中打开");
+  const updated = applyNotification(state, "thread/name/updated", {});
+  assert.equal(updated.turns[0].id, "history");
+  assert.equal(inputStatus(false, updated), "已在另一个应用中打开");
+  assert.equal(inputStatus(false, { ...updated, readOnly: false }), "");
+});
 import type { Item, Turn } from "../bindings/agentor/internal/codex/models.ts";
 
 const user = { id: "client-1", clientId: "client-1", type: "userMessage", content: [{ type: "text", text: "Color?" }] } as Item;

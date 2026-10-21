@@ -10,7 +10,7 @@ import { errorText } from "@/app/errors";
 import { applyNotification, inputStatus, mergeItem, mergeTurn, type ConversationState, type Notification } from "./state";
 
 function fromConversation(value: Conversation): ConversationState {
-  return { thread: value.thread, turns: [...(value.turns.data || [])].reverse(), cursor: value.turns.nextCursor, activeTurnId: value.activeTurnId };
+  return { thread: value.thread, turns: [...(value.turns.data || [])].reverse(), cursor: value.turns.nextCursor, activeTurnId: value.activeTurnId, readOnly: value.readOnly };
 }
 
 function cacheConversation(old: Record<string, ConversationState>, id: string, value: ConversationState): Record<string, ConversationState> {
