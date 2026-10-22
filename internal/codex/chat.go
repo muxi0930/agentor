@@ -532,6 +532,29 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 		} else {
 			_, err = s.data.RememberThread(result.Thread.ID, result.Thread.Cwd)
 		}
+		if err != nil {
+			return result.Thread, err
+		}
+
+		prefix := ""
+		switch role {
+		case "step":
+			prefix = "[AgentorWoker]"
+		case "controller":
+			prefix = "[AgentorCtl]"
+		case "pipeline_manager", "pipeline_config":
+			prefix = "[AgentorPipe]"
+		}
+		if prefix != "" {
+			name := prefix
+			if title := strings.TrimSpace(result.Thread.Name); title != "" {
+				name += " " + title
+			}
+			if err = s.RenameThread(result.Thread.ID, name); err != nil {
+				return result.Thread, err
+			}
+			result.Thread.Name = name
+		}
 	}
 	return result.Thread, err
 }
