@@ -20,3 +20,17 @@ build_exe:
 	npm --prefix "frontend" run build
 	mkdir -p "bin"
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -buildvcs=false -ldflags="-H windowsgui" -o "bin/agentor.exe" .
+
+build_mac: build
+	mkdir -p "bin/agentor.dev.app/Contents/MacOS"
+	cp "bin/agentor" "bin/agentor.dev.app/Contents/MacOS/agentor"
+	cp "build/darwin/Info.dev.plist" "bin/agentor.dev.app/Contents/Info.plist"
+
+jy_env: 
+	source "$(HOME)/.go1.26.0"
+	export PATH="$(PWD)/.tools/bin:$(PATH)"
+	export CGO_ENABLED=1
+	
+
+build_jy: jy_env build_mac
+	@
