@@ -14,10 +14,11 @@ import (
 	"agentor/internal/tasks"
 	"agentor/internal/toolrouter"
 	"agentor/internal/workspace"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-var version string = "0.1.0" // 应用版本
+var version string = "0.2.0" // 应用版本
 
 //go:embed all:frontend/dist
 var assets embed.FS
