@@ -194,7 +194,19 @@ body { overflow: hidden; }
 }
 
 .notification-bell-bounce {
+  translate: -0.5em 0;
   transform-origin: 50% 20%;
   animation: notification-bell-bounce 1.5s ease-in-out;
   animation-duration: 1.5s !important;
+}
+
+@keyframes notification-label-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.notification-label-blink {
+  animation: notification-label-blink 0.75s ease-in-out 2;
+  animation-duration: 0.75s !important;
+  animation-iteration-count: 2 !important;
 }

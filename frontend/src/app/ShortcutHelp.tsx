@@ -1,3 +1,4 @@
+import { HeaderActionButton } from "@/app/HeaderActionButton";
 import { CircleHelp, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,7 +16,7 @@ const shortcuts = [
 
 export function ShortcutHelp() {
   return <Dialog>
-    <DialogTrigger render={<Button type="button" variant="ghost" size="sm" />}><CircleHelp aria-hidden="true" />帮助</DialogTrigger>
+    <DialogTrigger render={<HeaderActionButton icon={CircleHelp} label="帮助" type="button" />} />
     <DialogContent showCloseButton={false} className="max-h-[calc(100dvh-2rem)] overflow-y-auto px-6 pt-12 pb-5 sm:max-w-xl">
       <DialogTitle className="sr-only">快捷键帮助</DialogTitle>
       <DialogDescription className="sr-only">应用支持的七组常用快捷键</DialogDescription>

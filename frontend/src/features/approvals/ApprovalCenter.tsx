@@ -1,3 +1,4 @@
+import { HeaderActionButton } from "@/app/HeaderActionButton";
 import { useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Events } from "@wailsio/runtime";
@@ -65,12 +66,16 @@ export function ApprovalCenter({ status }: { status?: Status }) {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [error, setError] = useState("");
   const [approvalAnimation, setApprovalAnimation] = useState(0);
+  const [approvalActive, setApprovalActive] = useState(false);
   const previousApprovals = useRef<Set<string> | null>(null);
   async function refresh() {
     try {
       const next = await Codex.GetApprovals() || [];
       const previous = previousApprovals.current;
-      if (previous && next.some(approval => approval.status === "pending" && !previous.has(`${approval.generation}:${approval.id}`))) setApprovalAnimation(value => value + 1);
+      if (previous && next.some(approval => approval.status === "pending" && !previous.has(`${approval.generation}:${approval.id}`))) {
+        setApprovalAnimation(value => value + 1);
+        setApprovalActive(true);
+      }
       previousApprovals.current = new Set(next.map(approval => `${approval.generation}:${approval.id}`));
       setApprovals(next); setError("");
     }
@@ -82,7 +87,7 @@ export function ApprovalCenter({ status }: { status?: Status }) {
   }), [status?.generation]);
   const pending = approvals.filter(approval => approval.status === "pending").length;
   return <>
-    <Button variant="ghost" size="sm" onClick={() => setOpen(true)}><ShieldCheck key={approvalAnimation} aria-hidden="true" className={approvalAnimation ? "notification-bell-bounce" : undefined} />审批{pending > 0 && <Badge>{pending}</Badge>}</Button>
+    <HeaderActionButton icon={ShieldCheck} label="审批" count={pending} attention={approvalActive} animationKey={approvalAnimation} onAttentionEnd={() => setApprovalActive(false)} onClick={() => setOpen(true)} />
     <Sheet open={open} onOpenChange={setOpen}><SheetContent className="flex w-full flex-col sm:max-w-xl">
       <SheetHeader><SheetTitle>审批与问答</SheetTitle><SheetDescription>每个回答仅返回对应的 Codex 请求。任务结束或连接断开后，请求会失效。</SheetDescription></SheetHeader>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-6">

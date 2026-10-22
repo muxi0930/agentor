@@ -4,6 +4,7 @@ import { Events } from "@wailsio/runtime";
 import * as Lark from "../../../bindings/agentor/internal/lark/service";
 import * as Work from "../../../bindings/agentor/internal/workspace/service";
 import * as Files from "../../../bindings/agentor/internal/artifact/service";
+import * as Tasks from "../../../bindings/agentor/internal/tasks/service";
 import type { Identity, Pairing, Settings, View } from "../../../bindings/agentor/internal/lark/models";
 import type { Project } from "../../../bindings/agentor/internal/workspace/models";
 import type { Attachment } from "../../../bindings/agentor/internal/artifact/models";
@@ -18,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AttachmentView } from "@/features/chat/AttachmentView";
+import { MarkdownView } from "@/features/chat/MarkdownView";
 import { errorText } from "@/app/errors";
 
 const phases:Record<string,string>={unconfigured:"待配置",connecting:"连接中",ready:"已连接",disconnected:"已断开",error:"连接错误"};
@@ -28,9 +30,22 @@ export function LarkPage({onOpenRequest}:{onOpenRequest:(requestId:string)=>void
   const [secret,setSecret]=useState(""),[users,setUsers]=useState(""),[chats,setChats]=useState("");
   const [recipient,setRecipient]=useState(""),[pairing,setPairing]=useState<Pairing>(),[selected,setSelected]=useState(""),[files,setFiles]=useState<Attachment[]>([]);
   const [busy,setBusy]=useState(false),[error,setError]=useState("");
+  const [approvalBodies,setApprovalBodies]=useState<Record<string,string>>({});
   function apply(value:View){setView(value);setDraft(value.settings);setUsers(identityText(value.settings.allowedUsers));setChats(identityText(value.settings.allowedChats));setRecipient(old=>old||value.settings.allowedUsers?.[0]?.id||"");}
   async function refresh(initialize=false){try{const value=await Lark.GetState();setView(value);if(initialize)apply(value);}catch(error){setError(errorText(error));}}
   useEffect(()=>{void refresh(true);void Work.GetState().then(value=>setProjects(value.projects||[])).catch(error=>setError(errorText(error)));return Events.On("lark:changed",()=>void refresh());},[]);
+  useEffect(()=>{
+    let cancelled=false;
+    async function refreshBodies(){
+      try{
+        const value=await Tasks.GetState();
+        if(!cancelled)setApprovalBodies(Object.fromEntries((value.notifications||[]).map(item=>[item.id,item.body])));
+      }catch(error){if(!cancelled)setError(errorText(error));}
+    }
+    void refreshBodies();
+    const unsubscribe=Events.On("tasks:changed",()=>void refreshBodies());
+    return()=>{cancelled=true;unsubscribe();};
+  },[]);
   useEffect(()=>{let cancelled=false;setFiles([]);if(selected)void Files.GetRequestAttachments(selected).then(value=>{if(!cancelled)setFiles(value||[]);}).catch(error=>setError(errorText(error)));return()=>{cancelled=true;};},[selected,view]);
   async function run(action:()=>Promise<unknown>){setBusy(true);setError("");try{await action();await refresh();}catch(error){setError(errorText(error));}finally{setBusy(false);}}
   if(!view||!draft)return <Page><PageContent className="text-sm text-muted-foreground">正在读取飞书配置…{error}</PageContent></Page>;
@@ -39,6 +54,6 @@ export function LarkPage({onOpenRequest}:{onOpenRequest:(requestId:string)=>void
       <Card><CardHeader><CardTitle className="text-base">测试与审批接收者</CardTitle></CardHeader><CardContent className="space-y-4"><Field><FieldLabel htmlFor="lark-recipient">已授权联系人 open_id</FieldLabel><Input id="lark-recipient" value={recipient} onChange={event=>setRecipient(event.target.value)}/></Field><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy||!recipient||view.status.phase!=="ready"} onClick={()=>void run(()=>Lark.SendConnectionTest(recipient))}>发送连接测试消息</Button><Button variant="outline" disabled={busy||!recipient} onClick={()=>void run(async()=>setPairing(await Lark.StartPairing(recipient)))}>生成一次性配对码</Button>{view.binding.chatId&&<Button variant="ghost" disabled={busy} onClick={()=>void run(()=>Lark.ClearBinding())}>解除配对</Button>}</div>{pairing&&<p className="rounded-lg border p-3 text-sm">请由指定联系人在机器人单聊发送 <code>/pair {pairing.code}</code>。有效至 {new Date(pairing.expiresAt).toLocaleTimeString()}。</p>}<p className="break-all text-xs text-muted-foreground">{view.binding.chatId?`桌面审批与产物接收者：${view.binding.senderId} · 会话 ${view.binding.chatId}`:"桌面任务尚未绑定远程接收者。远程任务直接回复原会话。"}</p></CardContent></Card>
       <Card><CardHeader><CardTitle className="text-base">发现的候选身份</CardTitle></CardHeader><CardContent className="space-y-2">{!candidates.length&&<p className="text-sm text-muted-foreground">暂无待添加的候选身份；已加入允许列表的身份会隐藏。</p>}{candidates.map(candidate=><div key={candidate.kind+candidate.id} className="flex items-center gap-3 text-xs"><span className="min-w-0 flex-1 break-all">{candidate.kind==="user"?"用户":"会话"} · {candidate.id}</span><Button size="xs" variant="outline" disabled={busy} onClick={()=>{if(candidate.kind==="user")setUsers(old=>identities(old).some(identity=>identity.id===candidate.id)?old:[old,candidate.id].filter(Boolean).join("\n"));else setChats(old=>identities(old).some(identity=>identity.id===candidate.id)?old:[old,candidate.id].filter(Boolean).join("\n"));}}>加入授权草稿</Button><Button size="xs" variant="outline" disabled={busy} onClick={()=>void run(()=>Lark.DeleteCandidate(candidate.kind,candidate.id))}>删除</Button></div>)}</CardContent></Card>
       <p className="text-xs text-muted-foreground">应用需订阅 im.message.receive_v1 与 card.action.trigger，并具备消息读取、资源下载、机器人发消息、表态和文件上传权限。SDK 返回的权限错误会保留在连接或发送记录中。</p>
-    </TabsContent><TabsContent value="incoming" className="space-y-3">{[...(view.incoming||[])].reverse().map(item=><Card key={item.source.appId+item.source.messageId}><CardContent className="space-y-3 pt-5"><div className="flex items-center gap-2 text-sm"><span className="mr-auto">{new Date(item.createdAt).toLocaleString()}</span><Badge variant="outline">{item.status}</Badge></div><p className="break-all text-xs text-muted-foreground">{item.source.senderId} · {item.source.chatId}<br/>{item.source.messageId} · 表态：{item.reactionState||"—"}</p>{item.error&&<p className="text-sm text-destructive">{item.error}</p>}<div className="flex gap-2">{item.status==="submitted"&&<Button variant="outline" size="xs" onClick={()=>onOpenRequest(item.requestId)}>查看控制中心请求</Button>}<Button variant="ghost" size="xs" onClick={()=>setSelected(item.requestId)}>查看输入附件</Button></div>{selected===item.requestId&&(files.length?<AttachmentView files={files} onError={setError}/>:<p className="text-xs text-muted-foreground">此请求没有附件。</p>)}</CardContent></Card>)}{!view.incoming?.length&&<p className="text-sm text-muted-foreground">暂无已授权消息。</p>}</TabsContent><TabsContent value="approvals" className="space-y-3">{[...(view.approvals||[])].reverse().map(route=><Card key={route.key}><CardContent className="space-y-2 pt-5"><Badge variant="outline">{route.status}</Badge><p className="break-all text-xs">审批 {route.approvalId} · 接收者 {route.source.senderId}<br/>会话 {route.source.chatId}</p>{route.error&&<p className="text-sm text-destructive">{route.error}</p>}</CardContent></Card>)}{!view.approvals?.length&&<p className="text-sm text-muted-foreground">暂无远程审批。卡片回调和 /approve、/answer、/elicitation 文本直接回复原始审批，不进入任务队列。</p>}</TabsContent></PageContent></Tabs>
+    </TabsContent><TabsContent value="incoming" className="space-y-3">{[...(view.incoming||[])].reverse().map(item=><Card key={item.source.appId+item.source.messageId}><CardContent className="space-y-3 pt-5"><div className="flex items-center gap-2 text-sm"><span className="mr-auto">{new Date(item.createdAt).toLocaleString()}</span><Badge variant="outline">{item.status}</Badge></div><p className="break-all text-xs text-muted-foreground">{item.source.senderId} · {item.source.chatId}<br/>{item.source.messageId} · 表态：{item.reactionState||"—"}</p>{item.error&&<p className="text-sm text-destructive">{item.error}</p>}<div className="flex gap-2">{item.status==="submitted"&&<Button variant="outline" size="xs" onClick={()=>onOpenRequest(item.requestId)}>查看控制中心请求</Button>}<Button variant="ghost" size="xs" onClick={()=>setSelected(item.requestId)}>查看输入附件</Button></div>{selected===item.requestId&&(files.length?<AttachmentView files={files} onError={setError}/>:<p className="text-xs text-muted-foreground">此请求没有附件。</p>)}</CardContent></Card>)}{!view.incoming?.length&&<p className="text-sm text-muted-foreground">暂无已授权消息。</p>}</TabsContent><TabsContent value="approvals" className="space-y-3">{[...(view.approvals||[])].reverse().map(route=><Card key={route.key}><CardContent className="space-y-2 pt-5"><Badge variant="outline">{route.status}</Badge><p className="break-all text-xs">审批 {route.approvalId} · 接收者 {route.source.senderId}<br/>会话 {route.source.chatId}</p>{approvalBodies[route.notificationId]&&<MarkdownView text={approvalBodies[route.notificationId]} onError={setError}/>}{route.error&&<p className="text-sm text-destructive">{route.error}</p>}</CardContent></Card>)}{!view.approvals?.length&&<p className="text-sm text-muted-foreground">暂无远程审批。卡片回调和 /approve、/answer、/elicitation 文本直接回复原始审批，不进入任务队列。</p>}</TabsContent></PageContent></Tabs>
   </Page>;
 }
