@@ -277,7 +277,7 @@ function Sidebar({
         >
           {children}
         </div>
-        {canResize && <div
+        {canResize && <Tooltip><TooltipTrigger render={<div
           role="separator"
           aria-label="调整侧边栏宽度"
           aria-orientation="vertical"
@@ -285,7 +285,6 @@ function Sidebar({
           aria-valuemax={Math.min(480, window.innerWidth / 2)}
           aria-valuenow={Math.min(width, 480, window.innerWidth / 2)}
           tabIndex={0}
-          title="拖动或使用左右方向键调整侧边栏宽度"
           className={cn(
             "absolute inset-y-0 z-20 w-2 touch-none cursor-col-resize select-none outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-sidebar-ring focus-visible:after:bg-sidebar-ring",
             side === "left" ? "-right-1" : "-left-1",
@@ -314,7 +313,7 @@ function Sidebar({
             const currentWidth = event.currentTarget.parentElement!.getBoundingClientRect().width
             resize(currentWidth + (event.key === "ArrowRight" ? 16 : -16) * (side === "left" ? 1 : -1))
           }}
-        />}
+        />} /><TooltipContent>拖动或使用左右方向键调整侧边栏宽度</TooltipContent></Tooltip>}
       </div>
     </div>
   )
@@ -350,13 +349,12 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar()
 
   return (
-    <button
+    <Tooltip><TooltipTrigger render={<button
       data-sidebar="rail"
       data-slot="sidebar-rail"
       aria-label="Toggle Sidebar"
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
@@ -367,7 +365,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
         className
       )}
       {...props}
-    />
+    />} /><TooltipContent>Toggle Sidebar</TooltipContent></Tooltip>
   )
 }
 

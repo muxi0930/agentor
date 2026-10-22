@@ -13,16 +13,23 @@ type ReasoningOption struct {
 	Description     string `json:"description"`     // 说明文字
 }
 
+type ModelServiceTier struct {
+	ID          string `json:"id"`          // 速度档位标识
+	Name        string `json:"name"`        // 速度档位名称
+	Description string `json:"description"` // 速度档位说明
+}
+
 type Model struct {
-	ID                        string            `json:"id"`                        // 模型目录标识
-	Model                     string            `json:"model"`                     // 模型标识
-	DisplayName               string            `json:"displayName"`               // 模型显示名称
-	Description               string            `json:"description"`               // 说明文字
-	IsDefault                 bool              `json:"isDefault"`                 // 是否为默认模型
-	Hidden                    bool              `json:"hidden"`                    // 是否在模型列表中隐藏
-	DefaultReasoningEffort    string            `json:"defaultReasoningEffort"`    // 模型默认思考强度
-	SupportedReasoningEfforts []ReasoningOption `json:"supportedReasoningEfforts"` // 模型支持的思考强度
-	InputModalities           []string          `json:"inputModalities"`           // 模型支持的输入类型
+	ID                        string             `json:"id"`                        // 模型目录标识
+	Model                     string             `json:"model"`                     // 模型标识
+	DisplayName               string             `json:"displayName"`               // 模型显示名称
+	Description               string             `json:"description"`               // 说明文字
+	IsDefault                 bool               `json:"isDefault"`                 // 是否为默认模型
+	Hidden                    bool               `json:"hidden"`                    // 是否在模型列表中隐藏
+	DefaultReasoningEffort    string             `json:"defaultReasoningEffort"`    // 模型默认思考强度
+	SupportedReasoningEfforts []ReasoningOption  `json:"supportedReasoningEfforts"` // 模型支持的思考强度
+	InputModalities           []string           `json:"inputModalities"`           // 模型支持的输入类型
+	ServiceTiers              []ModelServiceTier `json:"serviceTiers"`              // 模型支持的速度档位
 }
 
 type ThreadStatus struct {
@@ -241,14 +248,6 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 	if result.Data == nil {
 		result.Data = []Thread{}
 	}
-	regular := make([]Thread, 0, len(result.Data))
-	for _, thread := range result.Data {
-		if settings.ManagedThreads[thread.ID] == "" {
-			regular = append(regular, thread)
-		}
-	}
-
-	result.Data = regular
 	return result, err
 }
 
@@ -370,14 +369,18 @@ func (s *Service) ListTurns(threadID, cursor string) (TurnPage, error) {
 func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (Turn, error) {
 	settings := s.data.GetSettings()
 	cwd := settings.ChatThreads[threadID]
-	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd)
+	tier := "default"
+	if settings.FastMode {
+		tier = "fast"
+	}
+	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd, tier)
 }
 
 // StartManagedTurn 按正式任务冻结的权限发起一轮对话
 //
 //wails:ignore
-func (s *Service) StartManagedTurn(threadID, text, model, effort, permission, cwd, clientMessageID string, attachmentIDs []string) (Turn, error) {
-	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, permission, cwd)
+func (s *Service) StartManagedTurn(threadID, text, model, effort, permission, cwd, clientMessageID string, attachmentIDs []string, serviceTier string) (Turn, error) {
+	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, permission, cwd, serviceTier)
 }
 
 // SteerTurn 向原活动轮次追加输入
@@ -582,7 +585,7 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 }
 
 // startTurn 登记活动状态并提交真实模型输入
-func (s *Service) startTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string, permission, cwd string) (Turn, error) {
+func (s *Service) startTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string, permission, cwd, serviceTier string) (Turn, error) {
 	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
 		return Turn{}, errors.New("请输入消息")
 	}
@@ -637,6 +640,9 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 	}
 	if effort != "" {
 		params["effort"] = effort
+	}
+	if serviceTier != "" {
+		params["serviceTierForTurn"] = serviceTier
 	}
 	var result struct {
 		Turn Turn `json:"turn"` // 上游轮次内容

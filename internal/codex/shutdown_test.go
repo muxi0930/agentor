@@ -49,7 +49,7 @@ func TestPrepareShutdownInterruptsActiveTurnsAndRejectsNewTurns(t *testing.T) {
 		t.Fatal("退出未及时中断普通对话")
 	}
 	s.shutdownRequests.Wait()
-	if _, err := s.startTurn("another", "新任务", "", "", "", nil, "read-only", ""); err == nil {
+	if _, err := s.startTurn("another", "新任务", "", "", "", nil, "read-only", "", ""); err == nil {
 		t.Fatal("退出过程中仍能开始新轮次")
 	}
 	if s.ctx.Err() != nil {
@@ -89,7 +89,7 @@ func TestShutdownWaitsForStartingChatBeforeClosingConnection(t *testing.T) {
 	}()
 	startDone := make(chan error, 1)
 	go func() {
-		_, err := s.startTurn("thread", "尚未返回的启动请求", "", "", "", nil, "read-only", s.data.GetInfo().DataDirectory)
+		_, err := s.startTurn("thread", "尚未返回的启动请求", "", "", "", nil, "read-only", s.data.GetInfo().DataDirectory, "")
 		startDone <- err
 	}()
 	<-started

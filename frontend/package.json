@@ -8,7 +8,7 @@
     "build:dev": "tsc && vite build --minify false --mode development",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
-    "test:state": "node --experimental-strip-types --test tests/chat-state.test.ts tests/diff.test.ts tests/workspace-reorder.test.ts tests/navigation.test.ts tests/message-view.test.mjs tests/workspace-completion.test.mjs tests/chat-input.test.mjs"
+    "test:state": "node --experimental-strip-types --test tests/chat-state.test.ts tests/diff.test.ts tests/workspace-reorder.test.ts tests/navigation.test.ts tests/message-view.test.mjs tests/workspace-completion.test.mjs tests/chat-input.test.mjs tests/data-directory-restart.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",

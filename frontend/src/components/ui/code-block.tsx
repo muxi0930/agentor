@@ -140,7 +140,7 @@ function CodeBlockContent({
   className,
   children,
   style,
-  wrap = false,
+  wrap = true,
   lineNumbers = false,
   startLine = 1,
   ...props
@@ -165,7 +165,7 @@ function CodeBlockContent({
     >
       <code
         data-slot="code-block-code"
-        className="grid min-h-lh min-w-max content-start in-data-numbered:grid-cols-[auto_1fr] in-data-wrap:min-w-0"
+        className="grid min-h-lh min-w-max content-start in-data-numbered:grid-cols-[auto_1fr] in-data-wrap:min-w-0 in-data-wrap:in-data-numbered:grid-cols-[auto_minmax(0,1fr)]"
       >
         {lineNumbers && typeof children === "string"
           ? children

@@ -232,7 +232,7 @@ func (s *Service) execute(ctx context.Context, execution Execution) (string, str
 	if err != nil {
 		return "error", "", err
 	}
-	turn, err := s.runtime.StartManagedTurn(threadID, executionPrompt(execution), execution.Model, execution.Effort, execution.Permission, execution.Context.Directory, execution.ID, attachments)
+	turn, err := s.runtime.StartManagedTurn(threadID, executionPrompt(execution), execution.Model, execution.Effort, execution.Permission, execution.Context.Directory, execution.ID, attachments, "")
 	if err != nil {
 		return "error", "", err
 	}

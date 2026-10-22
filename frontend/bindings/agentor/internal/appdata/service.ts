@@ -94,6 +94,13 @@ export function SetChatOrder(cwd: string, ids: string[] | null): $CancellablePro
 }
 
 /**
+ * SetChatWidth 保存聊天消息区域宽度
+ */
+export function SetChatWidth(width: string): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(49583328, width);
+}
+
+/**
  * SetCodexPath 保存原生 Codex 程序路径
  */
 export function SetCodexPath(path: string): $CancellablePromise<$models.Settings> {
@@ -105,6 +112,13 @@ export function SetCodexPath(path: string): $CancellablePromise<$models.Settings
  */
 export function SetControllerSettings(input: $models.ControllerSettings): $CancellablePromise<$models.Settings> {
     return $Call.ByID(392778279, input);
+}
+
+/**
+ * SetFastMode 保存当前身份的快速模式偏好
+ */
+export function SetFastMode(enabled: boolean): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(4191052915, enabled);
 }
 
 /**

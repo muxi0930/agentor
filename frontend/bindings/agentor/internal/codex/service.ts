@@ -150,7 +150,7 @@ export function ListTurns(threadID: string, cursor: string): $CancellablePromise
 }
 
 /**
- * OpenThread 恢复线程并读取分页历史
+ * OpenThread 检查占用后加载历史，只读会话在读取后取消本连接订阅
  */
 export function OpenThread(threadID: string): $CancellablePromise<$models.Conversation> {
     return $Call.ByID(2629375922, threadID);

@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { ChevronsUpDown, LoaderCircle } from "lucide-react";
 import { Events } from "@wailsio/runtime";
@@ -102,8 +103,8 @@ export function SidebarAccount({ settings, status, onSettings, onStatus, onError
         <div className="flex w-full min-w-0 items-center gap-2 text-left">
           <Avatar className="rounded-lg"><AvatarFallback className="rounded-lg">{Array.from(identity)[0]?.toUpperCase() || "A"}</AvatarFallback></Avatar>
           <div className="grid min-w-0 flex-1 gap-1 leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-sm font-medium" title={identity}>{identity}</span>
-            <span className="truncate text-xs text-muted-foreground" title={summary}>{summary}</span>
+            <Tooltip><TooltipTrigger render={<span className="truncate text-sm font-medium">{identity}</span>} /><TooltipContent>{identity}</TooltipContent></Tooltip>
+            <Tooltip><TooltipTrigger render={<span className="truncate text-xs text-muted-foreground">{summary}</span>} /><TooltipContent>{summary}</TooltipContent></Tooltip>
           </div>
           {busy || status?.phase === "starting" ? <LoaderCircle aria-label="正在切换账号" className="size-4 animate-spin group-data-[collapsible=icon]:hidden" /> : <ChevronsUpDown aria-hidden="true" className="size-4 group-data-[collapsible=icon]:hidden" />}
         </div>
@@ -111,7 +112,7 @@ export function SidebarAccount({ settings, status, onSettings, onStatus, onError
       <DropdownMenuContent side="top" align="end" sideOffset={8} className="w-72 max-w-[calc(100vw-1rem)]">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="space-y-1 px-2 py-2 font-normal">
-            <span className="block truncate text-sm font-medium text-foreground" title={identity}>{identity}</span>
+            <Tooltip><TooltipTrigger render={<span className="block truncate text-sm font-medium text-foreground">{identity}</span>} /><TooltipContent>{identity}</TooltipContent></Tooltip>
             <span className="block text-xs">{summary}</span>
             {connectionDetail && <span className="block break-words text-xs">{connectionDetail}</span>}
           </DropdownMenuLabel>
@@ -121,7 +122,7 @@ export function SidebarAccount({ settings, status, onSettings, onStatus, onError
             <DropdownMenuRadioItem value=""><span className="min-w-0"><span className="block">目录现有配置</span><span className="block text-xs text-muted-foreground">沿用现有登录和连接配置</span></span></DropdownMenuRadioItem>
             {view?.profiles?.map(profile => <DropdownMenuRadioItem key={profile.id} value={profile.id} label={profile.name}>
               <Avatar className="size-7 rounded-md"><AvatarFallback className="rounded-md text-xs">{Array.from(profile.name)[0]?.toUpperCase() || "A"}</AvatarFallback></Avatar>
-              <span className="min-w-0 flex-1"><span className="block truncate" title={profile.name}>{profile.name}</span><span className="block truncate text-xs text-muted-foreground">{profile.type === "chatgpt" ? "ChatGPT" : profile.provider || "API"}</span></span>
+              <span className="min-w-0 flex-1"><Tooltip><TooltipTrigger render={<span className="block truncate">{profile.name}</span>} /><TooltipContent>{profile.name}</TooltipContent></Tooltip><span className="block truncate text-xs text-muted-foreground">{profile.type === "chatgpt" ? "ChatGPT" : profile.provider || "API"}</span></span>
             </DropdownMenuRadioItem>)}
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>

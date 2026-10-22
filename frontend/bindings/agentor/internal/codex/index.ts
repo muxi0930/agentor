@@ -26,6 +26,7 @@ export type {
     Item,
     LoginState,
     Model,
+    ModelServiceTier,
     ProfileInput,
     Question,
     QuestionAnswer,

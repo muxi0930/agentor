@@ -181,3 +181,20 @@ body { overflow: hidden; }
 .markdown table { display: block; overflow-x: auto; border-collapse: collapse; max-width: 100%; }
 .markdown th, .markdown td { border: 1px solid var(--border); padding: 0.4rem 0.75rem; text-align: left; }
 .markdown blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--muted-foreground); }
+
+@keyframes notification-bell-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  18% { transform: translateY(-10px) rotate(0deg); }
+  30% { transform: translateY(-10px) rotate(-22deg); }
+  42% { transform: translateY(-10px) rotate(20deg); }
+  54% { transform: translateY(-8px) rotate(-16deg); }
+  66% { transform: translateY(-6px) rotate(12deg); }
+  80% { transform: translateY(0) rotate(0deg); }
+  90% { transform: translateY(-2px) rotate(0deg); }
+}
+
+.notification-bell-bounce {
+  transform-origin: 50% 20%;
+  animation: notification-bell-bounce 1.5s ease-in-out;
+  animation-duration: 1.5s !important;
+}

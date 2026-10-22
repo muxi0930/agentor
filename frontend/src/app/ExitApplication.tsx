@@ -8,9 +8,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { errorText } from "./errors";
 
-export function ExitApplication({ restart }: { restart?: { mode: string; directory: string; currentHome: string; targetHome: string } }) {
+export function ExitApplication({ restart, dataDirectory }: { restart?: { mode: string; directory: string; currentHome: string; targetHome: string }; dataDirectory?: { current: string; target: string } }) {
+  const switching = !!restart || !!dataDirectory;
   const [restartApplication, setRestartApplication] = useState(false);
-  const restarting = !!restart || restartApplication;
+  const restarting = switching || restartApplication;
   const [open, setOpen] = useState(false);
   const [snapshot, setSnapshot] = useState<ExitState>();
   const [error, setError] = useState("");
@@ -44,7 +45,8 @@ export function ExitApplication({ restart }: { restart?: { mode: string; directo
     setQuitting(true);
     setError("");
     try {
-      if (restart) await Lifecycle.RestartCodexHome(restart.mode, restart.directory);
+      if (dataDirectory) await Lifecycle.RestartDataDirectory(dataDirectory.target);
+      else if (restart) await Lifecycle.RestartCodexHome(restart.mode, restart.directory);
       else if (restartApplication) await Lifecycle.Restart();
       else await Lifecycle.Quit();
     }
@@ -53,15 +55,16 @@ export function ExitApplication({ restart }: { restart?: { mode: string; directo
 
   const tasks = snapshot?.tasks || [];
 
-  return <div className={restart ? "flex justify-end" : "flex justify-end gap-2 border-t pt-6"}>
-    {!restart && <Button variant="outline" disabled={quitting} onClick={() => { setRestartApplication(true); setOpen(true); }}><RotateCw />重启</Button>}
-    <Button variant={restart ? "default" : "destructive"} disabled={quitting || !!restart && restart.mode === "custom" && !restart.directory.trim()} onClick={() => { setRestartApplication(false); setOpen(true); }}>{quitting ? <LoaderCircle className="animate-spin" /> : <Power />}{restart ? "应用并重启" : "完全退出"}</Button>
+  return <div className={switching ? "flex justify-end" : "flex justify-end gap-2 border-t pt-6"}>
+    {!switching && <Button variant="outline" disabled={quitting} onClick={() => { setRestartApplication(true); setOpen(true); }}><RotateCw />重启</Button>}
+    <Button variant={switching ? "default" : "destructive"} disabled={quitting || !!dataDirectory && !dataDirectory.target.trim() || !!restart && restart.mode === "custom" && !restart.directory.trim()} onClick={() => { setRestartApplication(false); setOpen(true); }}>{quitting ? <LoaderCircle className="animate-spin" /> : <Power />}{switching ? "应用并重启" : "完全退出"}</Button>
     <AlertDialog open={open} onOpenChange={next => { if (!quitting) setOpen(next); }}>
       <AlertDialogContent className="sm:max-w-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>{restart ? "是否切换 CODEX_HOME 并完全重启？" : restartApplication ? "是否立刻中断所有任务并重启应用？" : "是否立刻中断所有任务并退出？"}</AlertDialogTitle>
-          <AlertDialogDescription>{restart ? "确认后会中断运行中的任务、取消全部排队任务，完成关闭后重新启动 agentor。保留当前账号选择，不迁移历史会话；当前账号的配置与凭证会应用到目标目录。" : restartApplication ? "确认后会中断运行中的任务、取消全部排队任务，并在后台完成收尾后重新启动整个应用。当前账号和数据目录保持不变。" : "确认后会中断运行中的任务、取消全部排队任务，并在后台完成收尾后关闭程序。"}</AlertDialogDescription>
+          <AlertDialogTitle>{dataDirectory ? "是否切换应用数据根目录并完全重启？" : restart ? "是否切换 CODEX_HOME 并完全重启？" : restartApplication ? "是否立刻中断所有任务并重启应用？" : "是否立刻中断所有任务并退出？"}</AlertDialogTitle>
+          <AlertDialogDescription>{dataDirectory ? "确认后会中断运行中的任务、取消全部排队任务，并完整重启应用。现有数据可能丢失：新目录不会自动包含当前设置、账号、任务和附件。本应用不提供迁移功能；如需保留，请取消切换，退出应用后自行拷贝数据到目标目录。原目录中的文件不会被删除。" : restart ? "确认后会中断运行中的任务、取消全部排队任务，完成关闭后重新启动 agentor。保留当前账号选择，不迁移历史会话；当前账号的配置与凭证会应用到目标目录。" : restartApplication ? "确认后会中断运行中的任务、取消全部排队任务，并在后台完成收尾后重新启动整个应用。当前账号和数据目录保持不变。" : "确认后会中断运行中的任务、取消全部排队任务，并在后台完成收尾后关闭程序。"}</AlertDialogDescription>
         </AlertDialogHeader>
+        {dataDirectory && <dl className="space-y-2 text-sm"><dt className="text-muted-foreground">当前目录</dt><dd className="break-all">{dataDirectory.current}</dd><dt className="text-muted-foreground">目标目录</dt><dd className="break-all">{dataDirectory.target}</dd></dl>}
         {restart && <dl className="space-y-2 text-sm"><dt className="text-muted-foreground">当前目录</dt><dd className="break-all">{restart.currentHome}</dd><dt className="text-muted-foreground">目标目录</dt><dd className="break-all">{restart.targetHome}</dd></dl>}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {snapshot ? <div className="space-y-3">
@@ -76,7 +79,7 @@ export function ExitApplication({ restart }: { restart?: { mode: string; directo
         <AlertDialogFooter>
           <AlertDialogCancel disabled={quitting}>取消</AlertDialogCancel>
           <Button variant="destructive" disabled={quitting || !snapshot || !!error} aria-busy={quitting} onClick={() => void quit()}>
-            {quitting && <LoaderCircle aria-hidden="true" className="animate-spin" />}{quitting ? restarting ? "正在关闭并重启…" : "正在退出…" : restart ? "确认切换并重启" : restartApplication ? "确认重启" : "确认退出"}
+            {quitting && <LoaderCircle aria-hidden="true" className="animate-spin" />}{quitting ? restarting ? "正在关闭并重启…" : "正在退出…" : switching ? "确认切换并重启" : restartApplication ? "确认重启" : "确认退出"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

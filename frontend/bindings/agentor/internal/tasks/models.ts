@@ -38,6 +38,11 @@ export interface ControllerInput {
     "effort": string;
 
     /**
+     * 是否启用快速模式
+     */
+    "fastMode": boolean;
+
+    /**
      * 原始请求来源
      */
     "source": Source;
@@ -381,6 +386,11 @@ export interface Request {
      * 推理强度
      */
     "effort": string;
+
+    /**
+     * 入队时选定的快速模式
+     */
+    "fastMode": boolean;
 
     /**
      * 原始请求来源

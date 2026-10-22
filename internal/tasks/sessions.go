@@ -28,7 +28,7 @@ func (s *Service) RunReadOnlyTurn(ctx context.Context, threadID, text, model, ef
 	if err := ctx.Err(); err != nil {
 		return "interrupted", "", err
 	}
-	turn, err := s.runtime.StartManagedTurn(threadID, text, model, effort, "read-only", cwd, id, nil)
+	turn, err := s.runtime.StartManagedTurn(threadID, text, model, effort, "read-only", cwd, id, nil, "")
 	if err != nil {
 		return "error", "", err
 	}
@@ -89,6 +89,6 @@ func (s *Service) ReportExternalResult(requestID, kind, resultID, projectID, tex
 	if original.ID == "" {
 		return errors.New("原始控制中心请求不存在")
 	}
-	_, err := s.submitRequest(ControllerInput{Text: text, ProjectID: projectID, Model: original.Model, Effort: original.Effort, Source: original.Source}, kind, resultID)
+	_, err := s.submitRequest(ControllerInput{Text: text, ProjectID: projectID, Model: original.Model, Effort: original.Effort, FastMode: original.FastMode, Source: original.Source}, kind, resultID)
 	return err
 }

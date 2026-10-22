@@ -18,7 +18,15 @@ make build_exe  # 交叉编译 Windows x64，输出 bin/agentor.exe
 
 两个构建命令都会先生成绑定并构建前端生产资源，再将资源嵌入应用。Windows 构建使用 `CGO_ENABLED=0`，无需额外的 C/C++ 交叉编译工具链；生成的应用运行时仍需目标平台的 Codex 原生程序。
 
-默认数据目录为系统用户配置目录下的 `agentor`。测试时可设置 `AGENTOR_DATA_DIR` 为临时目录。
+应用启动时按以下优先级确定数据根目录：进程环境变量 `AGENTOR_DATA_DIR` > `~/.config/agentor/conf.yaml` 中的 `AGENTOR_DATA_DIR` > 系统用户配置目录下的 `agentor`。未设置环境变量且配置文件不存在时，会自动生成默认配置；环境变量覆盖时不会创建或改写全局配置文件。例如：
+
+```yaml
+AGENTOR_DATA_DIR: /absolute/path/to/agentor
+```
+
+全局配置固定放在用户主目录下的 `.config/agentor/conf.yaml`，Windows 同样如此，例如 `C:/Users/用户名/.config/agentor/conf.yaml`，不使用 `AppData` 保存此文件。默认数据根目录仍沿用各平台原来的系统配置目录。
+
+设置页的“应用数据根目录”支持选择目录，经二次确认后保存并完整重启。切换后读取目标目录的数据，不自动迁移当前设置、账号、任务和附件；如需保留，请先退出应用并自行拷贝。原目录文件不会被删除。设置了环境变量时，请先移除该变量并重启，再通过界面切换目录。测试时可设置 `AGENTOR_DATA_DIR` 为临时目录。
 
 已实现普通聊天与富消息、图片/文件、真实审批、工作区和 Markdown 知识、控制中心与步骤队列、固定 Go 动作流水线与调度、飞书单聊任务/附件/审批/产物、分项通知，以及独立账号、配额和 HTTP 余额查询。当前平台验收与外部待验证项见 PLAN.md 第 11 节。
 

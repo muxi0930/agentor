@@ -148,6 +148,7 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 		StepID:       input.StepID,
 		Model:        model,
 		Effort:       effort,
+		FastMode:     input.FastMode,
 		Source:       input.Source,
 		Status:       "queued",
 		CreatedAt:    now(),
@@ -344,7 +345,11 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 	if err != nil {
 		return "error", "", err
 	}
-	turn, err := s.runtime.StartManagedTurn(threadID, prompt, request.Model, request.Effort, "read-only", cwd, request.ID, attachments)
+	tier := "default"
+	if request.FastMode {
+		tier = "fast"
+	}
+	turn, err := s.runtime.StartManagedTurn(threadID, prompt, request.Model, request.Effort, "read-only", cwd, request.ID, attachments, tier)
 	if err != nil {
 		return "error", "", err
 	}
@@ -393,5 +398,5 @@ func (s *Service) reportExecution(id string) {
 		return
 	}
 	text := fmt.Sprintf("执行 %s 已结束。步骤：%s；状态：%s。\n结果：\n%s\n错误：%s\n只向用户汇报结果，不再次执行。", execution.ID, execution.Context.Step.Title, execution.Status, execution.Result, execution.Error)
-	s.submitRequest(ControllerInput{Text: text, ProjectID: execution.ProjectID, StepID: execution.StepID, Model: original.Model, Effort: original.Effort, Source: original.Source}, "execution_result", execution.ID)
+	s.submitRequest(ControllerInput{Text: text, ProjectID: execution.ProjectID, StepID: execution.StepID, Model: original.Model, Effort: original.Effort, FastMode: original.FastMode, Source: original.Source}, "execution_result", execution.ID)
 }

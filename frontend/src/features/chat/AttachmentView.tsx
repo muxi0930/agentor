@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import * as Lark from "../../../bindings/agentor/internal/lark/service";
@@ -33,5 +34,5 @@ function ShareArtifactButton({file,onError}:{file:AttachmentData;onError:(text:s
   const [target,setTarget]=useState<Source>(),[reason,setReason]=useState(""),[busy,setBusy]=useState(false),[queued,setQueued]=useState(false);
   useEffect(()=>{let cancelled=false;async function refresh(){try{const value=await Lark.GetArtifactShareTarget(file.id);if(!cancelled){setTarget(value);setReason("");}}catch(error){if(!cancelled){setTarget(undefined);setReason(String(error));}}}void refresh();const off=Events.On("lark:changed",()=>void refresh());return()=>{cancelled=true;off();};},[file.id]);
   const recipient=target?.chatType==="group"?target.chatId:target?.senderId;
-  return <div className="ml-2 flex max-w-48 flex-col gap-1"><Button variant="outline" size="xs" disabled={busy||!target} title={reason||`发送至 ${recipient}`} aria-label={`分享 ${file.name} 至飞书 ${recipient||"未配对接收者"}`} onClick={()=>{setBusy(true);void Lark.ShareArtifact(file.id).then(()=>setQueued(true)).catch(error=>onError(String(error))).finally(()=>setBusy(false));}}>{queued?"已加入发送记录":"分享到飞书"}</Button><span className="truncate text-[10px] text-muted-foreground" title={recipient||reason}>{recipient||"配对后可分享"}</span></div>;
+  return <div className="ml-2 flex max-w-48 flex-col gap-1"><Tooltip><TooltipTrigger render={<Button variant="outline" size="xs" disabled={busy||!target} aria-label={`分享 ${file.name} 至飞书 ${recipient||"未配对接收者"}`} onClick={()=>{setBusy(true);void Lark.ShareArtifact(file.id).then(()=>setQueued(true)).catch(error=>onError(String(error))).finally(()=>setBusy(false));}}>{queued?"已加入发送记录":"分享到飞书"}</Button>} /><TooltipContent>{reason||`发送至 ${recipient}`}</TooltipContent></Tooltip><Tooltip><TooltipTrigger render={<span className="truncate text-[10px] text-muted-foreground">{recipient||"配对后可分享"}</span>} /><TooltipContent>{recipient||reason}</TooltipContent></Tooltip></div>;
 }

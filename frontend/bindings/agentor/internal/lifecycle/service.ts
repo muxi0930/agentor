@@ -36,3 +36,10 @@ export function Restart(): $CancellablePromise<void> {
 export function RestartCodexHome(mode: string, directory: string): $CancellablePromise<void> {
     return $Call.ByID(1610697998, mode, directory);
 }
+
+/**
+ * RestartDataDirectory 保存数据目录后完整重启，旧目录仍用于当前进程的关闭收尾
+ */
+export function RestartDataDirectory(directory: string): $CancellablePromise<void> {
+    return $Call.ByID(2290340225, directory);
+}

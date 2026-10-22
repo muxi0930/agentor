@@ -682,6 +682,28 @@ export interface Model {
      * 模型支持的输入类型
      */
     "inputModalities": string[] | null;
+
+    /**
+     * 模型支持的速度档位
+     */
+    "serviceTiers": ModelServiceTier[] | null;
+}
+
+export interface ModelServiceTier {
+    /**
+     * 速度档位标识
+     */
+    "id": string;
+
+    /**
+     * 速度档位名称
+     */
+    "name": string;
+
+    /**
+     * 速度档位说明
+     */
+    "description": string;
 }
 
 export interface ProfileInput {

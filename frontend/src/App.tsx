@@ -1,3 +1,4 @@
+import { ShortcutHelp } from "@/app/ShortcutHelp";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListTodo, Moon, Radio, Settings2, Sun } from "lucide-react";
 import { move, visit, type NavigationHistory } from "@/app/navigation";
@@ -149,7 +150,7 @@ export default function App() {
         </div>
         <SidebarTrigger /><span className="shrink-0 text-sm font-medium">{page === "settings" ? "设置" : page==="controller"?"控制中心":page==="lark"?"飞书连接":settings.mode === "chat" ? "会话" : "工作区"}</span>
         <div ref={setHeaderBody} className={page==="home"&&settings.mode==="workspace"?"min-w-0 flex-1 overflow-x-auto":"hidden"}/>
-        <div className="ml-auto flex shrink-0 items-center gap-3"><span role="status" aria-label={status?.phase === "ready" ? "app-server 已连接" : "app-server 未连接"} className="inline-flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground"><span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${status?.phase === "ready" ? "bg-emerald-500" : "bg-orange-500"}`}/>{status?.phase === "ready" ? "app-server" : "app-server 未连接"}</span><Button variant="ghost" size="sm" aria-label={settings.theme === "dark" ? "切换到日间模式" : "切换到夜间模式"} onClick={() => void Data.SetTheme(settings.theme === "dark" ? "light" : "dark").then(setSettings).catch(error => setError(errorText(error)))}>{settings.theme === "dark" ? <Moon aria-hidden="true"/> : <Sun aria-hidden="true"/>}{settings.theme === "dark" ? "夜间" : "日间"}</Button><ApprovalCenter status={status} /><NotificationCenter onOpenSource={openSource}/></div>
+        <div className="ml-auto flex shrink-0 items-center gap-3"><ShortcutHelp/><Button variant="ghost" size="sm" aria-label={settings.theme === "dark" ? "切换到日间模式" : "切换到夜间模式"} onClick={() => void Data.SetTheme(settings.theme === "dark" ? "light" : "dark").then(setSettings).catch(error => setError(errorText(error)))}>{settings.theme === "dark" ? <Moon aria-hidden="true"/> : <Sun aria-hidden="true"/>}{settings.theme === "dark" ? "夜间" : "日间"}</Button><ApprovalCenter status={status} /><NotificationCenter onOpenSource={openSource}/></div>
       </header>
       {error && <div className="p-4"><Alert variant="destructive"><AlertDescription className="flex justify-between">{error}<Button variant="ghost" size="sm" onClick={() => setError("")}>关闭</Button></AlertDescription></Alert></div>}
       <main className="relative flex min-h-0 flex-1 overflow-hidden">

@@ -101,6 +101,7 @@ type ControllerInput struct {
 	StepID    string `json:"stepId"`    // 目标工作区步骤
 	Model     string `json:"model"`     // 使用的模型
 	Effort    string `json:"effort"`    // 推理强度
+	FastMode  bool   `json:"fastMode"`  // 是否启用快速模式
 	Source    Source `json:"source"`    // 原始请求来源
 }
 
@@ -113,6 +114,7 @@ type Request struct {
 	StepID       string                     `json:"stepId"`       // 目标工作区步骤
 	Model        string                     `json:"model"`        // 使用的模型
 	Effort       string                     `json:"effort"`       // 推理强度
+	FastMode     bool                       `json:"fastMode"`     // 入队时选定的快速模式
 	Source       Source                     `json:"source"`       // 原始请求来源
 	Status       string                     `json:"status"`       // 处理状态
 	ThreadID     string                     `json:"threadId"`     // 执行会话

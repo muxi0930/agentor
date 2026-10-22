@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import type { FileChange } from "../../../bindings/agentor/internal/codex/models";
 import { CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton, CodeBlockHeader, CodeBlockLine, CodeBlockTitle } from "@/components/ui/code-block";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +16,7 @@ function DiffLines({ rows }: { rows: DiffRow[] }) {
 export function DiffView({ changes, diff }: { changes?: FileChange[] | null; diff?: string }) {
   const files = changes?.length ? changes : [{ path: "本轮改动", kind: { type: "update" }, diff: diff || "" }];
   return <Tabs defaultValue={files[0].path} className="min-w-0 rounded-lg border p-3">
-    <TabsList className="max-w-full justify-start overflow-x-auto">{files.map(file => <TabsTrigger key={file.path} value={file.path} className="max-w-64 truncate" title={file.path}>{file.path.split(/[\\/]/).slice(-1)[0]}</TabsTrigger>)}</TabsList>
+    <TabsList className="max-w-full justify-start overflow-x-auto">{files.map(file => <Tooltip key={file.path}><TooltipTrigger render={<TabsTrigger value={file.path} className="max-w-64 truncate">{file.path.split(/[\\/]/).slice(-1)[0]}</TabsTrigger>} /><TooltipContent>{file.path}</TooltipContent></Tooltip>)}</TabsList>
     {files.map(file => {
       const rows = parseDiff(file.diff, file.kind.type);
       const additions = rows.filter(row => row.kind === "added").length;

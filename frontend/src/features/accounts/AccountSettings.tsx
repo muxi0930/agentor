@@ -38,7 +38,7 @@ export function AccountSettings({status,onStatus,onSettings}:{status?:Status;onS
   }
   const active=view?.reuseCLI?undefined:view?.profiles?.find(profile=>profile.id===view.activeId);
   function balanceField(key:keyof BalanceConfig,value:string){if(draft)setDraft({...draft,balance:{...draft.balance,[key]:value}});}
-  return <SettingsSection value="accounts" title={<HelpText help="账号共用所选 CODEX_HOME；切换账号不改变目录，模型与默认权限分别保存。">账号与额度</HelpText>}><div className="space-y-5">
+  return <SettingsSection value="accounts" title="账号与额度" description="账号共用所选 CODEX_HOME；切换账号不改变目录，模型与默认权限分别保存。"><div className="space-y-5">
     {error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}{message&&<p role="status" className="text-sm text-muted-foreground">{message}</p>}
     <div className="space-y-3 rounded-lg border p-3"><div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><p className="text-sm font-medium"><HelpText help="沿用所选 CODEX_HOME 中的登录和连接配置">目录现有配置</HelpText></p></div>{view?.reuseCLI?<Badge>使用中</Badge>:<Button variant="outline" size="sm" disabled={busy} onClick={()=>void run(async()=>{onStatus(await Codex.UseAccount(""));setRates(undefined);})}>沿用目录配置</Button>}</div><div className="flex justify-end"><Button variant="outline" size="sm" disabled={busy||!view?.reuseCLI||status?.phase!=="ready"} onClick={()=>void run(async()=>setRates(await Codex.GetRateLimits()))}>刷新配额</Button></div><AccountQuota rates={view?.reuseCLI?rates:undefined}/></div>
     {view?.profiles?.map(profile=>{

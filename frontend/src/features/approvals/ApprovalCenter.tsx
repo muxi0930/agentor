@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Events } from "@wailsio/runtime";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
@@ -64,17 +64,25 @@ export function ApprovalCenter({ status }: { status?: Status }) {
   const [open, setOpen] = useState(false);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [error, setError] = useState("");
+  const [approvalAnimation, setApprovalAnimation] = useState(0);
+  const previousApprovals = useRef<Set<string> | null>(null);
   async function refresh() {
-    try { setApprovals(await Codex.GetApprovals() || []); setError(""); }
+    try {
+      const next = await Codex.GetApprovals() || [];
+      const previous = previousApprovals.current;
+      if (previous && next.some(approval => approval.status === "pending" && !previous.has(`${approval.generation}:${approval.id}`))) setApprovalAnimation(value => value + 1);
+      previousApprovals.current = new Set(next.map(approval => `${approval.generation}:${approval.id}`));
+      setApprovals(next); setError("");
+    }
     catch (error) { setError(errorText(error)); }
   }
-  useEffect(() => { void refresh(); }, [status?.phase, status?.generation]);
+  useEffect(() => { previousApprovals.current = null; void refresh(); }, [status?.phase, status?.generation]);
   useEffect(() => Events.On("codex:event", event => {
     if (event.data.generation === status?.generation && ["host/approvalsUpdated", "turn/completed", "serverRequest/resolved"].includes(event.data.method)) void refresh();
   }), [status?.generation]);
   const pending = approvals.filter(approval => approval.status === "pending").length;
   return <>
-    <Button variant="ghost" size="sm" onClick={() => setOpen(true)}><ShieldCheck />审批{pending > 0 && <Badge>{pending}</Badge>}</Button>
+    <Button variant="ghost" size="sm" onClick={() => setOpen(true)}><ShieldCheck key={approvalAnimation} aria-hidden="true" className={approvalAnimation ? "notification-bell-bounce" : undefined} />审批{pending > 0 && <Badge>{pending}</Badge>}</Button>
     <Sheet open={open} onOpenChange={setOpen}><SheetContent className="flex w-full flex-col sm:max-w-xl">
       <SheetHeader><SheetTitle>审批与问答</SheetTitle><SheetDescription>每个回答仅返回对应的 Codex 请求。任务结束或连接断开后，请求会失效。</SheetDescription></SheetHeader>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-6">

@@ -113,3 +113,68 @@ func TestSnapshotIncludesEveryTaskSourceWithoutCountingManagedTurnsTwice(t *test
 		}
 	}
 }
+
+// TestDataDirectoryRestart 验证关闭后新进程读取全局配置中的目标目录且不迁移旧设置
+func TestDataDirectoryRestart(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("AppData", filepath.Join(home, "config"))
+	t.Setenv("AGENTOR_DATA_DIR", "")
+	t.Setenv("CODEX_HOME", filepath.Join(home, "codex"))
+	marker := filepath.Join(home, "restarted")
+	target := filepath.Join(home, "new-data")
+	t.Setenv("AGENTOR_DATA_RESTART_MARKER", marker)
+	t.Setenv("AGENTOR_DATA_RESTART_TARGET", target)
+	data, err := appdata.NewService("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := data.GetInfo().DataDirectory
+	if err := data.SetDataDirectory(target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := data.SetTheme("dark"); err != nil {
+		t.Fatal(err)
+	}
+	if data.GetInfo().DataDirectory != previous {
+		t.Fatal("收尾前不应更改当前目录")
+	}
+	previousArgs := os.Args
+	os.Args = []string{os.Args[0], "-test.run=^TestDataDirectoryRestartChild$"}
+	t.Cleanup(func() { os.Args = previousArgs })
+	s := &Service{data: data, restarting: true}
+	if err := s.CompleteRestart(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if raw, err := os.ReadFile(marker); err == nil {
+			if string(raw) != target {
+				t.Fatalf("新进程目录错误：%s", raw)
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("未观察到重启进程读取目标数据目录")
+}
+
+// TestDataDirectoryRestartChild 在新进程中验证数据根目录与默认设置
+func TestDataDirectoryRestartChild(t *testing.T) {
+	marker := os.Getenv("AGENTOR_DATA_RESTART_MARKER")
+	if marker == "" {
+		t.Skip("仅供数据目录重启验证")
+	}
+	data, err := appdata.NewService("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.GetInfo().DataDirectory != os.Getenv("AGENTOR_DATA_RESTART_TARGET") || data.GetSettings().Theme != "light" {
+		t.Fatal("新进程未读取目标目录或意外迁移旧设置")
+	}
+	if err := os.WriteFile(marker, []byte(data.GetInfo().DataDirectory), 0600); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -89,6 +89,17 @@ func (s *Service) RestartCodexHome(mode, directory string) error {
 	return s.Quit()
 }
 
+// RestartDataDirectory 保存数据目录后完整重启，旧目录仍用于当前进程的关闭收尾
+func (s *Service) RestartDataDirectory(directory string) error {
+	if application.Get() == nil {
+		return errors.New("应用尚未启动")
+	}
+	if err := s.data.SetDataDirectory(directory); err != nil {
+		return err
+	}
+	return s.Restart()
+}
+
 // CompleteRestart 在服务关闭和单实例锁释放后按需保存目录并启动完整应用
 //
 //wails:ignore

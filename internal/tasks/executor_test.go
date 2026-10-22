@@ -91,7 +91,7 @@ func TestQueuedExecutorConfigurationPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.ServiceShutdown()
-	request, err := service.submitRequest(ControllerInput{Text: "完成汇报", Model: "controller", Effort: "medium"}, "execution_result", "execution")
+	request, err := service.submitRequest(ControllerInput{Text: "完成汇报", Model: "controller", Effort: "medium", FastMode: true}, "execution_result", "execution")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +105,9 @@ func TestQueuedExecutorConfigurationPersists(t *testing.T) {
 	}
 	defer reopened.ServiceShutdown()
 	persisted := reopened.GetState().Requests[0]
+	if !persisted.FastMode {
+		t.Fatal("排队请求未保留提交时的快速模式")
+	}
 	if !reflect.DeepEqual(persisted.Executor, request.Executor) || persisted.Executor.Models[0] != "controller" || persisted.Executor.Efforts[0] != "medium" || persisted.Executor.Prompt != appdata.DefaultControllerPrompt {
 		t.Fatal(persisted)
 	}

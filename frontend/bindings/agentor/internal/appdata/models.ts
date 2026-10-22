@@ -13,6 +13,11 @@ export interface AccountPreferences {
     "effort": string;
 
     /**
+     * 是否启用快速模式
+     */
+    "fastMode": boolean;
+
+    /**
      * 账号默认权限
      */
     "permission": string;
@@ -46,6 +51,16 @@ export interface ControllerSettings {
 }
 
 export interface Info {
+    /**
+     * 全局启动配置文件
+     */
+    "globalConfigPath": string;
+
+    /**
+     * 数据目录是否由环境变量指定
+     */
+    "dataDirectoryFromEnv": boolean;
+
     /**
      * 应用名称
      */
@@ -124,6 +139,11 @@ export interface Settings {
     "theme": string;
 
     /**
+     * 聊天消息区域宽度：standard 或 wide
+     */
+    "chatWidth": string;
+
+    /**
      * 当前工作模式
      */
     "mode": string;
@@ -172,6 +192,11 @@ export interface Settings {
      * 当前推理强度
      */
     "effort": string;
+
+    /**
+     * 是否启用快速模式
+     */
+    "fastMode": boolean;
 
     /**
      * 最近打开的会话

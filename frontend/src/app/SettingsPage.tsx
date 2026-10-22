@@ -17,7 +17,6 @@ import { SettingsField, SettingsSection } from "@/components/ui/settings-section
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HelpText } from "@/components/ui/help-text";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { errorText } from "./errors";
 import { ControllerConfiguration } from "@/features/controller/ControllerConfiguration";
@@ -30,12 +29,11 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
   const [tab, setTab] = useState(initialTab);
   const [models, setModels] = useState<Model[]>([]);
   const [systemSections, setSystemSections] = useState<string[]>(["information"]);
-  const [sessionSections, setSessionSections] = useState<string[]>(["permissions"]);
-  const [codexSections, setCodexSections] = useState<string[]>(["executable"]);
   const [agentSections, setAgentSections] = useState<string[]>(["queue", "timeout"]);
   const [path, setPath] = useState(settings.codexPath);
   const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(String(settings.maxConcurrentAgents));
   const [agentTimeoutMinutes, setAgentTimeoutMinutes] = useState(String(settings.agentTimeoutSeconds / 60));
+  const [dataDirectory, setDataDirectory] = useState(info.dataDirectory);
   const [homeMode, setHomeMode] = useState(settings.codexHomeMode);
   const [homePath, setHomePath] = useState(settings.codexHomePath);
   const [busy, setBusy] = useState(false);
@@ -59,8 +57,6 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
     <Tabs value={tab} onValueChange={value => {
       setTab(String(value));
       if (value === "system") setSystemSections(["information"]);
-      else if (value === "session") setSessionSections(["permissions"]);
-      else if (value === "codex") setCodexSections(["executable"]);
       else if (value === "agents") setAgentSections(["queue", "timeout"]);
     }} className="gap-6">
       <PageHeader title="设置" description="连接您的工具，安排舒适的工作环境。"><TabsList aria-label="设置分组">
@@ -81,11 +77,22 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
         <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-3">
           <dt className="text-muted-foreground">版本</dt><dd>{info.version}</dd>
           <dt className="text-muted-foreground">运行平台</dt><dd>{info.os} / {info.arch} · {info.goVersion}</dd>
+          <dt className="text-muted-foreground">全局启动配置</dt><dd className="min-w-0 break-all">{info.globalConfigPath}</dd>
           <dt className="text-muted-foreground">软件配置目录</dt><dd className="min-w-0 break-all">{info.dataDirectory}</dd>
           <dt className="text-muted-foreground">控制中心工作目录</dt><dd className="min-w-0 break-all">{info.controllerDirectory}</dd>
           <dt className="text-muted-foreground">CODEX_HOME</dt><dd className="min-w-0 break-all">{status?.home || info.codexHome}</dd>
         </dl>
         <div className="flex justify-end"><Button variant="outline" disabled={busy} onClick={() => void run(() => Data.OpenDirectory(info.dataDirectory))}><FolderOpen />打开软件配置目录</Button></div>
+      </div>
+    </SettingsSection>
+    <SettingsSection value="data-directory" title="应用数据根目录" description="保存设置、账号、任务和附件的位置。切换目录需要确认并完整重启，不会自动迁移现有数据。">
+      <div className="space-y-4">
+        <Field><FieldLabel htmlFor="data-directory">数据目录</FieldLabel><div className="flex gap-2">
+          <Input id="data-directory" value={dataDirectory} disabled={busy || info.dataDirectoryFromEnv} onChange={event => setDataDirectory(event.target.value)} />
+          <Button variant="outline" disabled={busy || info.dataDirectoryFromEnv} onClick={() => void run(async () => { const directory = await Data.ChooseDirectory(); if (directory) setDataDirectory(directory); })}>选择目录</Button>
+        </div></Field>
+        {info.dataDirectoryFromEnv && <p className="text-sm text-muted-foreground">当前目录由 AGENTOR_DATA_DIR 环境变量指定，优先于全局配置。请移除该变量并重启后再切换目录。</p>}
+        {!info.dataDirectoryFromEnv && dataDirectory.trim() !== info.dataDirectory && <ExitApplication dataDirectory={{ current: info.dataDirectory, target: dataDirectory.trim() }} />}
       </div>
     </SettingsSection>
     <SettingsSection value="runtime" title="app-server" description="查看 Codex 运行时状态与连接信息。">
@@ -121,16 +128,21 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
         </Accordion>
       </TabsContent>
       <TabsContent value="session" keepMounted>
-        <Accordion multiple value={sessionSections} onValueChange={setSessionSections} className="gap-4">
+        <Accordion key="session-settings" multiple defaultValue={["layout", "permissions"]} className="gap-4">
+          <SettingsSection value="layout" title="聊天页宽度" description="更宽布局将聊天正文区域加宽 60%，输入框宽度保持不变。">
+            <FieldGroup>
+              <SettingsField><FieldLabel htmlFor="chat-width">消息区域宽度</FieldLabel><Select disabled={busy} value={settings.chatWidth || "standard"} onValueChange={value => { if (value) void run(async () => onSettings(await Data.SetChatWidth(value))); }} items={[{ value: "standard", label: "标准" }, { value: "wide", label: "更宽（+60%）" }]}><SelectTrigger id="chat-width"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standard">标准</SelectItem><SelectItem value="wide">更宽（+60%）</SelectItem></SelectContent></Select></SettingsField>
+            </FieldGroup>
+          </SettingsSection>
           <SettingsSection value="permissions" title="执行权限" description="设置会话默认权限，项目和会话可分别覆盖。">
             <FieldGroup>
-              <SettingsField><FieldLabel htmlFor="default-permission"><Tooltip><TooltipTrigger render={<span tabIndex={0} className="relative cursor-help rounded-sm pr-2 outline-none focus-visible:ring-2 focus-visible:ring-ring" />}>默认执行权限<span aria-hidden="true" className="absolute -top-1 right-0 text-[10px] leading-none text-muted-foreground">?</span></TooltipTrigger><TooltipContent>会话设置优先于项目设置，再继承此默认值。只读可查看文件；项目内读写可修改当前项目；完全访问允许项目外文件与网络操作。</TooltipContent></Tooltip></FieldLabel><PermissionSelect id="default-permission" className="text-sm" disabled={busy} value={settings.permissionMode} onChange={mode => void run(async () => onSettings(await Data.SetPermission("default", "", mode)))} /></SettingsField>
+              <SettingsField><FieldLabel htmlFor="default-permission"><HelpText help="会话设置优先于项目设置，再继承此默认值。只读可查看文件；项目内读写可修改当前项目；完全访问允许项目外文件与网络操作。">默认执行权限</HelpText></FieldLabel><PermissionSelect id="default-permission" className="text-sm" disabled={busy} value={settings.permissionMode} onChange={mode => void run(async () => onSettings(await Data.SetPermission("default", "", mode)))} /></SettingsField>
             </FieldGroup>
           </SettingsSection>
         </Accordion>
       </TabsContent>
       <TabsContent value="codex" keepMounted>
-        <Accordion multiple value={codexSections} onValueChange={setCodexSections} className="gap-4">
+        <Accordion key="codex-settings" multiple defaultValue={["executable", "home", "accounts"]} className="gap-4">
     <SettingsSection value="executable" title="可执行路径" description="指定原生可执行文件；留空时从 PATH 查找。">
       <div><form onSubmit={event => { event.preventDefault(); void run(async () => {
         onSettings(await Data.SetCodexPath(path.trim())); setMessage("Codex 路径已保存");

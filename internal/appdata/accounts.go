@@ -3,6 +3,7 @@ package appdata
 type AccountPreferences struct {
 	Model      string `json:"model"`      // 当前模型
 	Effort     string `json:"effort"`     // 推理强度
+	FastMode   bool   `json:"fastMode"`   // 是否启用快速模式
 	Permission string `json:"permission"` // 账号默认权限
 }
 
@@ -47,6 +48,7 @@ func (s *Service) SelectAccount(id string, reuseCLI bool) (Settings, error) {
 			preferences.Permission = "workspace-write"
 		}
 		settings.Model, settings.Effort, settings.PermissionMode = preferences.Model, preferences.Effort, preferences.Permission
+		settings.FastMode = preferences.FastMode
 	})
 }
 
@@ -64,6 +66,6 @@ func rememberPreferences(settings *Settings) {
 	for id, preferences := range settings.AccountPreferences {
 		next[id] = preferences
 	}
-	next[key] = AccountPreferences{Model: settings.Model, Effort: settings.Effort, Permission: settings.PermissionMode}
+	next[key] = AccountPreferences{Model: settings.Model, Effort: settings.Effort, FastMode: settings.FastMode, Permission: settings.PermissionMode}
 	settings.AccountPreferences = next
 }

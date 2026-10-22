@@ -17,6 +17,7 @@ type Settings struct {
 	ActiveAccountID     string                        `json:"activeAccountId"`     // 当前独立账号，空值表示尚未选择
 	AccountPreferences  map[string]AccountPreferences `json:"accountPreferences"`  // 每个连接身份的模型与权限偏好
 	Theme               string                        `json:"theme"`               // 界面主题
+	ChatWidth           string                        `json:"chatWidth"`           // 聊天消息区域宽度：standard 或 wide
 	Mode                string                        `json:"mode"`                // 当前工作模式
 	ProjectDirectory    string                        `json:"projectDirectory"`    // 当前项目目录
 	CodexPath           string                        `json:"codexPath"`           // 原生 Codex 程序路径
@@ -27,6 +28,7 @@ type Settings struct {
 	ReuseCLI            bool                          `json:"reuseCLI"`            // 是否沿用 CLI 配置
 	Model               string                        `json:"model"`               // 当前模型
 	Effort              string                        `json:"effort"`              // 当前推理强度
+	FastMode            bool                          `json:"fastMode"`            // 是否启用快速模式
 	LastThreadID        string                        `json:"lastThreadId"`        // 最近打开的会话
 	ChatThreads         map[string]string             `json:"chatThreads"`         // 本应用登记的会话及其目录
 	ProjectAliases      map[string]string             `json:"projectAliases"`      // 项目目录的显示别名
@@ -41,43 +43,41 @@ type Settings struct {
 }
 
 type Info struct {
-	Name                string `json:"name"`                // 应用名称
-	Version             string `json:"version"`             // 应用版本
-	GoVersion           string `json:"goVersion"`           // Go 运行时版本
-	OS                  string `json:"os"`                  // 操作系统
-	Arch                string `json:"arch"`                // 处理器架构
-	DataDirectory       string `json:"dataDirectory"`       // 应用数据目录
-	ControllerDirectory string `json:"controllerDirectory"` // 控制中心工作目录
-	CodexHome           string `json:"codexHome"`           // 本应用的 Codex 数据目录
-	SystemCodexHome     string `json:"systemCodexHome"`     // 系统默认 Codex 数据目录
+	GlobalConfigPath     string `json:"globalConfigPath"`     // 全局启动配置文件
+	DataDirectoryFromEnv bool   `json:"dataDirectoryFromEnv"` // 数据目录是否由环境变量指定
+	Name                 string `json:"name"`                 // 应用名称
+	Version              string `json:"version"`              // 应用版本
+	GoVersion            string `json:"goVersion"`            // Go 运行时版本
+	OS                   string `json:"os"`                   // 操作系统
+	Arch                 string `json:"arch"`                 // 处理器架构
+	DataDirectory        string `json:"dataDirectory"`        // 应用数据目录
+	ControllerDirectory  string `json:"controllerDirectory"`  // 控制中心工作目录
+	CodexHome            string `json:"codexHome"`            // 本应用的 Codex 数据目录
+	SystemCodexHome      string `json:"systemCodexHome"`      // 系统默认 Codex 数据目录
 }
 
 type Service struct {
-	mu       sync.Mutex // 设置读写锁
-	root     string     // 应用数据目录
-	version  string     // 由主程序传入的应用版本
-	settings Settings   // 当前设置
+	configPath string     // 全局启动配置文件
+	mu         sync.Mutex // 设置读写锁
+	root       string     // 应用数据目录
+	version    string     // 由主程序传入的应用版本
+	settings   Settings   // 当前设置
 }
 
 // NewService 初始化服务并读取本地记录
 func NewService(version string) (*Service, error) {
-	root := os.Getenv("AGENTOR_DATA_DIR")
-	if root == "" {
-		base, err := os.UserConfigDir()
-		if err != nil {
-			return nil, err
-		}
-		root = filepath.Join(base, "agentor")
+	root, configPath, err := resolveDataDirectory()
+	if err != nil {
+		return nil, err
 	}
-
-	root, err := filepath.Abs(root)
+	root, err = filepath.Abs(root)
 	if err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Join(root, "control_session"), 0700); err != nil {
 		return nil, err
 	}
-	s := &Service{root: root, version: version, settings: Settings{AgentTimeoutSeconds: 7200, Controller: ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: DefaultControllerPrompt}, Theme: "light", Mode: "chat", ReuseCLI: true, PermissionMode: "workspace-write"}}
+	s := &Service{root: root, configPath: configPath, version: version, settings: Settings{AgentTimeoutSeconds: 7200, Controller: ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: DefaultControllerPrompt}, Theme: "light", ChatWidth: "standard", Mode: "chat", ReuseCLI: true, PermissionMode: "workspace-write"}}
 	if err := ReadJSON(filepath.Join(root, "settings.json"), &s.settings); err != nil {
 		return nil, err
 	}
@@ -108,15 +108,17 @@ func (s *Service) GetInfo() Info {
 	home, _ := s.ResolveCodexHome(settings.CodexHomeMode, settings.CodexHomePath)
 	systemHome, _ := s.ResolveCodexHome("system", "")
 	return Info{
-		Name:                "agentor",
-		Version:             s.version,
-		GoVersion:           runtime.Version(),
-		OS:                  runtime.GOOS,
-		Arch:                runtime.GOARCH,
-		DataDirectory:       s.root,
-		ControllerDirectory: filepath.Join(s.root, "control_session"),
-		CodexHome:           home,
-		SystemCodexHome:     systemHome,
+		GlobalConfigPath:     s.configPath,
+		DataDirectoryFromEnv: os.Getenv("AGENTOR_DATA_DIR") != "",
+		Name:                 "agentor",
+		Version:              s.version,
+		GoVersion:            runtime.Version(),
+		OS:                   runtime.GOOS,
+		Arch:                 runtime.GOARCH,
+		DataDirectory:        s.root,
+		ControllerDirectory:  filepath.Join(s.root, "control_session"),
+		CodexHome:            home,
+		SystemCodexHome:      systemHome,
 	}
 }
 
@@ -153,6 +155,15 @@ func (s *Service) SetTheme(theme string) (Settings, error) {
 	}
 
 	return s.update(func(settings *Settings) { settings.Theme = theme })
+}
+
+// SetChatWidth 保存聊天消息区域宽度
+func (s *Service) SetChatWidth(width string) (Settings, error) {
+	if width != "standard" && width != "wide" {
+		return Settings{}, errors.New("请选择标准或更宽布局")
+	}
+
+	return s.update(func(settings *Settings) { settings.ChatWidth = width })
 }
 
 // SetMode 保存工作模式
@@ -200,6 +211,14 @@ func (s *Service) SetCodexPath(path string) (Settings, error) {
 func (s *Service) SetModelSelection(model, effort string) (Settings, error) {
 	return s.update(func(settings *Settings) {
 		settings.Model, settings.Effort = model, effort
+		rememberPreferences(settings)
+	})
+}
+
+// SetFastMode 保存当前身份的快速模式偏好
+func (s *Service) SetFastMode(enabled bool) (Settings, error) {
+	return s.update(func(settings *Settings) {
+		settings.FastMode = enabled
 		rememberPreferences(settings)
 	})
 }
