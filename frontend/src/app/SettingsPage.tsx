@@ -79,7 +79,6 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
           <dt className="text-muted-foreground">运行平台</dt><dd>{info.os} / {info.arch} · {info.goVersion}</dd>
           <dt className="text-muted-foreground">全局启动配置</dt><dd className="min-w-0 break-all">{info.globalConfigPath}</dd>
           <dt className="text-muted-foreground">软件配置目录</dt><dd className="min-w-0 break-all">{info.dataDirectory}</dd>
-          <dt className="text-muted-foreground">控制中心工作目录</dt><dd className="min-w-0 break-all">{info.controllerDirectory}</dd>
           <dt className="text-muted-foreground">CODEX_HOME</dt><dd className="min-w-0 break-all">{status?.home || info.codexHome}</dd>
         </dl>
         <div className="flex justify-end"><Button variant="outline" disabled={busy} onClick={() => void run(() => Data.OpenDirectory(info.dataDirectory))}><FolderOpen />打开软件配置目录</Button></div>

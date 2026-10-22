@@ -142,6 +142,7 @@ func TestControllerSecurityPromptPayload(t *testing.T) {
 				var message struct {
 					Method string `json:"method"` // 请求方法
 					Params struct {
+						Cwd          string        `json:"cwd"`                   // 工作目录
 						Instructions string        `json:"developerInstructions"` // 会话指令
 						ThreadID     string        `json:"threadId"`              // 会话标识
 						Input        []codex.Input `json:"input"`                 // 模型输入
@@ -149,6 +150,9 @@ func TestControllerSecurityPromptPayload(t *testing.T) {
 				}
 				if err := decoder.Decode(&message); err != nil {
 					t.Fatal(err)
+				}
+				if (message.Method == "thread/start" || message.Method == "turn/start") && message.Params.Cwd != data.GetInfo().CodexHome {
+					t.Fatalf("控制中心工作目录未使用 CODEX_HOME：%s", message.Params.Cwd)
 				}
 				if message.Method == "thread/start" {
 					threads++

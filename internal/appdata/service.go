@@ -51,7 +51,6 @@ type Info struct {
 	OS                   string `json:"os"`                   // 操作系统
 	Arch                 string `json:"arch"`                 // 处理器架构
 	DataDirectory        string `json:"dataDirectory"`        // 应用数据目录
-	ControllerDirectory  string `json:"controllerDirectory"`  // 控制中心工作目录
 	CodexHome            string `json:"codexHome"`            // 本应用的 Codex 数据目录
 	SystemCodexHome      string `json:"systemCodexHome"`      // 系统默认 Codex 数据目录
 }
@@ -74,7 +73,7 @@ func NewService(version string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Join(root, "control_session"), 0700); err != nil {
+	if err := os.MkdirAll(root, 0700); err != nil {
 		return nil, err
 	}
 	s := &Service{root: root, configPath: configPath, version: version, settings: Settings{AgentTimeoutSeconds: 7200, Controller: ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: DefaultControllerPrompt}, Theme: "light", ChatWidth: "standard", Mode: "chat", ReuseCLI: true, PermissionMode: "workspace-write"}}
@@ -116,7 +115,6 @@ func (s *Service) GetInfo() Info {
 		OS:                   runtime.GOOS,
 		Arch:                 runtime.GOARCH,
 		DataDirectory:        s.root,
-		ControllerDirectory:  filepath.Join(s.root, "control_session"),
 		CodexHome:            home,
 		SystemCodexHome:      systemHome,
 	}

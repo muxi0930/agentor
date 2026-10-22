@@ -286,7 +286,7 @@ func (s *Service) runControllerQueue() {
 
 // executeController 恢复控制中心线程并处理当前请求
 func (s *Service) executeController(ctx context.Context, request Request) (string, string, error) {
-	cwd := s.data.GetInfo().ControllerDirectory
+	cwd := s.data.GetInfo().CodexHome
 	s.mu.Lock()
 	threadID := s.state.ControllerThreadID
 	previousInstructions := s.state.ControllerInstructions

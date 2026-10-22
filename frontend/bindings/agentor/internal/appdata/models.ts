@@ -92,11 +92,6 @@ export interface Info {
     "dataDirectory": string;
 
     /**
-     * 控制中心工作目录
-     */
-    "controllerDirectory": string;
-
-    /**
      * 本应用的 Codex 数据目录
      */
     "codexHome": string;

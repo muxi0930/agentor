@@ -83,7 +83,7 @@ func (s *Service) RebuildControllerContext() error {
 	if s.toolSpecs != nil {
 		tools = s.toolSpecs("controller")
 	}
-	thread, err := s.runtime.CreateToolThread(s.data.GetInfo().ControllerDirectory, model, "read-only", "controller", instructions, tools)
+	thread, err := s.runtime.CreateToolThread(s.data.GetInfo().CodexHome, model, "read-only", "controller", instructions, tools)
 	if err != nil {
 		return err
 	}
