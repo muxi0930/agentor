@@ -464,7 +464,7 @@ func (s *Service) syncCompletionLocked() error {
 	}
 	latest := make(map[string]workspace.StepCompletion)
 	for _, execution := range s.state.Executions {
-		completion := workspace.StepCompletion{Completed: execution.Status == "completed"}
+		completion := workspace.StepCompletion{Completed: execution.Status == "completed", DispatchedAt: execution.CreatedAt}
 		if completion.Completed {
 			completion.CompletedAt = execution.CompletedAt
 		}

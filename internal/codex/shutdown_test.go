@@ -67,6 +67,7 @@ func TestShutdownWaitsForStartingChatBeforeClosingConnection(t *testing.T) {
 	s.client = c
 	s.status.Phase = "ready"
 	started, release := make(chan struct{}), make(chan struct{})
+	s.opened["thread"] = true
 	interrupted := make(chan bool, 1)
 	go func() {
 		defer c.finish(io.EOF)

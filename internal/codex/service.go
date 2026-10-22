@@ -34,6 +34,7 @@ type Event struct {
 type Service struct {
 	data             *appdata.Service                   // 应用设置与数据服务
 	connectMu        sync.Mutex                         // 串行保护连接切换
+	subscriptionMu   sync.Mutex                         // 串行保护会话恢复与取消订阅
 	mu               sync.Mutex                         // 保护连接状态
 	closing          bool                               // 应用退出时阻止提交新轮次
 	turnRequests     sync.WaitGroup                     // 等待退出前已提交的轮次启动请求
@@ -45,6 +46,8 @@ type Service struct {
 	active           map[string]string                  // 按会话索引的活动轮次
 	activeText       map[string]string                  // 活动轮次的输入摘要
 	opened           map[string]bool                    // 当前连接已恢复的会话
+	subscriptions    []string                           // 按订阅时间排列的普通会话
+	threadNames      map[string]*managedThreadName      // 本次运行新建业务会话的标题前缀
 	approvals        map[string]Approval                // 按请求索引的审批记录
 	files            *artifact.Service                  // 附件与产物服务
 	usage            map[string]*TokenUsage             // 按会话索引的令牌用量
@@ -82,6 +85,7 @@ func NewService(data *appdata.Service, files *artifact.Service) *Service {
 		active:         make(map[string]string),
 		activeText:     make(map[string]string),
 		opened:         make(map[string]bool),
+		threadNames:    make(map[string]*managedThreadName),
 		approvals:      make(map[string]Approval),
 		usage:          make(map[string]*TokenUsage),
 		pendingChanges: make(map[string]map[string][]FileChange),
@@ -202,6 +206,9 @@ func (s *Service) setStatus(generation uint64, phase, message string) Status {
 
 // connect 在连接操作串行锁内启动当前选择的原生身份
 func (s *Service) connect() (Status, error) {
+	s.subscriptionMu.Lock()
+	defer s.subscriptionMu.Unlock()
+
 	if err := s.ctx.Err(); err != nil {
 		return s.GetStatus(), err
 	}
@@ -221,6 +228,7 @@ func (s *Service) connect() (Status, error) {
 	old := s.client
 	s.client = nil
 	s.opened = make(map[string]bool)
+	s.subscriptions = nil
 	s.pendingChanges = make(map[string]map[string][]FileChange)
 	s.expireApprovalsLocked("", "")
 	s.status.Generation++
@@ -313,6 +321,7 @@ func (s *Service) connect() (Status, error) {
 				s.active = make(map[string]string)
 				s.activeText = make(map[string]string)
 				s.opened = make(map[string]bool)
+				s.subscriptions = nil
 				s.expireApprovalsLocked("", "")
 				if s.login.Status == "pending" {
 					s.login.Status, s.login.URL, s.login.Error = "error", "", "原生连接已断开，请重新发起登录"

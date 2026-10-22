@@ -42,6 +42,8 @@ func TestOccupiedThreadCanReadAndResume(t *testing.T) {
 				response.Result = json.RawMessage(`{"data":[{"id":"history","status":"completed","items":[{"id":"message","type":"agentMessage","text":"可读历史"}]}],"nextCursor":"older"}`)
 			case "turn/start":
 				response.Result = json.RawMessage(`{"turn":{"id":"continued","status":"inProgress"}}`)
+			case "thread/unsubscribe":
+				response.Result = json.RawMessage(`{"status":"notSubscribed"}`)
 			}
 			c.receive(response)
 		}
@@ -78,15 +80,15 @@ func TestOccupiedThreadCanReadAndResume(t *testing.T) {
 	for method := range requests {
 		methods = append(methods, method)
 	}
-	want := []string{"thread/resume", "thread/read", "thread/turns/list", "thread/resume", "thread/resume", "thread/turns/list", "turn/start", "thread/read", "thread/turns/list"}
+	want := []string{"thread/resume", "thread/read", "thread/turns/list", "thread/unsubscribe", "thread/resume", "thread/resume", "thread/turns/list", "turn/start", "thread/read", "thread/turns/list"}
 	if !reflect.DeepEqual(methods, want) {
 		t.Fatalf("请求链路错误: %v", methods)
 	}
 }
 
-// TestOpenThreadPreservesErrors 验证普通恢复错误和占用后的读取错误不会被吞掉
+// TestOpenThreadPreservesErrors 验证恢复、读取与取消只读订阅的错误不会被吞掉
 func TestOpenThreadPreservesErrors(t *testing.T) {
-	for _, message := range []string{"thread missing", "thread occupied already has an active writer"} {
+	for _, message := range []string{"thread missing", "thread occupied already has an active writer", "unsubscribe failed"} {
 		t.Run(message, func(t *testing.T) {
 			s := accountFixture(t)
 			reader, writer := io.Pipe()
@@ -102,6 +104,17 @@ func TestOpenThreadPreservesErrors(t *testing.T) {
 					if decoder.Decode(&request) != nil {
 						return
 					}
+					if message == "unsubscribe failed" {
+						response := packet{ID: request.ID, Result: json.RawMessage(`{}`)}
+						switch request.Method {
+						case "thread/resume":
+							response.Error = &rpcError{Code: -32600, Message: "thread occupied already has an active writer"}
+						case "thread/unsubscribe":
+							response.Error = &rpcError{Code: -32600, Message: message}
+						}
+						c.receive(response)
+						continue
+					}
 					failure := message
 					if request.Method != "thread/resume" {
 						failure = "history unavailable"
@@ -113,6 +126,9 @@ func TestOpenThreadPreservesErrors(t *testing.T) {
 			want := "thread/resume: thread missing"
 			if message != "thread missing" {
 				want = "thread/read: history unavailable"
+			}
+			if message == "unsubscribe failed" {
+				want = "thread/unsubscribe: unsubscribe failed"
 			}
 			if err == nil || err.Error() != want || s.opened["occupied"] {
 				t.Fatalf("读取错误或恢复状态不符: %v", err)

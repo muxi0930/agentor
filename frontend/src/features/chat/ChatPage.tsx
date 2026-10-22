@@ -167,7 +167,9 @@ export function ChatPage({ settings, onSettings, status, openSettings, sidebarCo
               if (!supportsImages) { chat.setError("请先选择支持图片输入的模型"); return; }
               void chat.pasteImages(images);
             }} onKeyDown={event => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!invalidImages) void chat.send(); }
+              // WebKit 可能先结束组合输入再触发确认回车，此时仍以 229 标记输入法按键
+              if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+              if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!invalidImages) void chat.send(); }
             }} />
             {invalidImages && <p className="text-xs text-destructive">当前模型不支持图片，请选择支持图片的模型后再发送。</p>}
             <div className="mt-2 flex flex-wrap items-center gap-2">

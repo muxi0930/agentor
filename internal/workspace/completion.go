@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -9,8 +10,23 @@ import (
 )
 
 type StepCompletion struct {
-	Completed   bool   // 是否已完成
-	CompletedAt string // 完成时间，未完成时为空
+	Completed    bool   // 是否已完成
+	CompletedAt  string // 完成时间，未完成时为空
+	DispatchedAt string // 最后一次派发时间
+}
+
+// CompleteStep 手动完成步骤并汇总所属功能状态
+func (s *Service) CompleteStep(stepID string) (State, error) {
+	return s.mutate(func(state *State) error {
+		_, _, _, step := findStep(state, stepID)
+		if step == nil {
+			return errors.New("步骤不存在")
+		}
+		if !step.Completed {
+			step.Completed, step.CompletedAt = true, time.Now().UTC().Format(time.RFC3339Nano)
+		}
+		return nil
+	})
 }
 
 // SyncCompletion 根据各步骤最后一次派发的执行记录同步完成状态
@@ -28,6 +44,12 @@ func (s *Service) SyncCompletion(latest map[string]StepCompletion) error {
 				for i := range feature.Steps {
 					step := &feature.Steps[i]
 					if completion, ok := latest[step.ID]; ok {
+						// 保留派发之后的完成标记，避免旧执行记录在后续保存时覆盖
+						completedAt, _ := time.Parse(time.RFC3339Nano, step.CompletedAt)
+						dispatchedAt, err := time.Parse(time.RFC3339Nano, completion.DispatchedAt)
+						if step.Completed && err == nil && completedAt.After(dispatchedAt) {
+							continue
+						}
 						step.Completed, step.CompletedAt = completion.Completed, completion.CompletedAt
 					}
 				}

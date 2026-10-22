@@ -1,7 +1,7 @@
 import { PageContent, PageHeader } from "@/components/ui/page";
 import { type ComponentProps, type ReactNode, useEffect, useState } from "react";
 import { Events } from "@wailsio/runtime";
-import { ArrowUp, Play, RotateCcw, Square } from "lucide-react";
+import { ArrowUp, Copy, MessageSquare, Play, RotateCcw, Square } from "lucide-react";
 import * as Tasks from "../../../bindings/agentor/internal/tasks/service";
 import * as Files from "../../../bindings/agentor/internal/artifact/service";
 import type { State } from "../../../bindings/agentor/internal/tasks/models";
@@ -16,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MarkdownView } from "@/features/chat/MarkdownView";
 import { AttachmentView } from "@/features/chat/AttachmentView";
 import { permissionLabels } from "@/features/accounts/PermissionSelect";
@@ -24,7 +26,7 @@ import { errorText } from "@/app/errors";
 
 export const executionLabels:Record<string,string>={queued:"排队中",running:"运行中",completed:"已完成",error:"失败",interrupted:"已中断",cancelled:"已取消"};
 
-export function ExecutionPanel({header,information,step,settings,status,onError,focusExecutionId}:{header:ComponentProps<typeof PageHeader>;information:ReactNode;step:Step;settings:Settings;status?:Status;onError:(message:string)=>void;focusExecutionId?:string}){
+export function ExecutionPanel({header,information,step,settings,status,onError,onOpenThread,focusExecutionId}:{header:ComponentProps<typeof PageHeader>;information:ReactNode;step:Step;settings:Settings;status?:Status;onError:(message:string)=>void;onOpenThread:(threadId:string)=>void;focusExecutionId?:string}){
   const [tab,setTab]=useState("information");
   const [state,setState]=useState<State>(),[selected,setSelected]=useState("");
   const [instruction,setInstruction]=useState(""),[criteria,setCriteria]=useState(""),[timeout,setTimeout]=useState("");
@@ -57,7 +59,20 @@ export function ExecutionPanel({header,information,step,settings,status,onError,
     {active&&<form className="flex gap-2" onSubmit={event=>{event.preventDefault();void run(async()=>{await Tasks.SteerExecution(active.id,steer);setSteer("");});}}><Input aria-label="追加步骤指令" value={steer} onChange={event=>setSteer(event.target.value)} placeholder="给当前执行追加指令…"/><Button type="submit" variant="outline" size="icon" aria-label="追加步骤指令" disabled={busy||!steer.trim()||active.stopRequested}><ArrowUp/></Button></form>}
   </CardContent></Card></TabsContent>
     <TabsContent value="history"><Card><CardHeader><CardTitle className="text-base">执行记录</CardTitle></CardHeader><CardContent>
-    {executions.length>0?<div className="space-y-3"><div className="max-h-48 space-y-2 overflow-y-auto">{executions.map(execution=><div key={execution.id} className={`flex items-center gap-2 rounded-md border p-2 ${current?.id===execution.id?"bg-accent":""}`}><Button variant="ghost" className="h-auto min-w-0 flex-1 justify-start p-1 text-left" onClick={()=>setSelected(execution.id)}><span className="truncate text-xs">{new Date(execution.createdAt).toLocaleString()} · {execution.instruction||"按步骤提示词执行"}</span></Button><Badge variant={execution.status==="error"?"destructive":"outline"}>{executionLabels[execution.status]||execution.status}</Badge>{execution.status==="queued"&&<Button size="xs" variant="ghost" onClick={()=>void run(()=>Tasks.StopExecution(execution.id))}>取消排队</Button>}</div>)}</div>
+    {executions.length>0?<div className="space-y-3"><div className="max-h-48 overflow-y-auto">
+      <Table aria-label="步骤执行记录">
+        <TableHeader><TableRow><TableHead>时间</TableHead><TableHead>标题</TableHead><TableHead>状态</TableHead><TableHead className="text-right">动作</TableHead></TableRow></TableHeader>
+        <TableBody>{executions.map(execution=><TableRow key={execution.id} data-state={current?.id===execution.id?"selected":undefined} className="cursor-pointer" onClick={()=>setSelected(execution.id)}>
+          <TableCell className="text-xs text-muted-foreground">{new Date(execution.createdAt).toLocaleString()}</TableCell>
+          <TableCell className="min-w-40 whitespace-normal break-words"><Button variant="link" className="h-auto max-w-full justify-start whitespace-normal break-words p-0 text-left" onClick={()=>setSelected(execution.id)}>{execution.instruction||"按步骤提示词执行"}</Button></TableCell>
+          <TableCell><div className="flex items-center gap-2"><Badge variant={execution.status==="error"?"destructive":"outline"}>{executionLabels[execution.status]||execution.status}</Badge>{execution.status==="queued"&&<Button size="xs" variant="ghost" onClick={event=>{event.stopPropagation();void run(()=>Tasks.StopExecution(execution.id));}}>取消排队</Button>}</div></TableCell>
+          <TableCell><div className="flex justify-end gap-2">
+            <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label="复制sessionId" disabled={!execution.threadId} onClick={event=>{event.stopPropagation();void navigator.clipboard.writeText(execution.threadId).catch(error=>onError(errorText(error)));}}/>}><Copy aria-hidden="true"/></TooltipTrigger><TooltipContent>复制sessionId</TooltipContent></Tooltip>
+            <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label="跳转到会话内" disabled={!execution.threadId} onClick={event=>{event.stopPropagation();onOpenThread(execution.threadId);}}/>}><MessageSquare aria-hidden="true"/></TooltipTrigger><TooltipContent>跳转到会话内</TooltipContent></Tooltip>
+          </div></TableCell>
+        </TableRow>)}</TableBody>
+      </Table>
+    </div>
       {current&&<><div className="flex flex-wrap gap-2 text-xs text-muted-foreground"><span>{current.model} · {current.effort||"默认强度"}</span><span>{permissionLabels[current.permission]}</span><span>来源：{current.source.type}</span></div>{current.error&&<p className="whitespace-pre-wrap text-sm text-destructive">{current.error}</p>}<Tabs defaultValue="messages"><TabsList><TabsTrigger value="messages">执行对话</TabsTrigger><TabsTrigger value="result">结果与产物</TabsTrigger><TabsTrigger value="context">执行上下文</TabsTrigger></TabsList><TabsContent value="messages"><TaskConversation key={current.threadId} threadId={current.threadId} turnId={current.turnId} running={current.status==="running"} status={status} onError={onError} onFollowup={text=>{if(active)setSteer(text);else setInstruction(text);setTab("manual");}}/></TabsContent><TabsContent value="result" className="space-y-4">{current.result?<MarkdownView text={current.result} onError={onError}/>:<p className="text-sm text-muted-foreground">{current.status==="running"||current.status==="queued"?"等待执行结果…":"本次没有最终文本结果。"}</p>}{artifacts.length>0&&<AttachmentView files={artifacts} onError={onError}/>}</TabsContent><TabsContent value="context"><MarkdownView text={[`## 项目：${current.context.projectName}`,current.context.sharedContext,current.context.projectPrompt,current.context.structure,`## 功能：${current.context.featureTitle}`,current.context.featureDescription,current.context.featureContext,current.context.featurePrompt,`## 步骤：${current.context.step.title}`,current.context.step.description,current.context.step.prompt,`## 本次指令\n${current.instruction}`,`## 完成标准\n${current.completionCriteria}`,`## 知识文档\n${current.context.documents?.map(document=>`- ${document.title}`).join("\n")||"暂无"}`].filter(Boolean).join("\n\n")} onError={onError}/></TabsContent></Tabs></>}
     </div>:<p className="text-sm text-muted-foreground">暂无执行记录。</p>}
   </CardContent></Card></TabsContent>

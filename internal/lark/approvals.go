@@ -247,7 +247,11 @@ func approvalBody(approval codex.Approval) string {
 		parts = append(parts, "请在原会话发送 `/answer "+approval.ID+" {\"问题ID\":[\"答案\"]}`，或在桌面问答中心提交。")
 	}
 	if approval.Method == "mcpServer/elicitation/request" {
-		parts = append(parts, approval.Message, approval.URL, approval.SchemaJSON, "发送 `/elicitation "+approval.ID+" JSON` 提交回答，或在桌面继续。")
+		instruction := "发送 `/elicitation " + approval.ID + " JSON` 提交回答，或在桌面继续。"
+		if isEmptyElicitationForm(approval) {
+			instruction = "此授权无需填写内容，请点击「同意」「拒绝」或「取消」。"
+		}
+		parts = append(parts, approval.Message, approval.URL, approval.SchemaJSON, instruction)
 	}
 	body := []rune(strings.Join(parts, "\n\n"))
 	if len(body) > 6000 {
@@ -270,14 +274,54 @@ func approvalCard(approval codex.Approval, key string) map[string]any {
 	}
 	if approval.Method == "mcpServer/elicitation/request" {
 		options = []codex.DecisionOption{{Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}
+		if isEmptyElicitationForm(approval) {
+			options = append([]codex.DecisionOption{{Value: "accept", Label: "同意"}}, options...)
+		}
 	}
 	if approval.Method == "item/tool/requestUserInput" {
 		options = nil
 	}
+	columns := make([]any, 0, len(options))
 	for _, option := range options {
-		elements = append(elements, map[string]any{"tag": "button", "text": map[string]string{"tag": "plain_text", "content": option.Label}, "type": "default", "behaviors": []any{map[string]any{"type": "callback", "value": map[string]string{"routeKey": key, "decision": option.Value}}}})
+		button := map[string]any{"tag": "button", "text": map[string]string{"tag": "plain_text", "content": option.Label}, "type": "default", "behaviors": []any{map[string]any{"type": "callback", "value": map[string]string{"routeKey": key, "decision": option.Value}}}}
+		columns = append(columns, map[string]any{"tag": "column", "width": "auto", "elements": []any{button}})
+	}
+	if len(columns) > 0 {
+		// 使用第二版分栏容器保持按钮同排，关闭窄屏流式换行
+		elements = append(elements, map[string]any{"tag": "column_set", "flex_mode": "none", "horizontal_spacing": "8px", "columns": columns})
 	}
 	return card("Codex 审批与问答", elements)
+}
+
+// isEmptyElicitationForm 仅识别无需输入且没有额外约束的明确空对象表单
+func isEmptyElicitationForm(approval codex.Approval) bool {
+	if approval.Method != "mcpServer/elicitation/request" || (approval.Mode != "form" && approval.Mode != "openai/form") {
+		return false
+	}
+	var schema map[string]json.RawMessage
+	if json.Unmarshal([]byte(approval.SchemaJSON), &schema) != nil {
+		return false
+	}
+	// 未识别的结构可能包含组合约束，不能仅凭解析后的 Fields 为空提供同意
+	for key := range schema {
+		switch key {
+		case "type", "properties", "required", "title", "description":
+		default:
+			return false
+		}
+	}
+	var kind string
+	var properties map[string]json.RawMessage
+	if json.Unmarshal(schema["type"], &kind) != nil || kind != "object" || json.Unmarshal(schema["properties"], &properties) != nil || properties == nil || len(properties) != 0 {
+		return false
+	}
+	if raw, exists := schema["required"]; exists {
+		var required []string
+		if json.Unmarshal(raw, &required) != nil || required == nil || len(required) != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // respondRoute 核验接收者和当前请求后回复原审批
@@ -334,7 +378,14 @@ func (s *Service) respondRoute(key string, source tasks.Source, answer, command 
 		return s.runtime.RespondPermissions(approval.ID, answer == "accept", "turn")
 	}
 	if approval.Method == "mcpServer/elicitation/request" {
-		return s.runtime.AnswerElicitation(approval.ID, answer, "")
+		content := ""
+		if answer == "accept" {
+			if !isEmptyElicitationForm(approval) {
+				return errors.New("该问答需要填写内容，请提交 JSON 回答或在桌面继续")
+			}
+			content = "{}"
+		}
+		return s.runtime.AnswerElicitation(approval.ID, answer, content)
 	}
 	return s.runtime.RespondApproval(approval.ID, answer)
 }
@@ -359,8 +410,8 @@ func (s *Service) cardAction(_ context.Context, generation uint64, event *callba
 		response.Toast.Content = err.Error()
 		return response, nil
 	}
+	// 卡片由状态同步统一更新，避免回调覆盖原审批内容或较新的结果
 	response.Toast = &callback.Toast{Type: "success", Content: "已回复审批，最终执行结果仍以任务记录为准"}
-	response.Card = &callback.Card{Type: "raw", Data: card("审批已处理", []any{map[string]string{"tag": "markdown", "content": "审批已回复，等待 Codex 执行结果。"}})}
 	return response, nil
 }
 
@@ -372,10 +423,14 @@ func (s *Service) updateApprovalCard(route ApprovalRoute, status string) {
 	}
 	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 	defer cancel()
-	content := jsonText(card("审批状态", []any{map[string]string{"tag": "markdown", "content": "审批 ID：" + route.ApprovalID + "\n\n状态：" + status}}))
-	response, err := client.Im.V1.Message.Patch(ctx, larkim.NewPatchMessageReqBuilder().MessageId(route.MessageID).Body(larkim.NewPatchMessageReqBodyBuilder().Content(content).Build()).Build())
-	if err == nil && !response.Success() {
-		err = fmt.Errorf("更新审批卡片失败（%d）：%s", response.Code, response.Msg)
+	notification, err := s.tasks.GetNotification(route.NotificationID)
+	if err == nil {
+		content := jsonText(card("审批状态", []any{map[string]string{"tag": "markdown", "content": notification.Body + "\n\n状态：" + status}}))
+		var response *larkim.PatchMessageResp
+		response, err = client.Im.V1.Message.Patch(ctx, larkim.NewPatchMessageReqBuilder().MessageId(route.MessageID).Body(larkim.NewPatchMessageReqBodyBuilder().Content(content).Build()).Build())
+		if err == nil && !response.Success() {
+			err = fmt.Errorf("更新审批卡片失败（%d）：%s", response.Code, response.Msg)
+		}
 	}
 	if err != nil {
 		s.mu.Lock()

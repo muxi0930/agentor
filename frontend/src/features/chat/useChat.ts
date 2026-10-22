@@ -7,20 +7,10 @@ import type { Attachment } from "../../../bindings/agentor/internal/artifact/mod
 import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
 import type { Conversation, Item, Model, Status, Thread } from "../../../bindings/agentor/internal/codex/models";
 import { errorText } from "@/app/errors";
-import { applyNotification, inputStatus, mergeItem, mergeTurn, type ConversationState, type Notification } from "./state";
+import { applyNotification, cacheConversation, inputStatus, mergeItem, mergeTurn, type ConversationState, type Notification } from "./state";
 
 function fromConversation(value: Conversation): ConversationState {
   return { thread: value.thread, turns: [...(value.turns.data || [])].reverse(), cursor: value.turns.nextCursor, activeTurnId: value.activeTurnId, readOnly: value.readOnly };
-}
-
-function cacheConversation(old: Record<string, ConversationState>, id: string, value: ConversationState): Record<string, ConversationState> {
-  const next = Object.fromEntries(Object.entries(old).filter(([key]) => key !== id));
-  next[id] = value;
-  for (const key of Object.keys(next)) {
-    if (Object.keys(next).length <= 8) break;
-    if (key !== id && !next[key].activeTurnId) delete next[key];
-  }
-  return next;
 }
 
 export function useChat(settings: Settings, onSettings: (value: Settings) => void, status?: Status) {

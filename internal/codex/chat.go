@@ -293,39 +293,51 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// OpenThread 恢复线程并读取分页历史
-func (s *Service) OpenThread(threadID string) (Conversation, error) {
-	var result Conversation
+// OpenThread 检查占用后加载历史，只读会话在读取后取消本连接订阅
+func (s *Service) OpenThread(threadID string) (result Conversation, err error) {
+	s.subscriptionMu.Lock()
+	defer s.subscriptionMu.Unlock()
+
 	s.mu.Lock()
 	opened := s.opened[threadID]
 	s.mu.Unlock()
 	method := "thread/read"
 	params := map[string]any{"threadId": threadID}
 	if !opened {
+		if err := s.makeSubscriptionRoom(threadID); err != nil {
+			return result, err
+		}
+
 		method = "thread/resume"
-		var err error
 		params, err = s.resumeParameters(threadID)
 		if err != nil {
 			return result, err
 		}
 	}
-	if err := s.call(method, params, &result); err != nil {
-		if opened || !strings.Contains(err.Error(), "thread "+threadID+" already has an active writer") {
-			return result, err
+	if callErr := s.call(method, params, &result); callErr != nil {
+		if opened || !strings.Contains(callErr.Error(), "thread "+threadID+" already has an active writer") {
+			return result, callErr
 		}
 
-		// 写入权被其他应用持有时，仅通过只读接口加载历史
+		defer func() {
+			unsubscribeErr := s.unsubscribeThread(threadID)
+			if err == nil {
+				err = unsubscribeErr
+			}
+		}()
 		if err := s.call("thread/read", map[string]any{"threadId": threadID}, &result); err != nil {
 			return result, err
 		}
 		result.ReadOnly = true
+	} else if !opened {
+		s.mu.Lock()
+		s.opened[threadID] = true
+		if s.data.GetSettings().ManagedThreads[threadID] == "" {
+			s.subscriptions = append(s.subscriptions, threadID)
+		}
+		s.mu.Unlock()
 	}
 
-	s.mu.Lock()
-	if !result.ReadOnly {
-		s.opened[threadID] = true
-	}
-	s.mu.Unlock()
 	turns, err := s.ListTurns(threadID, "")
 	result.Turns = turns
 	if err == nil {
@@ -356,10 +368,6 @@ func (s *Service) ListTurns(threadID, cursor string) (TurnPage, error) {
 
 // StartTurn 按会话实际权限发起一轮普通对话
 func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (Turn, error) {
-	if err := s.EnsureOpen(threadID); err != nil {
-		return Turn{}, err
-	}
-
 	settings := s.data.GetSettings()
 	cwd := settings.ChatThreads[threadID]
 	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd)
@@ -506,6 +514,14 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 		return Thread{}, err
 	}
 
+	s.subscriptionMu.Lock()
+	defer s.subscriptionMu.Unlock()
+	if role == "" {
+		if err := s.makeSubscriptionRoom(""); err != nil {
+			return Thread{}, err
+		}
+	}
+
 	params := map[string]any{"cwd": cwd, "sandbox": permission, "approvalPolicy": "on-request", "approvalsReviewer": "user", "historyMode": "paginated"}
 	if role != "" && role != "step" {
 		params["approvalPolicy"] = "never"
@@ -526,6 +542,9 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 	if err == nil {
 		s.mu.Lock()
 		s.opened[result.Thread.ID] = true
+		if role == "" {
+			s.subscriptions = append(s.subscriptions, result.Thread.ID)
+		}
 		s.mu.Unlock()
 		if role != "" {
 			err = s.data.RememberManagedThread(result.Thread.ID, result.Thread.Cwd, role)
@@ -546,14 +565,17 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 			prefix = "[AgentorPipe]"
 		}
 		if prefix != "" {
-			name := prefix
-			if title := strings.TrimSpace(result.Thread.Name); title != "" {
-				name += " " + title
-			}
-			if err = s.RenameThread(result.Thread.ID, name); err != nil {
+			name := &managedThreadName{prefix: prefix}
+			s.mu.Lock()
+			s.threadNames[result.Thread.ID] = name
+			c := s.client
+			s.mu.Unlock()
+			name.mu.Lock()
+			err = name.apply(s.ctx, c, &result.Thread)
+			name.mu.Unlock()
+			if err != nil {
 				return result.Thread, err
 			}
-			result.Thread.Name = name
 		}
 	}
 	return result.Thread, err
@@ -569,6 +591,9 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 	if err != nil {
 		return Turn{}, err
 	}
+
+	s.subscriptionMu.Lock()
+	defer s.subscriptionMu.Unlock()
 
 	s.mu.Lock()
 	if s.closing || s.status.Phase != "ready" {
@@ -589,6 +614,14 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 	}
 	s.activeText[threadID] = text
 	s.mu.Unlock()
+	if err := s.ensureOpen(threadID); err != nil {
+		s.mu.Lock()
+		delete(s.active, threadID)
+		delete(s.activeText, threadID)
+		s.mu.Unlock()
+		return Turn{}, err
+	}
+
 	params := map[string]any{"threadId": threadID, "input": input, "clientUserMessageId": clientMessageID}
 	params["sandboxPolicy"] = sandboxPolicy(permission, cwd)
 	params["cwd"] = cwd
@@ -666,6 +699,23 @@ func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]I
 
 // trackNotification 合并当前连接的线程状态与用量事件
 func (s *Service) trackNotification(generation uint64, message packet) {
+	if message.Method == "thread/closed" {
+		var params struct {
+			ThreadID string `json:"threadId"` // 已卸载的会话标识
+		}
+		if json.Unmarshal(message.Params, &params) != nil {
+			return
+		}
+
+		s.mu.Lock()
+		if s.status.Generation == generation {
+			s.forgetThreadLocked(params.ThreadID)
+		}
+		s.mu.Unlock()
+		return
+	}
+	s.trackManagedThreadName(generation, message)
+
 	if message.Method == "item/started" || message.Method == "item/completed" {
 		var params struct {
 			ThreadID string `json:"threadId"` // 所属会话标识

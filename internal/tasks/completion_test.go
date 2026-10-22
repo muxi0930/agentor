@@ -2,11 +2,68 @@ package tasks
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"agentor/internal/appdata"
 	"agentor/internal/workspace"
 )
+
+// TestManualCompletionPreservesExecutions 验证手动完成不更改执行记录且后续任务保存不会覆盖完成状态
+func TestManualCompletionPreservesExecutions(t *testing.T) {
+	data := testData(t)
+	root := data.GetInfo().DataDirectory
+	initial := workspace.State{Projects: []workspace.Project{{ID: "p", Versions: []workspace.Version{{ID: "v", Features: []workspace.Feature{
+		{ID: "f", Steps: []workspace.Step{{ID: "a"}}},
+	}}}}}}
+	if err := appdata.WriteJSON(filepath.Join(root, "workspace.json"), initial); err != nil {
+		t.Fatal(err)
+	}
+	work, err := workspace.NewService(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := NewService(data, nil, work, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.ServiceShutdown()
+	s.state.Executions = []Execution{
+		{ID: "a1", StepID: "a", Status: "error", Result: "历史结果", CreatedAt: "2026-10-21T01:00:00Z"},
+		{ID: "a2", StepID: "a", Status: "running", ThreadID: "thread", CreatedAt: "2026-10-21T02:00:00Z"},
+	}
+	s.mu.Lock()
+	err = s.persistLocked()
+	s.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := s.GetState()
+	if _, err := work.CompleteStep("a"); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(s.GetState(), before) {
+		t.Fatal("手动完成不应改变执行记录或停止任务")
+	}
+	s.mu.Lock()
+	err = s.persistLocked()
+	s.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := workspace.NewService(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feature := reopened.GetState().Projects[0].Versions[0].Features[0]
+	if !feature.Completed || !feature.Steps[0].Completed {
+		t.Fatal("任务保存后应继续保留手动完成状态", feature)
+	}
+	var saved State
+	if err := appdata.ReadJSON(filepath.Join(root, "tasks.json"), &saved); err != nil || !reflect.DeepEqual(saved, before) {
+		t.Fatal("持久化执行记录不应发生变化", err)
+	}
+}
 
 // TestCompletionWithoutStartupBackfill 验证启动不回填历史状态且后续重复派发仍正常同步
 func TestCompletionWithoutStartupBackfill(t *testing.T) {

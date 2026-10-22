@@ -6,6 +6,18 @@ export type ConversationState = {
   tokenUsage?: TokenUsage; turnDiffs?: Record<string, string>; transientError?: { message: string; willRetry: boolean; turnId?: string };
 };
 
+export const conversationCacheLimit = 50;
+
+export function cacheConversation(old: Record<string, ConversationState>, id: string, value: ConversationState): Record<string, ConversationState> {
+  const next = { ...old, [id]: value };
+  const keys = Object.keys(next);
+  if (keys.length > conversationCacheLimit) {
+    const oldest = keys.find(key => key !== id && !next[key].activeTurnId) || keys.find(key => key !== id);
+    if (oldest) delete next[oldest];
+  }
+  return next;
+}
+
 export function inputStatus(loading: boolean, conversation?: ConversationState): string {
   if (loading) return "正在加载会话，暂时无法输入，请稍候…";
   if (!conversation) return "会话尚未成功读取，暂时无法输入，请重新打开会话。";

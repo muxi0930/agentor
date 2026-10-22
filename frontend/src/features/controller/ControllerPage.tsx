@@ -13,7 +13,7 @@ import type { Settings } from "../../../bindings/agentor/internal/appdata/models
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,7 +26,7 @@ import { executionLabels } from "@/features/workspace/ExecutionPanel";
 import { locate } from "@/features/workspace/selection";
 import { errorText } from "@/app/errors";
 
-export function ControllerPage({settings,onSettings,status,focusRequestId,openSettings}:{settings:Settings;onSettings:(settings:Settings)=>void;status?:Status;focusRequestId?:string;openSettings:()=>void}){
+export function ControllerPage({settings,onSettings,status,focusRequestId,openSettings,onOpenThread}:{settings:Settings;onSettings:(settings:Settings)=>void;status?:Status;focusRequestId?:string;openSettings:()=>void;onOpenThread:(threadId:string)=>void}){
   const [state,setState]=useState<State>(),[work,setWork]=useState<WorkState>();
   const [text,setText]=useState(""),[projectId,setProject]=useState(""),[stepId,setStep]=useState("");
   const [selected,setSelected]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
@@ -50,7 +50,7 @@ export function ControllerPage({settings,onSettings,status,focusRequestId,openSe
   const steps=(work?.projects||[]).filter(project=>!projectId||project.id===projectId).flatMap(project=>(project.versions||[]).flatMap(version=>(version.features||[]).flatMap(feature=>(feature.steps||[]).map(step=>({id:step.id,label:`${project.name} / ${feature.title} / ${step.title}`})))));
   useEffect(()=>{if(focusRequestId&&focusedRequestExists)setSelected(focusRequestId);},[focusRequestId,focusedRequestExists]);
   async function run(action:()=>Promise<void>){setBusy(true);setError("");try{await action();await refresh();}catch(error){setError(errorText(error));}finally{setBusy(false);}}
-  return <Page><PageHeader title="控制中心" description="查询工作、安排步骤、查看结果。请求按顺序处理，正式步骤共用执行队列。" actions={<><Badge variant="outline">{active?"正在处理":"空闲"}</Badge><Button variant="outline" size="sm" disabled={busy||!!active||status?.phase!=="ready"} onClick={()=>{setRebuilt(false);void run(async()=>{await Tasks.RebuildControllerContext();setRebuilt(true);});}}><RotateCcw className={rebuilt?"text-green-700 dark:text-green-400":undefined}/><span aria-live="polite" className={rebuilt?"text-green-700 dark:text-green-400":undefined}>{rebuilt?"重建成功":"重建上下文"}</span></Button></>}/><PageContent>
+  return <Page><PageHeader title="控制中心" description="查询工作、安排步骤、查看结果。请求按顺序处理，正式步骤共用执行队列。" actions={<><Badge variant="outline">{active?"正在处理":"空闲"}</Badge><Button variant="outline" size="sm" disabled={busy||!!active||status?.phase!=="ready"} onClick={()=>{setRebuilt(false);void run(async()=>{await Tasks.RebuildControllerContext();setRebuilt(true);});}}><RotateCcw className={rebuilt?"text-green-700 dark:text-green-400":undefined}/><span aria-live="polite" className={rebuilt?"text-green-700 dark:text-green-400":undefined}>{rebuilt?"重建成功":"重建Session"}</span></Button></>}/><PageContent>
     {error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {state?.paused&&<div className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"><p>排队任务等待手动恢复。</p><Button size="sm" disabled={busy||status?.phase!=="ready"} onClick={()=>void run(()=>Tasks.ResumeQueue())}>恢复队列</Button></div>}
     <Card><CardHeader><CardTitle className="text-base">安排工作</CardTitle><CardDescription>控制中心只读项目文件，通过工作工具创建定义与派发任务。无法确定目标时会先询问。</CardDescription></CardHeader><CardContent><form className="space-y-4" onSubmit={event=>{event.preventDefault();void run(async()=>{const request=await Tasks.SubmitRequest({text,projectId,stepId,model:settings.model,effort:settings.effort,source:{type:"desktop",appId:"",chatId:"",senderId:"",messageId:crypto.randomUUID(),replyToMessageId:""}});setSelected(request.id);setText("");});}}>
@@ -71,7 +71,7 @@ export function ControllerPage({settings,onSettings,status,focusRequestId,openSe
               </div>
             </div>
     </form></CardContent></Card>
-    <Card><CardHeader><CardTitle className="text-base">请求与汇报</CardTitle></CardHeader><CardContent>
+    <Card><CardHeader className="items-center"><CardTitle className="text-base">请求与汇报</CardTitle><CardAction><Button variant="outline" size="sm" disabled={!state?.controllerThreadId} onClick={()=>{if(state?.controllerThreadId)onOpenThread(state.controllerThreadId);}}>跳转到当前活跃Session</Button></CardAction></CardHeader><CardContent>
       <div className="max-h-64 overflow-y-auto"><Table className="table-fixed">
         <TableHeader><TableRow><TableHead className="w-44">时间</TableHead><TableHead className="w-28">来源</TableHead><TableHead>内容</TableHead></TableRow></TableHeader>
         <TableBody>{requests.map(request=><TableRow key={request.id} className="cursor-pointer" data-state={current?.id===request.id?"selected":undefined} onClick={()=>setSelected(request.id)}>

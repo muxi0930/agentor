@@ -1,14 +1,33 @@
 package codex
 
+import (
+	"errors"
+	"slices"
+)
+
+const ThreadSubscriptionLimit = 50 // 普通会话订阅上限，与前端历史缓存保持一致
+
 // EnsureOpen 在正式执行前恢复线程，已打开的新线程无需读取尚未落盘的历史
 //
 //wails:ignore
 func (s *Service) EnsureOpen(threadID string) error {
+	s.subscriptionMu.Lock()
+	defer s.subscriptionMu.Unlock()
+
+	return s.ensureOpen(threadID)
+}
+
+// ensureOpen 在订阅锁内恢复线程并记录普通会话的订阅顺序
+func (s *Service) ensureOpen(threadID string) error {
 	s.mu.Lock()
 	opened := s.opened[threadID]
 	s.mu.Unlock()
 	if opened {
 		return nil
+	}
+
+	if err := s.makeSubscriptionRoom(threadID); err != nil {
+		return err
 	}
 
 	params, err := s.resumeParameters(threadID)
@@ -21,8 +40,61 @@ func (s *Service) EnsureOpen(threadID string) error {
 
 	s.mu.Lock()
 	s.opened[threadID] = true
+	if s.data.GetSettings().ManagedThreads[threadID] == "" {
+		s.subscriptions = append(s.subscriptions, threadID)
+	}
 	s.mu.Unlock()
 	return nil
+}
+
+// makeSubscriptionRoom 在订阅锁内为普通会话淘汰最早订阅的空闲会话
+func (s *Service) makeSubscriptionRoom(threadID string) error {
+	if s.data.GetSettings().ManagedThreads[threadID] != "" {
+		return nil
+	}
+
+	s.mu.Lock()
+	if len(s.subscriptions) < ThreadSubscriptionLimit {
+		s.mu.Unlock()
+		return nil
+	}
+
+	oldest := ""
+	for _, id := range s.subscriptions {
+		if s.active[id] == "" {
+			oldest = id
+			break
+		}
+	}
+	s.mu.Unlock()
+	if oldest == "" {
+		return errors.New("普通会话订阅已达 50 条，且全部正在运行，请等待会话结束后重试")
+	}
+
+	return s.unsubscribeThread(oldest)
+}
+
+// unsubscribeThread 在订阅锁内取消本连接订阅并清理打开状态
+func (s *Service) unsubscribeThread(threadID string) error {
+	s.mu.Lock()
+	generation := s.status.Generation
+	s.mu.Unlock()
+	if err := s.call("thread/unsubscribe", map[string]string{"threadId": threadID}, nil); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	if s.status.Generation == generation {
+		s.forgetThreadLocked(threadID)
+	}
+	s.mu.Unlock()
+	return nil
+}
+
+// forgetThreadLocked 在状态锁内移除会话的本地订阅记录
+func (s *Service) forgetThreadLocked(threadID string) {
+	delete(s.opened, threadID)
+	s.subscriptions = slices.DeleteFunc(s.subscriptions, func(id string) bool { return id == threadID })
 }
 
 // resumeParameters 将独立账号当前的提供方与模型应用到共享历史线程

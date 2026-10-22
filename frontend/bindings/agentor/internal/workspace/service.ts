@@ -17,6 +17,13 @@ export function BindKnowledge(projectID: string, nodeID: string, documentID: str
 }
 
 /**
+ * CompleteStep 手动完成步骤并汇总所属功能状态
+ */
+export function CompleteStep(stepID: string): $CancellablePromise<$models.State> {
+    return $Call.ByID(195723229, stepID);
+}
+
+/**
  * DeleteKnowledge 删除知识文档并移除所有绑定
  */
 export function DeleteKnowledge(projectID: string, documentID: string): $CancellablePromise<$models.State> {

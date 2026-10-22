@@ -1,6 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyNotification, inputStatus, mergeTurn, type ConversationState } from "../src/features/chat/state.ts";
+import { applyNotification, cacheConversation, conversationCacheLimit, inputStatus, mergeTurn, type ConversationState } from "../src/features/chat/state.ts";
+
+test("缓存最多保留 50 条，重复查看不改变顺序并优先淘汰空闲会话", () => {
+  let cache: Record<string, ConversationState> = {};
+  for (let i = 0; i < conversationCacheLimit; i++) {
+    cache = cacheConversation(cache, `thread-${i}`, { activeTurnId: i === 0 ? "turn" : "" } as ConversationState);
+  }
+  cache = cacheConversation(cache, "thread-1", { ...cache["thread-1"], readOnly: true });
+  assert.equal(Object.keys(cache).length, 50);
+  assert.equal(Object.keys(cache)[1], "thread-1");
+  cache = cacheConversation(cache, "next", { activeTurnId: "" } as ConversationState);
+  assert.equal(Object.keys(cache).length, 50);
+  assert.ok(cache["thread-0"]);
+  assert.ok(cache.next);
+  assert.equal(cache["thread-1"], undefined);
+});
+
+test("全部缓存会话活跃时仍保持 50 条上限且保留当前会话", () => {
+  let cache: Record<string, ConversationState> = {};
+  for (let i = 0; i <= conversationCacheLimit; i++) {
+    cache = cacheConversation(cache, `thread-${i}`, { activeTurnId: "turn" } as ConversationState);
+  }
+  assert.equal(Object.keys(cache).length, 50);
+  assert.equal(cache["thread-0"], undefined);
+  assert.ok(cache[`thread-${conversationCacheLimit}`]);
+});
 
 test("occupied history stays readable while sending is blocked until reopened", () => {
   const state = { turns: [{ id: "history", status: "completed", items: [] }], activeTurnId: "", readOnly: true } as unknown as ConversationState;

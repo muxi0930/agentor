@@ -29,10 +29,13 @@ export function MessageView({ item, files = [], streaming = false, onError }: { 
   }
   if (item.type === "reasoning" || item.type === "commandExecution") {
     const command = item.type === "commandExecution";
+    const title = command ? item.command || "执行命令" : "思考过程";
+    const characters = Array.from(title);
     const running = item.status === "inProgress" && (command || streaming);
     const reasoning = (item.summary || []).filter(part => part.trim()).join("\n") || (item.reasoningContent || []).filter(part => part.trim()).join("\n");
-    return <Trace><TraceCollapsible><TraceCollapsibleTrigger><TraceLine status={running ? "running" : item.status === "failed" ? "error" : undefined}><TraceIcon>{command ? <Terminal /> : <Brain />}</TraceIcon><TraceTitle>{command ? item.command || "执行命令" : "思考过程"}</TraceTitle>{command && <TraceDescription>{item.status}{item.durationMs != null ? ` · ${(item.durationMs / 1000).toFixed(1)}s` : ""}</TraceDescription>}</TraceLine></TraceCollapsibleTrigger>
-      <TraceCollapsibleContent>{command ? <><CodeView code={item.aggregatedOutput || "暂无输出"} language="终端输出" />{item.exitCode != null && <p className="text-xs">退出码 {item.exitCode}</p>}</> : <p className="whitespace-pre-wrap text-sm">{reasoning || (running ? "正在思考…" : "未提供思考摘要")}</p>}</TraceCollapsibleContent>
+    if (!command && !reasoning) return null;
+    return <Trace><TraceCollapsible><TraceCollapsibleTrigger><TraceLine status={running ? "running" : undefined}><TraceIcon>{command ? <Terminal /> : <Brain />}</TraceIcon><TraceTitle title={title}>{characters.length > 30 ? characters.slice(0, 30).join("") + "...." : title}</TraceTitle>{command && <TraceDescription><span className={item.status === "failed" ? "text-destructive" : undefined}>{item.status}</span>{item.durationMs != null ? ` · ${(item.durationMs / 1000).toFixed(3)}s` : ""}</TraceDescription>}</TraceLine></TraceCollapsibleTrigger>
+      <TraceCollapsibleContent>{command ? <><CodeView code={item.command || "执行命令"} language="完整命令" /><CodeView code={item.aggregatedOutput || "暂无输出"} language="终端输出" />{item.exitCode != null && <p className="text-xs">退出码 {item.exitCode}</p>}</> : <p className="whitespace-pre-wrap text-sm">{reasoning}</p>}</TraceCollapsibleContent>
     </TraceCollapsible></Trace>;
   }
   return <ToolView item={item} onError={onError} />;

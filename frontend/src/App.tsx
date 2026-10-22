@@ -154,12 +154,12 @@ export default function App() {
       {error && <div className="p-4"><Alert variant="destructive"><AlertDescription className="flex justify-between">{error}<Button variant="ghost" size="sm" onClick={() => setError("")}>关闭</Button></AlertDescription></Alert></div>}
       <main className="relative flex min-h-0 flex-1 overflow-hidden">
         {page === "settings" && <div className="size-full overflow-y-auto"><SettingsPage initialTab={settingsTab} info={info} settings={settings} onSettings={setSettings} status={status} onStatus={acceptStatus} onOpenThread={threadId => { void navigate("home", "chat").then(() => setFocusThread({ threadId })); }} /></div>}
-        {page==="controller"&&<div className="size-full overflow-y-auto"><ControllerPage openSettings={() => openSettings("controller")} settings={settings} onSettings={setSettings} status={status} focusRequestId={focusRequest}/></div>}
+        {page==="controller"&&<div className="size-full overflow-y-auto"><ControllerPage openSettings={() => openSettings("controller")} settings={settings} onSettings={setSettings} status={status} focusRequestId={focusRequest} onOpenThread={threadId => { void navigate("home", "chat").then(() => setFocusThread({ threadId })); }}/></div>}
         {page==="lark"&&<div className="size-full overflow-y-auto"><LarkPage onOpenRequest={requestId=>void openSource({requestId}).catch(error=>setError(errorText(error)))}/></div>}
         <div className={page === "home" && settings.mode === "chat" ? "flex size-full min-h-0" : "hidden"}>
           <ChatPage settings={settings} onSettings={setSettings} status={status} openSettings={() => openSettings()} sidebarContainer={sidebarBody} onActivate={()=>setPage("home")} focusThread={focusThread} />
         </div>
-        <div className={page === "home" && settings.mode === "workspace" ? "flex size-full min-h-0" : "hidden"}>{settings.mode==="workspace"&&<WorkspacePage key={workspaceKey} active={page==="home"} settings={settings} status={status} focusExecutionId={focusExecution} focusPipeline={focusPipeline} headerContainer={headerBody} sidebarContainer={sidebarBody} onActivate={()=>setPage("home")}/>}</div>
+        <div className={page === "home" && settings.mode === "workspace" ? "flex size-full min-h-0" : "hidden"}>{settings.mode==="workspace"&&<WorkspacePage key={workspaceKey} active={page==="home"} settings={settings} status={status} focusExecutionId={focusExecution} focusPipeline={focusPipeline} headerContainer={headerBody} sidebarContainer={sidebarBody} onActivate={()=>setPage("home")} onOpenThread={threadId => { void navigate("home", "chat").then(() => setFocusThread({ threadId })); }}/>}</div>
       </main>
     </SidebarInset>
   </SidebarProvider>;
