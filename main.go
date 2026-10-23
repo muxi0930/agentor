@@ -19,7 +19,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-var version string = "0.2.5" // 应用版本
+var version string = "0.2.6" // 应用版本
 
 //go:embed all:frontend/dist
 var assets embed.FS

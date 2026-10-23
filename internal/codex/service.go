@@ -364,7 +364,7 @@ func (s *Service) connect() (codexmodel.Status, error) {
 		UserAgent string `json:"userAgent"` // 原生初始化返回的客户端标识
 	}
 	err = c.request(ctx, "initialize", map[string]any{
-		"clientInfo":   map[string]string{"name": constant.AppDataApplicationName, "title": constant.AppDataApplicationName, "version": "0.1.1"},
+		"clientInfo":   map[string]string{"name": constant.AppDataApplicationName, "title": constant.AppDataApplicationName, "version": s.data.GetInfo().Version},
 		"capabilities": map[string]bool{"experimentalApi": true},
 	}, &initialized)
 	if err == nil {
