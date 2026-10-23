@@ -27,6 +27,7 @@ var (
 	ErrAppDataAgentTimeoutInvalid              = errors.New("最大执行时间必须为非负整数且不能超过计时范围")
 	ErrAppDataConcurrencyLimitInvalid          = errors.New("最大并发 agent 数必须为 1–50 的整数")
 	ErrAppDataThemeInvalid                     = errors.New("请选择浅色或深色主题")
+	ErrAppDataColorThemeInvalid                = errors.New("请选择默认、蓝、绿、紫、橙或玫瑰红配色")
 	ErrAppDataChatWidthInvalid                 = errors.New("请选择标准或更宽布局")
 	ErrAppDataModeUnknown                      = errors.New("未知工作模式")
 	ErrAppDataProjectDirectoryRequired         = errors.New("请选择项目目录")

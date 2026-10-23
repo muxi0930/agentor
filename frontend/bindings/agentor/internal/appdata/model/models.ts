@@ -134,6 +134,11 @@ export interface Settings {
     "theme": string;
 
     /**
+     * 界面配色方案
+     */
+    "colorTheme": string;
+
+    /**
      * 聊天消息区域宽度：standard 或 wide
      */
     "chatWidth": string;

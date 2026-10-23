@@ -7,6 +7,7 @@ type Settings struct {
 	ActiveAccountID     string                        `json:"activeAccountId"`     // 当前独立账号，空值表示尚未选择
 	AccountPreferences  map[string]AccountPreferences `json:"accountPreferences"`  // 每个连接身份的模型与权限偏好
 	Theme               string                        `json:"theme"`               // 界面主题
+	ColorTheme          string                        `json:"colorTheme"`          // 界面配色方案
 	ChatWidth           string                        `json:"chatWidth"`           // 聊天消息区域宽度：standard 或 wide
 	Mode                string                        `json:"mode"`                // 当前工作模式
 	ProjectDirectory    string                        `json:"projectDirectory"`    // 当前项目目录

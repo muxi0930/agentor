@@ -108,6 +108,13 @@ export function SetCodexPath(path: string): $CancellablePromise<model$0.Settings
 }
 
 /**
+ * SetColorTheme 保存界面配色方案
+ */
+export function SetColorTheme(theme: string): $CancellablePromise<model$0.Settings> {
+    return $Call.ByID(4294148042, theme);
+}
+
+/**
  * SetControllerSettings 保存控制中心提示词与执行者选择范围
  */
 export function SetControllerSettings(input: model$0.ControllerSettings): $CancellablePromise<model$0.Settings> {

@@ -19,6 +19,7 @@ type API interface {
 	SetAgentTimeoutSeconds(seconds int) (appdatamodel.Settings, error)                          // 保存功能子代理最大执行时间
 	SetMaxConcurrentAgents(limit int) (appdatamodel.Settings, error)                            // 保存工作队列功能任务的并发上限
 	SetTheme(theme string) (appdatamodel.Settings, error)                                       // 保存浅色或深色主题
+	SetColorTheme(theme string) (appdatamodel.Settings, error)                                  // 保存界面配色方案
 	SetChatWidth(width string) (appdatamodel.Settings, error)                                   // 保存聊天消息区域宽度
 	SetMode(mode string) (appdatamodel.Settings, error)                                         // 保存工作模式
 	SetProjectDirectory(path string) (appdatamodel.Settings, error)                             // 检查并保存当前项目目录
@@ -73,7 +74,7 @@ func NewService(version string) (*Service, error) {
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return nil, err
 	}
-	s := &Service{root: root, configPath: configPath, version: version, settings: appdatamodel.Settings{AgentTimeoutSeconds: constant.AppDataDefaultAgentTimeoutSeconds, Controller: appdatamodel.ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: constant.AppDataDefaultControllerPrompt}, Theme: constant.AppDataThemeLight, ChatWidth: constant.AppDataChatWidthStandard, Mode: constant.AppDataModeChat, ReuseCLI: true, PermissionMode: constant.AppDataPermissionWorkspaceWrite}}
+	s := &Service{root: root, configPath: configPath, version: version, settings: appdatamodel.Settings{AgentTimeoutSeconds: constant.AppDataDefaultAgentTimeoutSeconds, Controller: appdatamodel.ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: constant.AppDataDefaultControllerPrompt}, Theme: constant.AppDataThemeLight, ColorTheme: constant.AppDataColorThemeDefault, ChatWidth: constant.AppDataChatWidthStandard, Mode: constant.AppDataModeChat, ReuseCLI: true, PermissionMode: constant.AppDataPermissionWorkspaceWrite}}
 	if err := ReadJSON(filepath.Join(root, constant.AppDataSettingsFilename), &s.settings); err != nil {
 		return nil, err
 	}
@@ -150,6 +151,16 @@ func (s *Service) SetTheme(theme string) (appdatamodel.Settings, error) {
 	}
 
 	return s.update(func(settings *appdatamodel.Settings) { settings.Theme = theme })
+}
+
+// SetColorTheme 保存界面配色方案
+func (s *Service) SetColorTheme(theme string) (appdatamodel.Settings, error) {
+	switch theme {
+	case constant.AppDataColorThemeDefault, constant.AppDataColorThemeBlue, constant.AppDataColorThemeGreen, constant.AppDataColorThemePurple, constant.AppDataColorThemeOrange, constant.AppDataColorThemeRose:
+		return s.update(func(settings *appdatamodel.Settings) { settings.ColorTheme = theme })
+	default:
+		return appdatamodel.Settings{}, constant.ErrAppDataColorThemeInvalid
+	}
 }
 
 // SetChatWidth 保存聊天消息区域宽度

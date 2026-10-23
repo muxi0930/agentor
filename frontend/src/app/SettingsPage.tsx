@@ -23,6 +23,15 @@ import { ControllerConfiguration } from "@/features/controller/ControllerConfigu
 import { ExitApplication } from "./ExitApplication";
 import { AgentsMonitor } from "./AgentsMonitor";
 
+const colorThemes = [
+  { value: "default", label: "默认", color: "oklch(0.55 0 0)" },
+  { value: "blue", label: "蓝", color: "oklch(0.64 0.07 250)" },
+  { value: "green", label: "绿", color: "oklch(0.64 0.07 155)" },
+  { value: "purple", label: "紫", color: "oklch(0.64 0.07 300)" },
+  { value: "orange", label: "橙", color: "oklch(0.64 0.07 60)" },
+  { value: "rose", label: "玫瑰红", color: "oklch(0.64 0.07 10)" },
+];
+
 export function SettingsPage({ info, settings, onSettings, status, onStatus, onOpenThread, initialTab = "system" }: {
   info: Info; settings: Settings; onSettings: (settings: Settings) => void; status?: Status; onStatus: (status: Status) => void; onOpenThread: (threadId: string) => void; initialTab?: string;
 }) {
@@ -82,6 +91,16 @@ export function SettingsPage({ info, settings, onSettings, status, onStatus, onO
           <dt className="text-muted-foreground">CODEX_HOME</dt><dd className="min-w-0 break-all">{status?.home || info.codexHome}</dd>
         </dl>
         <div className="flex justify-end"><Button variant="outline" disabled={busy} onClick={() => void run(() => Data.OpenDirectory(info.dataDirectory))}><FolderOpen />打开软件配置目录</Button></div>
+      </div>
+    </SettingsSection>
+    <SettingsSection value="appearance" title="外观" description="柔和的低饱和度配色，可搭配日间或夜间模式。选择后立即生效并自动保存。">
+      <div role="group" aria-label="主题配色" className="flex flex-wrap gap-2">
+        {colorThemes.map(theme => {
+          const selected = (settings.colorTheme || "default") === theme.value;
+          return <Button key={theme.value} variant={selected ? "secondary" : "outline"} disabled={busy} aria-pressed={selected} className={selected ? "ring-2 ring-ring" : ""} onClick={() => void run(async () => onSettings(await Data.SetColorTheme(theme.value)))}>
+            <span aria-hidden="true" className="size-3 rounded-full" style={{ backgroundColor: theme.color }} />{theme.label}
+          </Button>;
+        })}
       </div>
     </SettingsSection>
     <SettingsSection value="data-directory" title="应用数据根目录" description="保存设置、账号、任务和附件的位置。切换目录需要确认并完整重启，不会自动迁移现有数据。">

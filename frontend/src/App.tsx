@@ -59,6 +59,11 @@ export default function App() {
     document.documentElement.style.colorScheme = settings.theme;
   }, [settings?.theme]);
 
+  useEffect(() => {
+    if (!settings) return;
+    document.documentElement.dataset.colorTheme = settings.colorTheme || "default";
+  }, [settings?.colorTheme]);
+
   async function navigate(targetPage: string, mode = settings?.mode, offset?: number) {
     if (!settings || !mode || navigating.current) return;
     const next = offset === undefined ? visit(history, { page: targetPage, mode }) : move(history, offset);
