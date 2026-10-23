@@ -2,12 +2,13 @@ package main
 
 import (
 	"embed"
-	"errors"
 	"log"
 
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 	"agentor/internal/lark"
 	"agentor/internal/lifecycle"
 	"agentor/internal/pipeline"
@@ -57,30 +58,30 @@ func main() {
 	executions.ConfigureTools(router.Specs)
 	pipelines.ConfigureTools(router.Specs)
 	runtime.SetToolHandler(router.Call)
-	runtime.SetEventHandler(func(event codex.Event) { executions.OnCodexEvent(event); remote.OnCodexEvent(event) })
+	runtime.SetEventHandler(func(event codexmodel.Event) { executions.OnCodexEvent(event); remote.OnCodexEvent(event) })
 	executions.SetNotificationHandler(remote.OnNotification)
 	work.SetDeleteGuard(executions.PrepareDelete)
 	runtime.SetAccountGuard(func(changing bool) error {
 		state := executions.GetState()
 		for _, execution := range state.Executions {
-			if execution.Status == "running" || changing && execution.Status == "queued" {
-				return errors.New("请先结束或取消步骤队列，再切换连接")
+			if execution.Status == constant.TasksStatusRunning || changing && execution.Status == constant.TasksStatusQueued {
+				return constant.ErrAppStepQueueActive
 			}
 		}
 		for _, request := range state.Requests {
-			if request.Status == "running" || changing && request.Status == "queued" {
-				return errors.New("请先结束或取消控制中心请求，再切换连接")
+			if request.Status == constant.TasksStatusRunning || changing && request.Status == constant.TasksStatusQueued {
+				return constant.ErrAppControllerRequestsActive
 			}
 		}
 		pipelineState := pipelines.GetState()
 		for _, run := range pipelineState.Runs {
-			if run.Status == "running" || changing && run.Status == "queued" {
-				return errors.New("请先结束流水线运行，再切换连接")
+			if run.Status == constant.TasksStatusRunning || changing && run.Status == constant.TasksStatusQueued {
+				return constant.ErrAppPipelineRunsActive
 			}
 		}
 		for _, request := range pipelineState.Requests {
-			if request.Status == "running" || changing && request.Status == "queued" {
-				return errors.New("请先结束流水线会话请求，再切换连接")
+			if request.Status == constant.TasksStatusRunning || changing && request.Status == constant.TasksStatusQueued {
+				return constant.ErrAppPipelineSessionsActive
 			}
 		}
 		return nil
@@ -88,7 +89,7 @@ func main() {
 
 	var window *application.WebviewWindow
 	app := application.New(application.Options{
-		Name: "agentor", Description: "Codex 对话与工作编排",
+		Name: constant.AppDataApplicationName, Description: "Codex 对话与工作编排",
 		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(runtime), application.NewService(work), application.NewService(executions), application.NewService(pipelines), application.NewService(remote), application.NewService(lifetime)},
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: files.Middleware},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
@@ -109,7 +110,7 @@ func main() {
 	})
 
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "agentor", Width: 1360, Height: 900, MinWidth: 900, MinHeight: 640,
+		Title: constant.AppDataApplicationName, Width: 1360, Height: 900, MinWidth: 900, MinHeight: 640,
 		BackgroundColour: application.NewRGB(250, 250, 249), URL: "/",
 	})
 

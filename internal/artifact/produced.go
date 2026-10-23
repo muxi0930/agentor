@@ -1,10 +1,11 @@
 package artifact
 
 import (
-	"errors"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"agentor/internal/constant"
 )
 
 type ProducedOwner struct {
@@ -33,7 +34,7 @@ func (s *Service) RegisterProduced(owner ProducedOwner, path, directory string) 
 	}
 	relative, err := filepath.Rel(root, resolved)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return Attachment{}, errors.New("请登记当前项目目录内的任务产物")
+		return Attachment{}, constant.ErrArtifactProducedPathOutsideProject
 	}
 
 	item, err := s.ImportFile(owner.ThreadID, resolved)

@@ -1,19 +1,20 @@
 package tasks
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
-	"agentor/internal/appdata"
-	"agentor/internal/codex"
+	appdatamodel "agentor/internal/appdata/model"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // SelectExecutor 检查控制中心所选执行配置是否在请求范围内且被模型支持
 //
 //wails:ignore
-func (s *Service) SelectExecutor(request Request, model, effort string) (string, string, error) {
+func (s *Service) SelectExecutor(request tasksmodel.Request, model, effort string) (string, string, error) {
 	models, err := s.runtime.GetModels()
 	if err != nil {
 		return "", "", err
@@ -22,7 +23,7 @@ func (s *Service) SelectExecutor(request Request, model, effort string) (string,
 }
 
 // executorSettings 冻结控制中心配置并解析跟随默认会话的选项
-func (s *Service) executorSettings(model, effort string) appdata.ControllerSettings {
+func (s *Service) executorSettings(model, effort string) appdatamodel.ControllerSettings {
 	config := s.data.GetSettings().Controller
 	config.Models = append([]string{}, config.Models...)
 	config.Efforts = append([]string{}, config.Efforts...)
@@ -40,10 +41,10 @@ func (s *Service) executorSettings(model, effort string) appdata.ControllerSetti
 }
 
 // controllerPrompt 组合控制中心指令、派发提示词与末尾安全提示词
-func controllerPrompt(config appdata.ControllerSettings) string {
-	prompt := config.Prompt + "\n\n" + fmt.Sprintf("你可以在 [ %s ] 模型中选择，并在 [ %s ] 中决定 effort；", strings.Join(config.Models, ","), strings.Join(config.Efforts, ",")) + "\n" + config.DecisionPrompt + "\n派发步骤、运行流水线或请求专用会话时，必须通过工具的 model 和 effort 参数明确选择。空字符串表示跟随本次默认会话，但只有解析后的值在允许范围内时才可使用。仅选择模型支持的 effort；工具返回不兼容或超出范围时，重新选择允许的组合，不要重复提交相同组合。"
-	prompt += "\n创建项目版本时使用 create_version，显式传入本次请求范围内的 projectId；无法唯一确定目标项目时先询问用户。"
-	securityPrompt := appdata.DefaultControllerSecurityPrompt
+func controllerPrompt(config appdatamodel.ControllerSettings) string {
+	prompt := config.Prompt + "\n\n" + fmt.Sprintf(constant.TasksExecutorChoiceTemplate, strings.Join(config.Models, ","), strings.Join(config.Efforts, ",")) + "\n" + config.DecisionPrompt + constant.TasksExecutorSelectionInstructions
+	prompt += constant.TasksVersionCreationInstructions
+	securityPrompt := constant.AppDataDefaultControllerSecurityPrompt
 	if config.SecurityPrompt != nil {
 		securityPrompt = *config.SecurityPrompt
 	}
@@ -54,7 +55,7 @@ func controllerPrompt(config appdata.ControllerSettings) string {
 }
 
 // selectExecutor 解析默认选择并拒绝越界或不兼容的执行配置
-func selectExecutor(request Request, model, effort string, models []codex.Model) (string, string, error) {
+func selectExecutor(request tasksmodel.Request, model, effort string, models []codexmodel.Model) (string, string, error) {
 	if model == "" {
 		model = request.Model
 	}
@@ -70,7 +71,7 @@ func selectExecutor(request Request, model, effort string, models []codex.Model)
 		allowedEfforts = []string{request.Effort}
 	}
 	if !slices.Contains(allowedModels, model) || !slices.Contains(allowedEfforts, effort) {
-		return "", "", errors.New("所选模型或 effort 不在本次请求允许范围内，请重新选择")
+		return "", "", constant.ErrTasksExecutorChoiceOutsideScope
 	}
 	for _, option := range models {
 		if option.Model != model {

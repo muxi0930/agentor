@@ -1,10 +1,12 @@
 package appdata
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+
+	appdatamodel "agentor/internal/appdata/model"
+	"agentor/internal/constant"
 )
 
 // ResolveCodexHome 解析独立于账号选择的 Codex 数据目录
@@ -12,8 +14,8 @@ import (
 //wails:ignore
 func (s *Service) ResolveCodexHome(mode, directory string) (string, error) {
 	switch mode {
-	case "system":
-		directory = os.Getenv("CODEX_HOME")
+	case constant.AppDataCodexHomeSystem:
+		directory = os.Getenv(constant.AppDataCodexHomeEnvironment)
 		if directory == "" {
 			home, err := os.UserHomeDir()
 			if err != nil {
@@ -21,13 +23,13 @@ func (s *Service) ResolveCodexHome(mode, directory string) (string, error) {
 			}
 			directory = filepath.Join(home, ".codex")
 		}
-	case "custom":
+	case constant.AppDataCodexHomeCustom:
 		directory = strings.TrimSpace(directory)
 		if directory == "" || !filepath.IsAbs(directory) {
-			return "", errors.New("请选择自定义 CODEX_HOME 的绝对路径")
+			return "", constant.ErrAppDataCodexHomePathInvalid
 		}
 	default:
-		return "", errors.New("未知的 CODEX_HOME 模式")
+		return "", constant.ErrAppDataCodexHomeModeUnknown
 	}
 	return filepath.Abs(directory)
 }
@@ -40,9 +42,9 @@ func (s *Service) SetCodexHome(mode, directory string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.update(func(settings *Settings) {
+	_, err = s.update(func(settings *appdatamodel.Settings) {
 		settings.CodexHomeMode = mode
-		if mode == "custom" {
+		if mode == constant.AppDataCodexHomeCustom {
 			settings.CodexHomePath = home
 		}
 	})
@@ -50,15 +52,15 @@ func (s *Service) SetCodexHome(mode, directory string) error {
 }
 
 // SetReadExternalThreads 保存会话读取范围，不改变目录与账号选择
-func (s *Service) SetReadExternalThreads(enabled bool) (Settings, error) {
-	return s.update(func(settings *Settings) { settings.ReadExternalThreads = enabled })
+func (s *Service) SetReadExternalThreads(enabled bool) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) { settings.ReadExternalThreads = enabled })
 }
 
 // RememberExternalThread 保存外部会话目录并保留其来源，避免打开后被当成本应用创建
 //
 //wails:ignore
 func (s *Service) RememberExternalThread(threadID, cwd string) error {
-	_, err := s.update(func(settings *Settings) {
+	_, err := s.update(func(settings *appdatamodel.Settings) {
 		threads := make(map[string]string, len(settings.ChatThreads)+1)
 		for id, directory := range settings.ChatThreads {
 			threads[id] = directory

@@ -5,16 +5,3 @@ import * as Service from "./service.js";
 export {
     Service
 };
-
-export type {
-    ApprovalRoute,
-    Candidate,
-    Changed,
-    Identity,
-    Incoming,
-    Pairing,
-    Settings,
-    SettingsInput,
-    Status,
-    View
-} from "./models.js";

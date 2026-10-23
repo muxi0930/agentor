@@ -3,10 +3,10 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as appdata$0 from "../appdata/models.js";
+import * as model$1 from "../../appdata/model/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as workspace$0 from "../workspace/models.js";
+import * as model$0 from "../../workspace/model/models.js";
 
 export interface Changed {
 }
@@ -169,7 +169,7 @@ export interface Execution {
     /**
      * 派发时冻结的步骤上下文
      */
-    "context": workspace$0.StepContext;
+    "context": model$0.StepContext;
 
     /**
      * 处理状态
@@ -350,7 +350,7 @@ export interface Request {
     /**
      * 入队时冻结并解析默认值的控制中心配置
      */
-    "executor": appdata$0.ControllerSettings;
+    "executor": model$1.ControllerSettings;
 
     /**
      * 稳定标识

@@ -7,7 +7,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as $models from "./models.js";
+import * as model$0 from "./model/models.js";
 
 /**
  * ChooseDirectory 通过原生对话框选择项目目录
@@ -26,28 +26,28 @@ export function ChooseFile(): $CancellablePromise<string> {
 /**
  * CreateWorktree 基于当前提交创建分支工作树并选中其目录
  */
-export function CreateWorktree(cwd: string, branch: string, directory: string): $CancellablePromise<$models.Settings> {
+export function CreateWorktree(cwd: string, branch: string, directory: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(1332525903, cwd, branch, directory);
 }
 
 /**
  * GetInfo 返回当前应用路径和运行平台
  */
-export function GetInfo(): $CancellablePromise<$models.Info> {
+export function GetInfo(): $CancellablePromise<model$0.Info> {
     return $Call.ByID(2884597446);
 }
 
 /**
  * GetSettings 读取应用设置快照
  */
-export function GetSettings(): $CancellablePromise<$models.Settings> {
+export function GetSettings(): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(3251048195);
 }
 
 /**
  * HideProject 隐藏项目分组而不删除目录
  */
-export function HideProject(cwd: string): $CancellablePromise<$models.Settings> {
+export function HideProject(cwd: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(3800495675, cwd);
 }
 
@@ -75,118 +75,118 @@ export function OpenURL(url: string): $CancellablePromise<void> {
 /**
  * RememberThread 登记由本应用打开的普通会话
  */
-export function RememberThread(threadID: string, cwd: string): $CancellablePromise<$models.Settings> {
+export function RememberThread(threadID: string, cwd: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(1357629041, threadID, cwd);
 }
 
 /**
  * SetAgentTimeoutSeconds 保存功能子代理最大执行时间
  */
-export function SetAgentTimeoutSeconds(seconds: number): $CancellablePromise<$models.Settings> {
+export function SetAgentTimeoutSeconds(seconds: number): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(3583929511, seconds);
 }
 
 /**
  * SetChatOrder 保存项目或项目内会话的显示顺序
  */
-export function SetChatOrder(cwd: string, ids: string[] | null): $CancellablePromise<$models.Settings> {
+export function SetChatOrder(cwd: string, ids: string[] | null): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(3630318876, cwd, ids);
 }
 
 /**
  * SetChatWidth 保存聊天消息区域宽度
  */
-export function SetChatWidth(width: string): $CancellablePromise<$models.Settings> {
+export function SetChatWidth(width: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(49583328, width);
 }
 
 /**
  * SetCodexPath 保存原生 Codex 程序路径
  */
-export function SetCodexPath(path: string): $CancellablePromise<$models.Settings> {
+export function SetCodexPath(path: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(1882208606, path);
 }
 
 /**
  * SetControllerSettings 保存控制中心提示词与执行者选择范围
  */
-export function SetControllerSettings(input: $models.ControllerSettings): $CancellablePromise<$models.Settings> {
+export function SetControllerSettings(input: model$0.ControllerSettings): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(392778279, input);
 }
 
 /**
  * SetFastMode 保存当前身份的快速模式偏好
  */
-export function SetFastMode(enabled: boolean): $CancellablePromise<$models.Settings> {
+export function SetFastMode(enabled: boolean): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(4191052915, enabled);
 }
 
 /**
  * SetLastThread 保存最近打开的会话
  */
-export function SetLastThread(threadID: string): $CancellablePromise<$models.Settings> {
+export function SetLastThread(threadID: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(2478289546, threadID);
 }
 
 /**
  * SetMaxConcurrentAgents 保存工作队列功能任务的并发上限
  */
-export function SetMaxConcurrentAgents(limit: number): $CancellablePromise<$models.Settings> {
+export function SetMaxConcurrentAgents(limit: number): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(2045238823, limit);
 }
 
 /**
  * SetMode 保存工作模式
  */
-export function SetMode(mode: string): $CancellablePromise<$models.Settings> {
+export function SetMode(mode: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(3890066273, mode);
 }
 
 /**
  * SetModelSelection 保存当前身份的模型和推理强度
  */
-export function SetModelSelection(model: string, effort: string): $CancellablePromise<$models.Settings> {
+export function SetModelSelection(model: string, effort: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(1531839347, model, effort);
 }
 
 /**
  * SetPermission 保存账号默认权限或项目会话覆盖值
  */
-export function SetPermission(scope: string, id: string, mode: string): $CancellablePromise<$models.Settings> {
+export function SetPermission(scope: string, id: string, mode: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(3083411741, scope, id, mode);
 }
 
 /**
  * SetProjectAlias 保存或清除项目分组显示名称
  */
-export function SetProjectAlias(cwd: string, name: string): $CancellablePromise<$models.Settings> {
+export function SetProjectAlias(cwd: string, name: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(2164947253, cwd, name);
 }
 
 /**
  * SetProjectDirectory 检查并保存当前项目目录
  */
-export function SetProjectDirectory(path: string): $CancellablePromise<$models.Settings> {
+export function SetProjectDirectory(path: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(2441644074, path);
 }
 
 /**
  * SetReadExternalThreads 保存会话读取范围，不改变目录与账号选择
  */
-export function SetReadExternalThreads(enabled: boolean): $CancellablePromise<$models.Settings> {
+export function SetReadExternalThreads(enabled: boolean): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(1287320394, enabled);
 }
 
 /**
  * SetTheme 保存浅色或深色主题
  */
-export function SetTheme(theme: string): $CancellablePromise<$models.Settings> {
+export function SetTheme(theme: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(155652315, theme);
 }
 
 /**
  * ToggleThreadPin 切换会话的置顶状态
  */
-export function ToggleThreadPin(threadID: string): $CancellablePromise<$models.Settings> {
+export function ToggleThreadPin(threadID: string): $CancellablePromise<model$0.Settings> {
     return $Call.ByID(117760941, threadID);
 }

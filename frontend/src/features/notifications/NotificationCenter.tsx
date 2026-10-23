@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import * as Tasks from "../../../bindings/agentor/internal/tasks/service";
-import type { State } from "../../../bindings/agentor/internal/tasks/models";
+import type { State } from "../../../bindings/agentor/internal/tasks/model/models";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";

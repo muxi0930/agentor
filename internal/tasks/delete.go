@@ -2,8 +2,8 @@ package tasks
 
 import (
 	"context"
-	"errors"
-	"time"
+
+	"agentor/internal/constant"
 )
 
 // PrepareDelete 停止关联执行后允许删除步骤并返回保护解除入口
@@ -18,7 +18,7 @@ func (s *Service) PrepareDelete(stepIDs []string) (func(), error) {
 	}
 	executions := []string{}
 	for _, execution := range s.state.Executions {
-		if ids[execution.StepID] && (execution.Status == "queued" || execution.Status == "running") {
+		if ids[execution.StepID] && (execution.Status == constant.TasksStatusQueued || execution.Status == constant.TasksStatusRunning) {
 			executions = append(executions, execution.ID)
 		}
 	}
@@ -38,7 +38,7 @@ func (s *Service) PrepareDelete(stepIDs []string) (func(), error) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.ctx, constant.TasksDeleteTimeout)
 	defer cancel()
 	for _, id := range executions {
 		result, err := s.WaitExecution(ctx, id)
@@ -48,7 +48,7 @@ func (s *Service) PrepareDelete(stepIDs []string) (func(), error) {
 		}
 		if result.ThreadID != "" && s.runtime.IsThreadActive(result.ThreadID) {
 			release()
-			return nil, errors.New("上游执行仍未停止，请检查连接后再移除工作定义")
+			return nil, constant.ErrTasksUpstreamStillRunning
 		}
 	}
 	return release, nil

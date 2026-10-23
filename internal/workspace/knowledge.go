@@ -2,33 +2,24 @@ package workspace
 
 import (
 	"crypto/rand"
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"agentor/internal/constant"
+	workspacemodel "agentor/internal/workspace/model"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-type KnowledgeContent struct {
-	Document Document `json:"document"` // 知识文档记录
-	Content  string   `json:"content"`  // Markdown 正文
-}
-
-type SearchMatch struct {
-	DocumentID string `json:"documentId"` // 匹配的文档标识
-	Title      string `json:"title"`      // 显示标题
-	Snippet    string `json:"snippet"`    // 匹配的正文摘要
-}
-
 // ImportMarkdown 通过原生对话框导入 Markdown 知识文档
-func (s *Service) ImportMarkdown(projectID, nodeID string) (State, error) {
+func (s *Service) ImportMarkdown(projectID, nodeID string) (workspacemodel.State, error) {
 	app := application.Get()
-	path, err := app.Dialog.OpenFile().AttachToWindow(app.Window.Current()).SetTitle("导入 Markdown 知识文档").AddFilter("Markdown", "*.md;*.markdown").CanChooseFiles(true).CanChooseDirectories(false).PromptForSingleSelection()
+	path, err := app.Dialog.OpenFile().AttachToWindow(app.Window.Current()).SetTitle(constant.WorkspaceImportMarkdownTitle).AddFilter("Markdown", "*.md;*.markdown").CanChooseFiles(true).CanChooseDirectories(false).PromptForSingleSelection()
 	if err != nil {
-		return State{}, err
+		return workspacemodel.State{}, err
 	}
 	if path == "" {
 		return s.GetState(), nil
@@ -40,27 +31,27 @@ func (s *Service) ImportMarkdown(projectID, nodeID string) (State, error) {
 // ImportKnowledge 复制 Markdown 文档并绑定至项目、版本或功能
 //
 //wails:ignore
-func (s *Service) ImportKnowledge(projectID, nodeID, path string) (State, error) {
+func (s *Service) ImportKnowledge(projectID, nodeID, path string) (workspacemodel.State, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext != ".md" && ext != ".markdown" {
-		return State{}, errors.New("请选择 Markdown 文档")
+		return workspacemodel.State{}, constant.ErrWorkspaceMarkdownRequired
 	}
 
 	path, err := filepath.Abs(path)
 	if err != nil {
-		return State{}, err
+		return workspacemodel.State{}, err
 	}
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return State{}, err
+		return workspacemodel.State{}, err
 	}
 
 	id := rand.Text()
-	managed := filepath.Join(s.root, "knowledge", id+".md")
-	return s.mutate(func(state *State) error {
+	managed := filepath.Join(s.root, constant.WorkspaceKnowledgeDirectory, id+".md")
+	return s.mutate(func(state *workspacemodel.State) error {
 		project := findProject(state, projectID)
 		if project == nil {
-			return errors.New("项目不存在")
+			return constant.ErrWorkspaceProjectNotFound
 		}
 		ids, err := knowledgeBinding(project, nodeID)
 		if err != nil {
@@ -69,18 +60,18 @@ func (s *Service) ImportKnowledge(projectID, nodeID, path string) (State, error)
 		if err := os.WriteFile(managed, content, 0600); err != nil {
 			return err
 		}
-		state.Documents = append(state.Documents, Document{ID: id, ProjectID: projectID, Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), SourcePath: path, ManagedPath: managed, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)})
+		state.Documents = append(state.Documents, workspacemodel.Document{ID: id, ProjectID: projectID, Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), SourcePath: path, ManagedPath: managed, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)})
 		*ids = append(*ids, id)
 		return nil
 	})
 }
 
 // BindKnowledge 调整知识文档与项目、版本或功能的绑定
-func (s *Service) BindKnowledge(projectID, nodeID, documentID string, bound bool) (State, error) {
-	return s.mutate(func(state *State) error {
+func (s *Service) BindKnowledge(projectID, nodeID, documentID string, bound bool) (workspacemodel.State, error) {
+	return s.mutate(func(state *workspacemodel.State) error {
 		project := findProject(state, projectID)
-		if project == nil || !slices.ContainsFunc(state.Documents, func(v Document) bool { return v.ID == documentID && v.ProjectID == projectID }) {
-			return errors.New("文档不属于当前项目")
+		if project == nil || !slices.ContainsFunc(state.Documents, func(v workspacemodel.Document) bool { return v.ID == documentID && v.ProjectID == projectID }) {
+			return constant.ErrWorkspaceDocumentOutsideProject
 		}
 		ids, err := knowledgeBinding(project, nodeID)
 		if err != nil {
@@ -98,11 +89,11 @@ func (s *Service) BindKnowledge(projectID, nodeID, documentID string, bound bool
 }
 
 // ReadKnowledge 读取当前项目、版本或功能可见的知识文档正文
-func (s *Service) ReadKnowledge(projectID, nodeID, documentID string) (KnowledgeContent, error) {
+func (s *Service) ReadKnowledge(projectID, nodeID, documentID string) (workspacemodel.KnowledgeContent, error) {
 	state := s.GetState()
 	project := findProject(&state, projectID)
 	if project == nil {
-		return KnowledgeContent{}, errors.New("项目不存在")
+		return workspacemodel.KnowledgeContent{}, constant.ErrWorkspaceProjectNotFound
 	}
 
 	for _, document := range state.Documents {
@@ -112,25 +103,25 @@ func (s *Service) ReadKnowledge(projectID, nodeID, documentID string) (Knowledge
 		if nodeID != "" {
 			documents, err := knowledgeForNode(state, project, nodeID)
 			if err != nil {
-				return KnowledgeContent{}, err
+				return workspacemodel.KnowledgeContent{}, err
 			}
-			if !slices.ContainsFunc(documents, func(v Document) bool { return v.ID == documentID }) {
-				return KnowledgeContent{}, errors.New("文档未绑定至当前节点或其上级")
+			if !slices.ContainsFunc(documents, func(v workspacemodel.Document) bool { return v.ID == documentID }) {
+				return workspacemodel.KnowledgeContent{}, constant.ErrWorkspaceDocumentNotBound
 			}
 		}
 
 		content, err := os.ReadFile(document.ManagedPath)
-		return KnowledgeContent{Document: document, Content: string(content)}, err
+		return workspacemodel.KnowledgeContent{Document: document, Content: string(content)}, err
 	}
-	return KnowledgeContent{}, errors.New("文档不存在")
+	return workspacemodel.KnowledgeContent{}, constant.ErrWorkspaceDocumentNotFound
 }
 
 // SearchKnowledge 在当前项目、版本或功能范围内搜索知识文档
-func (s *Service) SearchKnowledge(projectID, nodeID, query string) ([]SearchMatch, error) {
+func (s *Service) SearchKnowledge(projectID, nodeID, query string) ([]workspacemodel.SearchMatch, error) {
 	state := s.GetState()
 	project := findProject(&state, projectID)
 	if project == nil {
-		return nil, errors.New("项目不存在")
+		return nil, constant.ErrWorkspaceProjectNotFound
 	}
 	documents := state.Documents
 	if nodeID != "" {
@@ -142,7 +133,7 @@ func (s *Service) SearchKnowledge(projectID, nodeID, query string) ([]SearchMatc
 	}
 
 	query = strings.ToLower(strings.TrimSpace(query))
-	result := []SearchMatch{}
+	result := []workspacemodel.SearchMatch{}
 	for _, document := range documents {
 		if document.ProjectID != projectID {
 			continue
@@ -165,17 +156,17 @@ func (s *Service) SearchKnowledge(projectID, nodeID, query string) ([]SearchMatc
 		if len(letters) > 240 {
 			snippet = string(letters[:240]) + "…"
 		}
-		result = append(result, SearchMatch{DocumentID: document.ID, Title: document.Title, Snippet: snippet})
+		result = append(result, workspacemodel.SearchMatch{DocumentID: document.ID, Title: document.Title, Snippet: snippet})
 	}
 	return result, nil
 }
 
 // DeleteKnowledge 删除知识文档并移除所有绑定
-func (s *Service) DeleteKnowledge(projectID, documentID string) (State, error) {
-	return s.mutate(func(state *State) error {
-		index := slices.IndexFunc(state.Documents, func(v Document) bool { return v.ID == documentID && v.ProjectID == projectID })
+func (s *Service) DeleteKnowledge(projectID, documentID string) (workspacemodel.State, error) {
+	return s.mutate(func(state *workspacemodel.State) error {
+		index := slices.IndexFunc(state.Documents, func(v workspacemodel.Document) bool { return v.ID == documentID && v.ProjectID == projectID })
 		if index < 0 {
-			return errors.New("文档不属于当前项目")
+			return constant.ErrWorkspaceDocumentOutsideProject
 		}
 		if err := os.Remove(state.Documents[index].ManagedPath); err != nil && !os.IsNotExist(err) {
 			return err
@@ -200,18 +191,18 @@ func (s *Service) DeleteKnowledge(projectID, documentID string) (State, error) {
 // PrepareKnowledge 创建并绑定用于后续编辑的知识文档
 //
 //wails:ignore
-func (s *Service) PrepareKnowledge(projectID, nodeID, title string) (Document, error) {
+func (s *Service) PrepareKnowledge(projectID, nodeID, title string) (workspacemodel.Document, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
-		return Document{}, errors.New("请填写文档标题")
+		return workspacemodel.Document{}, constant.ErrWorkspaceDocumentTitleRequired
 	}
 
 	id := rand.Text()
-	document := Document{ID: id, ProjectID: projectID, Title: title, ManagedPath: filepath.Join(s.root, "knowledge", id+".md"), UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
-	_, err := s.mutate(func(state *State) error {
+	document := workspacemodel.Document{ID: id, ProjectID: projectID, Title: title, ManagedPath: filepath.Join(s.root, constant.WorkspaceKnowledgeDirectory, id+".md"), UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	_, err := s.mutate(func(state *workspacemodel.State) error {
 		project := findProject(state, projectID)
 		if project == nil {
-			return errors.New("项目不存在")
+			return constant.ErrWorkspaceProjectNotFound
 		}
 		ids, err := knowledgeBinding(project, nodeID)
 		if err != nil {
@@ -230,16 +221,16 @@ func (s *Service) PrepareKnowledge(projectID, nodeID, title string) (Document, e
 // SyncKnowledge 替换知识文档正文并保存更新时间
 //
 //wails:ignore
-func (s *Service) SyncKnowledge(projectID, nodeID, documentID, content string) (Document, error) {
+func (s *Service) SyncKnowledge(projectID, nodeID, documentID, content string) (workspacemodel.Document, error) {
 	current, err := s.ReadKnowledge(projectID, nodeID, documentID)
 	if err != nil {
-		return Document{}, err
+		return workspacemodel.Document{}, err
 	}
 	document := current.Document
-	_, err = s.mutate(func(state *State) error {
-		index := slices.IndexFunc(state.Documents, func(v Document) bool { return v.ID == documentID && v.ProjectID == projectID })
+	_, err = s.mutate(func(state *workspacemodel.State) error {
+		index := slices.IndexFunc(state.Documents, func(v workspacemodel.Document) bool { return v.ID == documentID && v.ProjectID == projectID })
 		if index < 0 {
-			return errors.New("文档不存在")
+			return constant.ErrWorkspaceDocumentNotFound
 		}
 		file, err := os.CreateTemp(filepath.Dir(document.ManagedPath), ".knowledge-*.tmp")
 		if err != nil {
@@ -265,7 +256,7 @@ func (s *Service) SyncKnowledge(projectID, nodeID, documentID, content string) (
 }
 
 // documentsFor 汇总项目、所属版本与功能绑定的知识文档
-func documentsFor(state State, project *Project, feature *Feature) []Document {
+func documentsFor(state workspacemodel.State, project *workspacemodel.Project, feature *workspacemodel.Feature) []workspacemodel.Document {
 	ids := append([]string{}, project.DocumentIDs...)
 	if feature != nil {
 		version, _ := findFeature(project, feature.ID)
@@ -275,7 +266,7 @@ func documentsFor(state State, project *Project, feature *Feature) []Document {
 		ids = append(ids, feature.DocumentIDs...)
 	}
 
-	result := []Document{}
+	result := []workspacemodel.Document{}
 	for _, document := range state.Documents {
 		if document.ProjectID == project.ID && slices.Contains(ids, document.ID) {
 			result = append(result, document)
@@ -285,7 +276,7 @@ func documentsFor(state State, project *Project, feature *Feature) []Document {
 }
 
 // knowledgeBinding 定位当前节点自身的知识绑定
-func knowledgeBinding(project *Project, nodeID string) (*[]string, error) {
+func knowledgeBinding(project *workspacemodel.Project, nodeID string) (*[]string, error) {
 	if nodeID == "" {
 		return &project.DocumentIDs, nil
 	}
@@ -295,14 +286,14 @@ func knowledgeBinding(project *Project, nodeID string) (*[]string, error) {
 	if _, feature := findFeature(project, nodeID); feature != nil {
 		return &feature.DocumentIDs, nil
 	}
-	return nil, errors.New("版本或功能不属于当前项目")
+	return nil, constant.ErrWorkspaceNodeOutsideProject
 }
 
 // knowledgeForNode 汇总当前节点及其上级绑定的知识
-func knowledgeForNode(state State, project *Project, nodeID string) ([]Document, error) {
+func knowledgeForNode(state workspacemodel.State, project *workspacemodel.Project, nodeID string) ([]workspacemodel.Document, error) {
 	if version := findVersion(project, nodeID); version != nil {
 		ids := append(append([]string{}, project.DocumentIDs...), version.DocumentIDs...)
-		result := []Document{}
+		result := []workspacemodel.Document{}
 		for _, document := range state.Documents {
 			if document.ProjectID == project.ID && slices.Contains(ids, document.ID) {
 				result = append(result, document)
@@ -313,5 +304,5 @@ func knowledgeForNode(state State, project *Project, nodeID string) ([]Document,
 	if _, feature := findFeature(project, nodeID); feature != nil {
 		return documentsFor(state, project, feature), nil
 	}
-	return nil, errors.New("版本或功能不属于当前项目")
+	return nil, constant.ErrWorkspaceNodeOutsideProject
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { State } from "../../../bindings/agentor/internal/pipeline/models";
-import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
-import type { Status } from "../../../bindings/agentor/internal/codex/models";
+import type { State } from "../../../bindings/agentor/internal/pipeline/model/models";
+import type { Settings } from "../../../bindings/agentor/internal/appdata/model/models";
+import type { Status } from "../../../bindings/agentor/internal/codex/model/models";
 import * as Pipeline from "../../../bindings/agentor/internal/pipeline/service";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";

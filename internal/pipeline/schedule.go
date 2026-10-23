@@ -2,12 +2,13 @@ package pipeline
 
 import (
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"time"
 	_ "time/tzdata"
 
-	"agentor/internal/tasks"
+	"agentor/internal/constant"
+	pipelinemodel "agentor/internal/pipeline/model"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // ResolveScheduleTime 将指定时区的本地时间转换为 UTC
@@ -17,7 +18,7 @@ func (s *Service) ResolveScheduleTime(local, timezone string) (string, error) {
 		return "", err
 	}
 
-	at, err := time.ParseInLocation("2006-01-02T15:04:05", local, zone)
+	at, err := time.ParseInLocation(constant.PipelineLocalTimeLayout, local, zone)
 	if err != nil {
 		return "", err
 	}
@@ -26,10 +27,10 @@ func (s *Service) ResolveScheduleTime(local, timezone string) (string, error) {
 }
 
 // SaveSchedule 校验并保存任务调度
-func (s *Service) SaveSchedule(input Schedule) (Schedule, error) {
+func (s *Service) SaveSchedule(input pipelinemodel.Schedule) (pipelinemodel.Schedule, error) {
 	input = clone(input)
 	if input.Name == "" {
-		return Schedule{}, errors.New("请填写调度名称")
+		return pipelinemodel.Schedule{}, constant.ErrPipelineScheduleNameRequired
 	}
 
 	if input.Timezone == "" {
@@ -37,43 +38,43 @@ func (s *Service) SaveSchedule(input Schedule) (Schedule, error) {
 	}
 
 	if _, err := time.LoadLocation(input.Timezone); err != nil {
-		return Schedule{}, errors.New("无效的 IANA 时区")
+		return pipelinemodel.Schedule{}, constant.ErrPipelineTimezoneInvalid
 	}
 
-	if input.MisfirePolicy != "skip" && input.MisfirePolicy != "fire_once" {
-		return Schedule{}, errors.New("错过策略必须为 skip 或 fire_once")
+	if input.MisfirePolicy != constant.PipelineMisfireSkip && input.MisfirePolicy != constant.PipelineMisfireFireOnce {
+		return pipelinemodel.Schedule{}, constant.ErrPipelineMisfirePolicyInvalid
 	}
 
 	var next time.Time
 	switch input.Kind {
-	case "once":
+	case constant.PipelineScheduleKindOnce:
 		at, err := instant(input.At)
 		if err != nil {
-			return Schedule{}, fmt.Errorf("一次性时间需包含时区：%w", err)
+			return pipelinemodel.Schedule{}, fmt.Errorf("一次性时间需包含时区：%w", err)
 		}
 
 		input.At = utc(at)
 		next = at
-	case "interval":
+	case constant.PipelineScheduleKindInterval:
 		if input.IntervalSeconds < 1 || input.IntervalSeconds > int64((1<<63-1)/int64(time.Second)) {
-			return Schedule{}, errors.New("间隔秒数无效")
+			return pipelinemodel.Schedule{}, constant.ErrPipelineIntervalInvalid
 		}
 
 		anchor, err := instant(input.Anchor)
 		if err != nil {
-			return Schedule{}, fmt.Errorf("锚点需包含时区：%w", err)
+			return pipelinemodel.Schedule{}, fmt.Errorf("锚点需包含时区：%w", err)
 		}
 
 		input.Anchor = utc(anchor)
 		next = anchor
 	default:
-		return Schedule{}, errors.New("调度类型仅支持 once / interval")
+		return pipelinemodel.Schedule{}, constant.ErrPipelineScheduleKindInvalid
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var task Task
+	var task pipelinemodel.Task
 	for _, item := range s.state.Tasks {
 		if item.ID == input.TaskID && item.ProjectID == input.ProjectID {
 			task = item
@@ -82,11 +83,11 @@ func (s *Service) SaveSchedule(input Schedule) (Schedule, error) {
 	}
 
 	if task.ID == "" {
-		return Schedule{}, errors.New("任务不属于此项目")
+		return pipelinemodel.Schedule{}, constant.ErrPipelineTaskOutsideProject
 	}
 
 	if err := validateInputs(task, input.Inputs); err != nil {
-		return Schedule{}, err
+		return pipelinemodel.Schedule{}, err
 	}
 
 	copy := clone(s.state)
@@ -100,7 +101,7 @@ func (s *Service) SaveSchedule(input Schedule) (Schedule, error) {
 	for i, existing := range copy.Schedules {
 		if existing.ID == input.ID {
 			if existing.ProjectID != input.ProjectID {
-				return Schedule{}, errors.New("调度不属于此项目")
+				return pipelinemodel.Schedule{}, constant.ErrPipelineScheduleOutsideProject
 			}
 
 			input.LastAt, input.LastOutcome, input.LastRunID = existing.LastAt, existing.LastOutcome, existing.LastRunID
@@ -115,7 +116,7 @@ func (s *Service) SaveSchedule(input Schedule) (Schedule, error) {
 	}
 
 	if err := s.writeState(copy); err != nil {
-		return Schedule{}, err
+		return pipelinemodel.Schedule{}, err
 	}
 
 	s.changed()
@@ -132,12 +133,12 @@ func (s *Service) SetScheduleEnabled(projectID, id string, enabled bool) error {
 		schedule := &next.Schedules[i]
 		if schedule.ID == id && schedule.ProjectID == projectID {
 			schedule.Enabled = enabled
-			if enabled && schedule.Kind == "interval" {
+			if enabled && schedule.Kind == constant.PipelineScheduleKindInterval {
 				anchor, _ := instant(schedule.Anchor)
 				schedule.NextAt = utc(nextInterval(anchor, schedule.IntervalSeconds, time.Now().UTC()))
 			}
 
-			if enabled && schedule.Kind == "once" {
+			if enabled && schedule.Kind == constant.PipelineScheduleKindOnce {
 				schedule.NextAt = schedule.At
 			}
 
@@ -147,7 +148,7 @@ func (s *Service) SetScheduleEnabled(projectID, id string, enabled bool) error {
 		}
 	}
 
-	return errors.New("调度不存在")
+	return constant.ErrPipelineScheduleNotFound
 }
 
 // DeleteSchedule 移除当前项目的指定调度
@@ -165,20 +166,20 @@ func (s *Service) DeleteSchedule(projectID, id string) error {
 		}
 	}
 
-	return errors.New("调度不存在")
+	return constant.ErrPipelineScheduleNotFound
 }
 
 // TriggerSchedule 手动触发调度并记录调度来源
-func (s *Service) TriggerSchedule(projectID, id string) (Run, error) {
-	return s.TriggerScheduleFor(projectID, id, RunInput{Source: tasks.Source{Type: "schedule", MessageID: id}})
+func (s *Service) TriggerSchedule(projectID, id string) (pipelinemodel.Run, error) {
+	return s.TriggerScheduleFor(projectID, id, pipelinemodel.RunInput{Source: tasksmodel.Source{Type: "schedule", MessageID: id}})
 }
 
 // TriggerScheduleFor 按指定来源触发调度对应的任务
 //
 //wails:ignore
-func (s *Service) TriggerScheduleFor(projectID, id string, input RunInput) (Run, error) {
+func (s *Service) TriggerScheduleFor(projectID, id string, input pipelinemodel.RunInput) (pipelinemodel.Run, error) {
 	s.mu.Lock()
-	var schedule Schedule
+	var schedule pipelinemodel.Schedule
 	for _, item := range s.state.Schedules {
 		if item.ID == id && item.ProjectID == projectID {
 			schedule = item
@@ -188,7 +189,7 @@ func (s *Service) TriggerScheduleFor(projectID, id string, input RunInput) (Run,
 
 	s.mu.Unlock()
 	if schedule.ID == "" {
-		return Run{}, errors.New("调度不存在")
+		return pipelinemodel.Run{}, constant.ErrPipelineScheduleNotFound
 	}
 
 	input.TaskID, input.Inputs = schedule.TaskID, schedule.Inputs
@@ -216,7 +217,7 @@ func nextInterval(anchor time.Time, seconds int64, after time.Time) time.Time {
 }
 
 // writeState 保存新状态并在写入失败时恢复内存状态
-func (s *Service) writeState(state State) error {
+func (s *Service) writeState(state pipelinemodel.State) error {
 	old := s.state
 	s.state = state
 	if err := s.persistLocked(); err != nil {
@@ -235,7 +236,7 @@ func (s *Service) tick(at time.Time, startup bool) {
 		return
 	}
 
-	due := []Schedule{}
+	due := []pipelinemodel.Schedule{}
 	changed := false
 	for i := range s.state.Schedules {
 		schedule := &s.state.Schedules[i]
@@ -250,7 +251,7 @@ func (s *Service) tick(at time.Time, startup bool) {
 
 		changed = true
 		schedule.LastAt = utc(at)
-		if schedule.Kind == "once" {
+		if schedule.Kind == constant.PipelineScheduleKindOnce {
 			schedule.Enabled = false
 			schedule.NextAt = ""
 		} else {
@@ -258,12 +259,12 @@ func (s *Service) tick(at time.Time, startup bool) {
 			schedule.NextAt = utc(nextInterval(anchor, schedule.IntervalSeconds, at))
 		}
 
-		if (startup || at.Sub(next) >= time.Second) && schedule.MisfirePolicy == "skip" {
-			schedule.LastOutcome = "skipped: 应用关闭期间错过触发"
+		if (startup || at.Sub(next) >= time.Second) && schedule.MisfirePolicy == constant.PipelineMisfireSkip {
+			schedule.LastOutcome = constant.PipelineScheduleMisfireMessage
 			continue
 		}
 
-		schedule.LastOutcome = "triggering"
+		schedule.LastOutcome = constant.PipelineScheduleOutcomeTriggering
 		due = append(due, clone(*schedule))
 	}
 
@@ -280,10 +281,10 @@ func (s *Service) tick(at time.Time, startup bool) {
 	}
 
 	for _, schedule := range due {
-		run, err := s.startRun(RunInput{
+		run, err := s.startRun(pipelinemodel.RunInput{
 			TaskID: schedule.TaskID,
 			Inputs: schedule.Inputs,
-			Source: tasks.Source{Type: "schedule", MessageID: schedule.ID + ":" + utc(at)},
+			Source: tasksmodel.Source{Type: "schedule", MessageID: schedule.ID + ":" + utc(at)},
 		}, schedule.ID)
 		s.mu.Lock()
 		if s.ctx.Err() != nil {
@@ -294,7 +295,7 @@ func (s *Service) tick(at time.Time, startup bool) {
 		for i := range s.state.Schedules {
 			current := &s.state.Schedules[i]
 			if current.ID == schedule.ID {
-				current.LastOutcome = "started"
+				current.LastOutcome = constant.PipelineScheduleOutcomeStarted
 				current.LastRunID = run.ID
 				if err != nil {
 					current.LastOutcome = "skipped: " + err.Error()

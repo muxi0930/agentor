@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"agentor/internal/tasks"
+	"agentor/internal/constant"
+	larkmodel "agentor/internal/lark/model"
+	tasksmodel "agentor/internal/tasks/model"
+
 	larksdk "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
@@ -18,7 +19,7 @@ import (
 // OnNotification 将通知拆分为可独立跟踪的飞书发送项
 //
 //wails:ignore
-func (s *Service) OnNotification(notification tasks.Notification) {
+func (s *Service) OnNotification(notification tasksmodel.Notification) {
 	if notification.Source.Type != "lark" || s.ctx.Err() != nil {
 		return
 	}
@@ -51,14 +52,14 @@ func (s *Service) OnNotification(notification tasks.Notification) {
 		if notification.RequestID != "" && (notification.ExecutionID != "" || notification.PipelineRunID != "" || notification.PipelineSessionID != "") {
 			return
 		}
-		parts := []tasks.NotificationPart{}
+		parts := []tasksmodel.NotificationPart{}
 		body := current.Body
 		if body == "" {
 			body = current.Title
 		}
 		footer := s.replyFooter(current)
 		for _, content := range splitReplyMarkdown(body) {
-			parts = append(parts, tasks.NotificationPart{ID: rand.Text(), Kind: "markdown", Channel: "lark", Target: current.Source.ChatID, Status: "pending", Content: content, PayloadJSON: jsonText(replyCard(content, footer))})
+			parts = append(parts, tasksmodel.NotificationPart{ID: rand.Text(), Kind: "markdown", Channel: "lark", Target: current.Source.ChatID, Status: constant.LarkStatusPending, Content: content, PayloadJSON: jsonText(replyCard(content, footer))})
 		}
 		if err = s.tasks.AddNotificationParts(current.ID, parts); err != nil {
 			return
@@ -77,14 +78,14 @@ func (s *Service) RetryNotificationPart(id, partID string) error {
 	active := s.sending[id]
 	s.mu.Unlock()
 	if active {
-		return errors.New("通知正在发送，请等待结果")
+		return constant.ErrLarkNotificationSending
 	}
 	for _, part := range notification.Parts {
 		if part.ID == partID && part.Channel == "lark" {
-			if part.Status != "failed" {
-				return errors.New("只可重试明确失败的发送项")
+			if part.Status != constant.LarkStatusFailed {
+				return constant.ErrLarkRetryRequiresFailure
 			}
-			part.Status, part.Error = "pending", ""
+			part.Status, part.Error = constant.LarkStatusPending, ""
 			if err = s.tasks.UpdateNotificationPart(id, part); err != nil {
 				return err
 			}
@@ -92,13 +93,13 @@ func (s *Service) RetryNotificationPart(id, partID string) error {
 			return nil
 		}
 	}
-	return errors.New("发送项不存在")
+	return constant.ErrLarkNotificationPartNotFound
 }
 
 // IgnoreNotificationPart 保留用户说明并忽略失败或未知发送项
 func (s *Service) IgnoreNotificationPart(id, partID, reason string) error {
 	if strings.TrimSpace(reason) == "" {
-		return errors.New("请填写忽略原因")
+		return constant.ErrLarkIgnoreReasonRequired
 	}
 	notification, err := s.tasks.GetNotification(id)
 	if err != nil {
@@ -108,18 +109,18 @@ func (s *Service) IgnoreNotificationPart(id, partID, reason string) error {
 	active := s.sending[id]
 	s.mu.Unlock()
 	if active {
-		return errors.New("通知正在发送，请等待结果")
+		return constant.ErrLarkNotificationSending
 	}
 	for _, part := range notification.Parts {
 		if part.ID == partID && part.Channel == "lark" {
-			if part.Status == "sent" {
-				return errors.New("此项已发送")
+			if part.Status == constant.LarkStatusSent {
+				return constant.ErrLarkPartAlreadySent
 			}
-			part.Status, part.Error = "ignored", reason
+			part.Status, part.Error = constant.LarkStatusIgnored, reason
 			return s.tasks.UpdateNotificationPart(id, part)
 		}
 	}
-	return errors.New("发送项不存在")
+	return constant.ErrLarkNotificationPartNotFound
 }
 
 // ConfirmNotDelivered 在用户确认未送达后允许重试未知发送项
@@ -132,18 +133,18 @@ func (s *Service) ConfirmNotDelivered(id, partID string) error {
 	active := s.sending[id]
 	s.mu.Unlock()
 	if active {
-		return errors.New("通知仍在发送，请等待结果")
+		return constant.ErrLarkDeliveryInProgress
 	}
 	for _, part := range notification.Parts {
-		if part.ID == partID && part.Status == "unknown" && part.Channel == "lark" {
-			part.Status, part.Error = "failed", "用户确认未送达"
+		if part.ID == partID && part.Status == constant.LarkStatusUnknown && part.Channel == "lark" {
+			part.Status, part.Error = constant.LarkStatusFailed, constant.LarkDeliveryConfirmedMissingMessage
 			if err = s.tasks.UpdateNotificationPart(id, part); err != nil {
 				return err
 			}
 			return s.RetryNotificationPart(id, partID)
 		}
 	}
-	return errors.New("此项不是结果不明的发送项")
+	return constant.ErrLarkDeliveryNotUncertain
 }
 
 // ShareArtifact 将产物发送给原任务来源或配对接收者
@@ -160,14 +161,14 @@ func (s *Service) ShareArtifact(artifactID string) error {
 }
 
 // GetArtifactShareTarget 查询产物将要发送的接收者
-func (s *Service) GetArtifactShareTarget(artifactID string) (tasks.Source, error) {
+func (s *Service) GetArtifactShareTarget(artifactID string) (tasksmodel.Source, error) {
 	item, err := s.files.GetAttachment(artifactID)
 	if err != nil {
-		return tasks.Source{}, err
+		return tasksmodel.Source{}, err
 	}
-	var source tasks.Source
-	if item.Kind != "artifact" || item.Status != "ready" {
-		return tasks.Source{}, errors.New("请选择已登记的可用产物")
+	var source tasksmodel.Source
+	if item.Kind != "artifact" || item.Status != constant.CodexPhaseReady {
+		return tasksmodel.Source{}, constant.ErrLarkArtifactNotReady
 	}
 	for _, execution := range s.tasks.GetState().Executions {
 		if execution.ID == item.ExecutionID {
@@ -189,7 +190,7 @@ func (s *Service) GetArtifactShareTarget(artifactID string) (tasks.Source, error
 		s.mu.Unlock()
 	}
 	if source.ChatID == "" {
-		return tasks.Source{}, errors.New("请先配对飞书接收者")
+		return tasksmodel.Source{}, constant.ErrLarkPairingRequired
 	}
 	return source, nil
 }
@@ -197,13 +198,13 @@ func (s *Service) GetArtifactShareTarget(artifactID string) (tasks.Source, error
 // ShareArtifactFor 核验任务范围后登记产物分享
 //
 //wails:ignore
-func (s *Service) ShareArtifactFor(artifactID, projectID, executionID string, source tasks.Source) error {
+func (s *Service) ShareArtifactFor(artifactID, projectID, executionID string, source tasksmodel.Source) error {
 	item, err := s.files.GetAttachment(artifactID)
 	if err != nil {
 		return err
 	}
 	if item.Kind != "artifact" || projectID != "" && item.ProjectID != projectID || executionID != "" && item.ExecutionID != executionID {
-		return errors.New("产物不属于当前任务范围")
+		return constant.ErrLarkArtifactOutsideScope
 	}
 	if source.Type != "lark" {
 		s.mu.Lock()
@@ -243,7 +244,7 @@ func (s *Service) kickDelivery(id string) {
 			return
 		}
 		for _, part := range notification.Parts {
-			if part.Channel != "lark" || part.Status != "pending" {
+			if part.Channel != "lark" || part.Status != constant.LarkStatusPending {
 				continue
 			}
 			s.deliver(notification, part)
@@ -253,27 +254,27 @@ func (s *Service) kickDelivery(id string) {
 }
 
 // deliveryClient 核验应用和接收范围并取得当前连接
-func (s *Service) deliveryClient(source tasks.Source) (*larksdk.Client, context.Context, error) {
+func (s *Service) deliveryClient(source tasksmodel.Source) (*larksdk.Client, context.Context, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ctx.Err() != nil {
 		return nil, nil, s.ctx.Err()
 	}
-	if s.client == nil || s.status.Phase != "ready" {
-		return nil, nil, errors.New("飞书尚未连接，未发送")
+	if s.client == nil || s.status.Phase != constant.CodexPhaseReady {
+		return nil, nil, constant.ErrLarkDisconnected
 	}
 	if source.AppID != s.config.AppID {
-		return nil, nil, errors.New("通知属于另一个飞书应用，未发送")
+		return nil, nil, constant.ErrLarkNotificationAppMismatch
 	}
 	allowed := hasIdentity(s.config.AllowedUsers, source.SenderID)
-	if source.ChatType == "group" {
+	if source.ChatType == constant.LarkChatTypeGroup {
 		allowed = hasIdentity(s.config.AllowedChats, source.ChatID)
 	}
 	if !allowed {
-		return nil, nil, errors.New("原接收者的授权已取消，未发送")
+		return nil, nil, constant.ErrLarkRecipientUnauthorized
 	}
-	if source.ChatID == "" && source.ChatType != "p2p" {
-		return nil, nil, errors.New("通知缺少原会话，未发送")
+	if source.ChatID == "" && source.ChatType != constant.LarkChatTypePrivate {
+		return nil, nil, constant.ErrLarkNotificationChatMissing
 	}
 	ctx := s.connectionCtx
 	if ctx == nil {
@@ -283,42 +284,42 @@ func (s *Service) deliveryClient(source tasks.Source) (*larksdk.Client, context.
 }
 
 // deliver 先记录发送意图再上传或回复原消息
-func (s *Service) deliver(notification tasks.Notification, part tasks.NotificationPart) {
+func (s *Service) deliver(notification tasksmodel.Notification, part tasksmodel.NotificationPart) {
 	client, parent, err := s.deliveryClient(notification.Source)
 	if err != nil {
-		part.Status, part.Error = "failed", err.Error()
+		part.Status, part.Error = constant.LarkStatusFailed, err.Error()
 		s.tasks.UpdateNotificationPart(notification.ID, part)
 		return
 	}
-	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, constant.LarkDeliveryTimeout)
 	defer cancel()
-	part.Status, part.AttemptedAt, part.Error = "unknown", now(), "发送中；未收到明确响应前请勿重发"
+	part.Status, part.AttemptedAt, part.Error = constant.LarkStatusUnknown, now(), constant.LarkDeliverySendingMessage
 	if err = s.tasks.UpdateNotificationPart(notification.ID, part); err != nil {
 		return
 	}
-	status, messageID := "unknown", ""
+	status, messageID := constant.LarkStatusUnknown, ""
 	type_, content := "text", jsonText(map[string]any{"text": part.Content})
 	if part.Kind == "approval" || part.Kind == "markdown" {
 		type_, content = "interactive", part.PayloadJSON
 	}
 	if part.Kind == "file" {
 		item, readErr := s.files.GetAttachment(part.ArtifactID)
-		if readErr != nil || item.Status != "ready" {
-			status = "failed"
-			err = errors.New("产物不可用")
+		if readErr != nil || item.Status != constant.CodexPhaseReady {
+			status = constant.LarkStatusFailed
+			err = constant.ErrLarkArtifactUnavailable
 		} else {
 			image := strings.HasPrefix(item.MediaType, "image/")
 			if part.UploadKey == "" {
 				file, openErr := os.Open(item.LocalPath)
 				if openErr != nil {
-					status, err = "failed", openErr
+					status, err = constant.LarkStatusFailed, openErr
 				} else {
 					if image {
 						response, uploadErr := client.Im.V1.Image.Create(ctx, larkim.NewCreateImageReqBuilder().Body(larkim.NewCreateImageReqBodyBuilder().ImageType("message").Image(file).Build()).Build())
 						err = uploadErr
 						if err == nil {
 							if !response.Success() || response.Data == nil {
-								status = "failed"
+								status = constant.LarkStatusFailed
 								err = fmt.Errorf("上传图片失败（%d）：%s", response.Code, response.Msg)
 							} else {
 								part.UploadKey = value(response.Data.ImageKey)
@@ -329,7 +330,7 @@ func (s *Service) deliver(notification tasks.Notification, part tasks.Notificati
 						err = uploadErr
 						if err == nil {
 							if !response.Success() || response.Data == nil {
-								status = "failed"
+								status = constant.LarkStatusFailed
 								err = fmt.Errorf("上传文件失败（%d）：%s", response.Code, response.Msg)
 							} else {
 								part.UploadKey = value(response.Data.FileKey)
@@ -339,7 +340,7 @@ func (s *Service) deliver(notification tasks.Notification, part tasks.Notificati
 					file.Close()
 					if err == nil {
 						if part.UploadKey == "" {
-							err = errors.New("上传成功响应缺少资源 ID，结果不明")
+							err = constant.ErrLarkUploadResourceIDMissing
 						} else if saveErr := s.tasks.UpdateNotificationPart(notification.ID, part); saveErr != nil {
 							return
 						}
@@ -364,13 +365,13 @@ func (s *Service) deliver(notification tasks.Notification, part tasks.Notificati
 		part.Error = ""
 	}
 	s.tasks.UpdateNotificationPart(notification.ID, part)
-	if part.Kind == "approval" && status == "sent" {
-		var resolved ApprovalRoute
+	if part.Kind == "approval" && status == constant.LarkStatusSent {
+		var resolved larkmodel.ApprovalRoute
 		s.mu.Lock()
 		for i := range s.state.Approvals {
 			if s.state.Approvals[i].NotificationID == notification.ID {
 				s.state.Approvals[i].MessageID = messageID
-				if s.state.Approvals[i].Status != "pending" {
+				if s.state.Approvals[i].Status != constant.LarkStatusPending {
 					resolved = s.state.Approvals[i]
 				}
 				break
@@ -391,44 +392,44 @@ func jsonText(value any) string {
 }
 
 // sendMessage 回复原消息或发送到明确接收者
-func sendMessage(ctx context.Context, client *larksdk.Client, source tasks.Source, type_, content, id string) (string, string, error) {
+func sendMessage(ctx context.Context, client *larksdk.Client, source tasksmodel.Source, type_, content, id string) (string, string, error) {
 	if source.MessageID != "" {
 		response, err := client.Im.V1.Message.Reply(ctx, larkim.NewReplyMessageReqBuilder().MessageId(source.MessageID).Body(larkim.NewReplyMessageReqBodyBuilder().MsgType(type_).Content(content).Uuid(id).Build()).Build())
 		if err != nil {
-			return "", "unknown", err
+			return "", constant.LarkStatusUnknown, err
 		}
 		if !response.Success() {
-			return "", "failed", fmt.Errorf("回复失败（%d）：%s", response.Code, response.Msg)
+			return "", constant.LarkStatusFailed, fmt.Errorf("回复失败（%d）：%s", response.Code, response.Msg)
 		}
 		if response.Data == nil || value(response.Data.MessageId) == "" {
-			return "", "unknown", errors.New("回复响应缺少消息 ID，结果不明")
+			return "", constant.LarkStatusUnknown, constant.ErrLarkReplyMessageIDMissing
 		}
-		return value(response.Data.MessageId), "sent", nil
+		return value(response.Data.MessageId), constant.LarkStatusSent, nil
 	}
 	receiveType, receiveID := "chat_id", source.ChatID
-	if receiveID == "" && source.ChatType == "p2p" {
+	if receiveID == "" && source.ChatType == constant.LarkChatTypePrivate {
 		receiveType, receiveID = "open_id", source.SenderID
 	}
 	response, err := client.Im.V1.Message.Create(ctx, larkim.NewCreateMessageReqBuilder().ReceiveIdType(receiveType).Body(larkim.NewCreateMessageReqBodyBuilder().ReceiveId(receiveID).MsgType(type_).Content(content).Uuid(id).Build()).Build())
 	if err != nil {
-		return "", "unknown", err
+		return "", constant.LarkStatusUnknown, err
 	}
 	if !response.Success() {
-		return "", "failed", fmt.Errorf("发送失败（%d）：%s", response.Code, response.Msg)
+		return "", constant.LarkStatusFailed, fmt.Errorf("发送失败（%d）：%s", response.Code, response.Msg)
 	}
 	if response.Data == nil || value(response.Data.MessageId) == "" {
-		return "", "unknown", errors.New("发送响应缺少消息 ID，结果不明")
+		return "", constant.LarkStatusUnknown, constant.ErrLarkSendMessageIDMissing
 	}
-	return value(response.Data.MessageId), "sent", nil
+	return value(response.Data.MessageId), constant.LarkStatusSent, nil
 }
 
 // share 登记产物发送项并保留项目归属
-func (s *Service) share(artifactID, projectID string, source tasks.Source) error {
+func (s *Service) share(artifactID, projectID string, source tasksmodel.Source) error {
 	if source.Type != "lark" || source.ChatID == "" {
-		return errors.New("请先在飞书设置中配对接收者")
+		return constant.ErrLarkReplyPairingRequired
 	}
 	if _, _, err := s.deliveryClient(source); err != nil {
 		return err
 	}
-	return s.tasks.RecordNotification(tasks.Notification{Title: "分享产物", Body: "产物已进入发送队列", ProjectID: projectID, Source: source, Parts: []tasks.NotificationPart{{ID: rand.Text(), Kind: "file", Channel: "lark", Target: source.ChatID, Status: "pending", ArtifactID: artifactID}}})
+	return s.tasks.RecordNotification(tasksmodel.Notification{Title: constant.LarkArtifactShareTitle, Body: constant.LarkArtifactQueuedMessage, ProjectID: projectID, Source: source, Parts: []tasksmodel.NotificationPart{{ID: rand.Text(), Kind: "file", Channel: "lark", Target: source.ChatID, Status: constant.LarkStatusPending, ArtifactID: artifactID}}})
 }

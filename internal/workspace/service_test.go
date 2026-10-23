@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestMoveKeepsStepAndKnowledgeContextAcrossRestart 验证功能移动与重启后步骤知识上下文一致
@@ -13,22 +15,22 @@ func TestMoveKeepsStepAndKnowledgeContextAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.SaveProject(Project{Name: "Project", Directory: t.TempDir(), SharedContext: "shared", Prompt: "project prompt"})
+	state, err := s.SaveProject(workspacemodel.Project{Name: "Project", Directory: t.TempDir(), SharedContext: "shared", Prompt: "project prompt"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
-	state, err = s.SaveVersion(projectID, Version{Name: "v1"})
+	state, err = s.SaveVersion(projectID, workspacemodel.Version{Name: "v1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	versionID := state.SelectedID
-	state, err = s.SaveFeature(projectID, versionID, Feature{Title: "Feature", Context: "feature context"})
+	state, err = s.SaveFeature(projectID, versionID, workspacemodel.Feature{Title: "Feature", Context: "feature context"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	featureID := state.SelectedID
-	state, err = s.SaveStep(projectID, featureID, Step{Title: "Step", Prompt: "step prompt"})
+	state, err = s.SaveStep(projectID, featureID, workspacemodel.Step{Title: "Step", Prompt: "step prompt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +44,7 @@ func TestMoveKeepsStepAndKnowledgeContextAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	documentID := state.Documents[0].ID
-	state, err = s.SaveVersion(projectID, Version{Name: "v2"})
+	state, err = s.SaveVersion(projectID, workspacemodel.Version{Name: "v2"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,17 +83,17 @@ func TestKnowledgeScopeAndCrossProjectMove(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.SaveProject(Project{Name: "A", Directory: t.TempDir()})
+	state, err := s.SaveProject(workspacemodel.Project{Name: "A", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectA := state.SelectedID
-	state, err = s.SaveVersion(projectA, Version{Name: "v"})
+	state, err = s.SaveVersion(projectA, workspacemodel.Version{Name: "v"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	versionA := state.SelectedID
-	state, err = s.SaveFeature(projectA, versionA, Feature{Title: "one"})
+	state, err = s.SaveFeature(projectA, versionA, workspacemodel.Feature{Title: "one"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +107,7 @@ func TestKnowledgeScopeAndCrossProjectMove(t *testing.T) {
 		t.Fatal(err)
 	}
 	documentID := state.Documents[0].ID
-	state, err = s.SaveFeature(projectA, versionA, Feature{Title: "two"})
+	state, err = s.SaveFeature(projectA, versionA, workspacemodel.Feature{Title: "two"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,12 +124,12 @@ func TestKnowledgeScopeAndCrossProjectMove(t *testing.T) {
 	if _, err = s.ReadKnowledge(projectA, featureOther, documentID); err != nil {
 		t.Fatal("project knowledge was not inherited", err)
 	}
-	state, err = s.SaveProject(Project{Name: "B", Directory: t.TempDir()})
+	state, err = s.SaveProject(workspacemodel.Project{Name: "B", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectB := state.SelectedID
-	state, err = s.SaveVersion(projectB, Version{Name: "v"})
+	state, err = s.SaveVersion(projectB, workspacemodel.Version{Name: "v"})
 	if err != nil {
 		t.Fatal(err)
 	}

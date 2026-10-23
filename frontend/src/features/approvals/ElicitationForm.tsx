@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Approval } from "../../../bindings/agentor/internal/codex/models";
+import type { Approval } from "../../../bindings/agentor/internal/codex/model/models";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
 import { Button } from "@/components/ui/button";

@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"agentor/internal/tasks"
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
+
 	larksdk "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
 // startReaction 在原消息上登记处理中表态
-func (s *Service) startReaction(ctx context.Context, client *larksdk.Client, source tasks.Source) {
+func (s *Service) startReaction(ctx context.Context, client *larksdk.Client, source tasksmodel.Source) {
 	response, err := client.Im.V1.MessageReaction.Create(ctx, larkim.NewCreateMessageReactionReqBuilder().MessageId(source.MessageID).Body(larkim.NewCreateMessageReactionReqBodyBuilder().ReactionType(larkim.NewEmojiBuilder().EmojiType("Typing").Build()).Build()).Build())
 	id := ""
 	if err == nil && response.Success() && response.Data != nil {
@@ -27,9 +29,9 @@ func (s *Service) startReaction(ctx context.Context, client *larksdk.Client, sou
 		item := &s.state.Incoming[i]
 		if item.Source.AppID == source.AppID && item.Source.MessageID == source.MessageID {
 			item.ReactionID = id
-			item.ReactionState = "busy"
+			item.ReactionState = constant.LarkReactionBusy
 			if err != nil {
-				item.ReactionState = "failed"
+				item.ReactionState = constant.LarkStatusFailed
 			}
 			break
 		}
@@ -38,35 +40,35 @@ func (s *Service) startReaction(ctx context.Context, client *larksdk.Client, sou
 }
 
 // sameMessage 比较消息的应用和会话归属
-func sameMessage(a, b tasks.Source) bool {
+func sameMessage(a, b tasksmodel.Source) bool {
 	return a.AppID == b.AppID && a.MessageID == b.MessageID && a.ChatID == b.ChatID
 }
 
 // finishReaction 在关联任务全部结束后切换完成表态
-func (s *Service) finishReaction(source tasks.Source) {
+func (s *Service) finishReaction(source tasksmodel.Source) {
 	if source.MessageID == "" {
 		return
 	}
 	state := s.tasks.GetState()
 	for _, execution := range state.Executions {
-		if sameMessage(execution.Source, source) && (execution.Status == "running" || execution.Status == "queued") {
+		if sameMessage(execution.Source, source) && (execution.Status == constant.TasksStatusRunning || execution.Status == constant.TasksStatusQueued) {
 			return
 		}
 	}
 	for _, request := range state.Requests {
-		if sameMessage(request.Source, source) && (request.Status == "running" || request.Status == "queued") {
+		if sameMessage(request.Source, source) && (request.Status == constant.TasksStatusRunning || request.Status == constant.TasksStatusQueued) {
 			return
 		}
 	}
 	if s.pipelines != nil {
 		pipelines := s.pipelines.GetState()
 		for _, run := range pipelines.Runs {
-			if sameMessage(run.Source, source) && (run.Status == "running" || run.Status == "queued") {
+			if sameMessage(run.Source, source) && (run.Status == constant.TasksStatusRunning || run.Status == constant.TasksStatusQueued) {
 				return
 			}
 		}
 		for _, request := range pipelines.Requests {
-			if sameMessage(request.Input.Source, source) && (request.Status == "running" || request.Status == "queued") {
+			if sameMessage(request.Input.Source, source) && (request.Status == constant.TasksStatusRunning || request.Status == constant.TasksStatusQueued) {
 				return
 			}
 		}
@@ -80,8 +82,8 @@ func (s *Service) finishReaction(source tasks.Source) {
 	found := false
 	for i := range s.state.Incoming {
 		item := &s.state.Incoming[i]
-		if sameMessage(item.Source, source) && item.ReactionState == "busy" {
-			item.ReactionState = "done"
+		if sameMessage(item.Source, source) && item.ReactionState == constant.LarkReactionBusy {
+			item.ReactionState = constant.LarkReactionDone
 			id = item.ReactionID
 			found = true
 			break

@@ -5,24 +5,24 @@ import (
 	"reflect"
 	"testing"
 
-	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
 )
 
 // TestApprovalCardHorizontalLayout 验证各审批路径的按钮同排且顺序、正文和回调保持不变
 func TestApprovalCardHorizontalLayout(t *testing.T) {
-	options := []codex.DecisionOption{{Value: "accept", Label: "允许"}, {Value: "acceptForSession", Label: "会话内允许"}, {Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}
+	options := []codexmodel.DecisionOption{{Value: "accept", Label: "允许"}, {Value: "acceptForSession", Label: "会话内允许"}, {Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}
 	for _, test := range []struct {
-		name     string                 // 场景名称
-		approval codex.Approval         // 原审批请求
-		options  []codex.DecisionOption // 预期按钮顺序
+		name     string                      // 场景名称
+		approval codexmodel.Approval         // 原审批请求
+		options  []codexmodel.DecisionOption // 预期按钮顺序
 	}{
-		{"command", codex.Approval{Method: "item/commandExecution/requestApproval", DecisionOptions: options}, options},
-		{"file", codex.Approval{Method: "item/fileChange/requestApproval", DecisionOptions: options[:1]}, options[:1]},
-		{"permissions", codex.Approval{Method: "item/permissions/requestApproval"}, []codex.DecisionOption{{Value: "accept", Label: "允许本轮"}, {Value: "decline", Label: "拒绝"}}},
-		{"elicitation", codex.Approval{Method: "mcpServer/elicitation/request"}, []codex.DecisionOption{{Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}},
-		{"computer-use", codex.Approval{Method: "mcpServer/elicitation/request", Mode: "form", SchemaJSON: `{"type":"object","properties":{}}`}, []codex.DecisionOption{{Value: "accept", Label: "同意"}, {Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}},
-		{"user-input", codex.Approval{Method: "item/tool/requestUserInput", DecisionOptions: options}, nil},
-		{"no-options", codex.Approval{}, nil},
+		{"command", codexmodel.Approval{Method: "item/commandExecution/requestApproval", DecisionOptions: options}, options},
+		{"file", codexmodel.Approval{Method: "item/fileChange/requestApproval", DecisionOptions: options[:1]}, options[:1]},
+		{"permissions", codexmodel.Approval{Method: "item/permissions/requestApproval"}, []codexmodel.DecisionOption{{Value: "accept", Label: "允许本轮"}, {Value: "decline", Label: "拒绝"}}},
+		{"elicitation", codexmodel.Approval{Method: "mcpServer/elicitation/request"}, []codexmodel.DecisionOption{{Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}},
+		{"computer-use", codexmodel.Approval{Method: "mcpServer/elicitation/request", Mode: "form", SchemaJSON: `{"type":"object","properties":{}}`}, []codexmodel.DecisionOption{{Value: "accept", Label: "同意"}, {Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}},
+		{"user-input", codexmodel.Approval{Method: "item/tool/requestUserInput", DecisionOptions: options}, nil},
+		{"no-options", codexmodel.Approval{}, nil},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			initial := approvalCard(test.approval, "route")

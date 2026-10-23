@@ -1,9 +1,12 @@
 package tasks
 
-import "errors"
+import (
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
+)
 
 // resolveTarget 按明确步骤引用消息和来源历史解析执行目标
-func (s *Service) resolveTarget(input ControllerInput) (ControllerInput, bool, error) {
+func (s *Service) resolveTarget(input tasksmodel.ControllerInput) (tasksmodel.ControllerInput, bool, error) {
 	needsTarget, inferred := false, false
 	s.mu.Lock()
 	if input.StepID == "" && input.Source.ReplyToMessageID != "" {
@@ -38,7 +41,7 @@ func (s *Service) resolveTarget(input ControllerInput) (ControllerInput, bool, e
 		} else {
 			if input.ProjectID != "" && input.ProjectID != context.ProjectID {
 				if !inferred {
-					return input, false, errors.New("目标步骤不属于当前请求项目")
+					return input, false, constant.ErrTasksTargetOutsideProject
 				}
 				input.StepID = ""
 				needsTarget = true
@@ -59,7 +62,7 @@ func (s *Service) resolveTarget(input ControllerInput) (ControllerInput, bool, e
 			}
 		}
 		if !found {
-			return input, false, errors.New("请求项目不存在")
+			return input, false, constant.ErrTasksProjectNotFound
 		}
 	}
 	return input, needsTarget, nil

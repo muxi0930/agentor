@@ -5,19 +5,3 @@ import * as Service from "./service.js";
 export {
     Service
 };
-
-export type {
-    Action,
-    ActionResult,
-    ActionSpec,
-    Changed,
-    InputField,
-    Parameter,
-    Run,
-    RunInput,
-    Schedule,
-    SessionInput,
-    SessionRequest,
-    State,
-    Task
-} from "./models.js";

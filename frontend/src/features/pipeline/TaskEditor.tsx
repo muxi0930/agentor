@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Action, ActionSpec, InputField, Task } from "../../../bindings/agentor/internal/pipeline/models";
+import type { Action, ActionSpec, InputField, Task } from "../../../bindings/agentor/internal/pipeline/model/models";
 import * as Pipeline from "../../../bindings/agentor/internal/pipeline/service";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestKnowledgeHierarchy 验证逐级继承、版本隔离、移动、去重与持久化
@@ -14,27 +16,27 @@ func TestKnowledgeHierarchy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.SaveProject(Project{Name: "项目", Directory: t.TempDir()})
+	state, err := s.SaveProject(workspacemodel.Project{Name: "项目", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
-	state, err = s.SaveVersion(projectID, Version{Name: "v1"})
+	state, err = s.SaveVersion(projectID, workspacemodel.Version{Name: "v1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	versionID := state.SelectedID
-	state, err = s.SaveVersion(projectID, Version{Name: "v2"})
+	state, err = s.SaveVersion(projectID, workspacemodel.Version{Name: "v2"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	otherVersionID := state.SelectedID
-	state, err = s.SaveFeature(projectID, versionID, Feature{Title: "功能"})
+	state, err = s.SaveFeature(projectID, versionID, workspacemodel.Feature{Title: "功能"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	featureID := state.SelectedID
-	state, err = s.SaveStep(projectID, featureID, Step{Title: "步骤"})
+	state, err = s.SaveStep(projectID, featureID, workspacemodel.Step{Title: "步骤"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,14 +76,14 @@ func TestKnowledgeHierarchy(t *testing.T) {
 	if err != nil || len(context.Documents) != 3 {
 		t.Fatal("继承或重启后的去重错误", context.Documents, err)
 	}
-	if _, err := s.SaveVersion(projectID, Version{ID: versionID, Name: "更新版本"}); err != nil {
+	if _, err := s.SaveVersion(projectID, workspacemodel.Version{ID: versionID, Name: "更新版本"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.MoveFeature(projectID, featureID, otherVersionID); err != nil {
 		t.Fatal(err)
 	}
 	context, err = s.GetStepContext(stepID)
-	if err != nil || len(context.Documents) != 3 || slices.ContainsFunc(context.Documents, func(d Document) bool { return d.ID == ids[1] }) {
+	if err != nil || len(context.Documents) != 3 || slices.ContainsFunc(context.Documents, func(d workspacemodel.Document) bool { return d.ID == ids[1] }) {
 		t.Fatal("移动后没有切换版本知识", context.Documents, err)
 	}
 	if _, err := s.BindKnowledge(projectID, otherVersionID, ids[3], false); err != nil {

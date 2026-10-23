@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"agentor/internal/workspace"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestControllerCreatedAt 验证飞书控制器创建入口返回真实时间并持久化到列表数据
@@ -15,22 +16,22 @@ func TestControllerCreatedAt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := work.SaveProject(workspace.Project{Name: "项目", Directory: t.TempDir()})
+	state, err := work.SaveProject(workspacemodel.Project{Name: "项目", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
 	before := time.Now().UTC()
-	state, err = work.SaveVersion(projectID, workspace.Version{Name: "版本"})
+	state, err = work.SaveVersion(projectID, workspacemodel.Version{Name: "版本"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	version := state.Projects[0].Versions[0]
-	feature, err := work.CreateFeature(projectID, version.ID, workspace.Feature{Title: "功能"})
+	feature, err := work.CreateFeature(projectID, version.ID, workspacemodel.Feature{Title: "功能"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	step, err := work.CreateStep(projectID, feature.ID, workspace.Step{Title: "步骤"})
+	step, err := work.CreateStep(projectID, feature.ID, workspacemodel.Step{Title: "步骤"})
 	if err != nil {
 		t.Fatal(err)
 	}

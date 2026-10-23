@@ -1,4 +1,4 @@
-import type { State } from "../../../bindings/agentor/internal/workspace/models";
+import type { State } from "../../../bindings/agentor/internal/workspace/model/models";
 import { locate } from "./selection.ts";
 
 export function nodeMove(state: State, sourceId: string, targetId: string, after: boolean) {

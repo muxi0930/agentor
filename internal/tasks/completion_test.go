@@ -6,15 +6,17 @@ import (
 	"testing"
 
 	"agentor/internal/appdata"
+	tasksmodel "agentor/internal/tasks/model"
 	"agentor/internal/workspace"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestManualCompletionPreservesExecutions 验证手动完成不更改执行记录且后续任务保存不会覆盖完成状态
 func TestManualCompletionPreservesExecutions(t *testing.T) {
 	data := testData(t)
 	root := data.GetInfo().DataDirectory
-	initial := workspace.State{Projects: []workspace.Project{{ID: "p", Versions: []workspace.Version{{ID: "v", Features: []workspace.Feature{
-		{ID: "f", Steps: []workspace.Step{{ID: "a"}}},
+	initial := workspacemodel.State{Projects: []workspacemodel.Project{{ID: "p", Versions: []workspacemodel.Version{{ID: "v", Features: []workspacemodel.Feature{
+		{ID: "f", Steps: []workspacemodel.Step{{ID: "a"}}},
 	}}}}}}
 	if err := appdata.WriteJSON(filepath.Join(root, "workspace.json"), initial); err != nil {
 		t.Fatal(err)
@@ -28,7 +30,7 @@ func TestManualCompletionPreservesExecutions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.ServiceShutdown()
-	s.state.Executions = []Execution{
+	s.state.Executions = []tasksmodel.Execution{
 		{ID: "a1", StepID: "a", Status: "error", Result: "历史结果", CreatedAt: "2026-10-21T01:00:00Z"},
 		{ID: "a2", StepID: "a", Status: "running", ThreadID: "thread", CreatedAt: "2026-10-21T02:00:00Z"},
 	}
@@ -59,7 +61,7 @@ func TestManualCompletionPreservesExecutions(t *testing.T) {
 	if !feature.Completed || !feature.Steps[0].Completed {
 		t.Fatal("任务保存后应继续保留手动完成状态", feature)
 	}
-	var saved State
+	var saved tasksmodel.State
 	if err := appdata.ReadJSON(filepath.Join(root, "tasks.json"), &saved); err != nil || !reflect.DeepEqual(saved, before) {
 		t.Fatal("持久化执行记录不应发生变化", err)
 	}
@@ -69,8 +71,8 @@ func TestManualCompletionPreservesExecutions(t *testing.T) {
 func TestCompletionWithoutStartupBackfill(t *testing.T) {
 	data := testData(t)
 	root := data.GetInfo().DataDirectory
-	initial := workspace.State{Projects: []workspace.Project{{ID: "p", Versions: []workspace.Version{{ID: "v", Features: []workspace.Feature{
-		{ID: "f", Steps: []workspace.Step{{ID: "a"}, {ID: "b"}}},
+	initial := workspacemodel.State{Projects: []workspacemodel.Project{{ID: "p", Versions: []workspacemodel.Version{{ID: "v", Features: []workspacemodel.Feature{
+		{ID: "f", Steps: []workspacemodel.Step{{ID: "a"}, {ID: "b"}}},
 	}}}}}}
 	if err := appdata.WriteJSON(filepath.Join(root, "workspace.json"), initial); err != nil {
 		t.Fatal(err)
@@ -80,7 +82,7 @@ func TestCompletionWithoutStartupBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	completedAt := "2026-10-21T01:00:00Z"
-	history := State{Executions: []Execution{
+	history := tasksmodel.State{Executions: []tasksmodel.Execution{
 		{ID: "a1", StepID: "a", Status: "completed", CompletedAt: completedAt},
 		{ID: "b1", StepID: "b", Status: "completed", CompletedAt: completedAt},
 		{ID: "b2", StepID: "b", Status: "error"},
@@ -98,11 +100,11 @@ func TestCompletionWithoutStartupBackfill(t *testing.T) {
 	if feature.Steps[0].Completed || feature.Steps[0].CompletedAt != "" || feature.Steps[1].Completed || feature.Completed {
 		t.Fatal("启动时不应从历史记录回填完成状态", feature)
 	}
-	s.state.Executions = append(s.state.Executions, Execution{ID: "a2", StepID: "a", Status: "running"})
+	s.state.Executions = append(s.state.Executions, tasksmodel.Execution{ID: "a2", StepID: "a", Status: "running"})
 	s.finish("a2", "completed", "完成", nil)
 	s.state.Executions[3].Status = "running"
 	s.state.Executions = append(s.state.Executions,
-		Execution{ID: "b4", StepID: "b", Status: "queued"},
+		tasksmodel.Execution{ID: "b4", StepID: "b", Status: "queued"},
 	)
 	s.finish("b3", "completed", "完成", nil)
 	feature = work.GetState().Projects[0].Versions[0].Features[0]

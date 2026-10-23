@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestShutdownWaitsForWorkerAndCancelsQueuedRequests 验证退出等待运行收尾并持久化取消排队项
@@ -14,15 +16,15 @@ func TestShutdownWaitsForWorkerAndCancelsQueuedRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	started, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
-	s.runRequest = func(ctx context.Context, request Request) (string, string, error) {
+	s.runRequest = func(ctx context.Context, request tasksmodel.Request) (string, string, error) {
 		close(started)
 		<-ctx.Done()
 		close(cancelled)
 		<-release
 		return "interrupted", "", ctx.Err()
 	}
-	s.state.Requests = []Request{{ID: "running", Status: "queued"}, {ID: "queued", Status: "queued"}}
-	s.state.Executions = []Execution{{ID: "queued-step", Status: "queued"}}
+	s.state.Requests = []tasksmodel.Request{{ID: "running", Status: "queued"}, {ID: "queued", Status: "queued"}}
+	s.state.Executions = []tasksmodel.Execution{{ID: "queued-step", Status: "queued"}}
 	s.kickController()
 	<-started
 

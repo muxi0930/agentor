@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"agentor/internal/constant"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,12 +20,12 @@ type globalConfig struct {
 //
 //wails:ignore
 func (s *Service) SetDataDirectory(directory string) error {
-	if os.Getenv("AGENTOR_DATA_DIR") != "" {
-		return errors.New("当前数据目录由 AGENTOR_DATA_DIR 环境变量指定，请先移除该变量再切换目录")
+	if os.Getenv(constant.AppDataDirectoryEnvironment) != "" {
+		return constant.ErrAppDataDataDirectoryEnvironmentOverride
 	}
 	directory = strings.TrimSpace(directory)
 	if directory == "" || !filepath.IsAbs(directory) {
-		return errors.New("请选择应用数据根目录的绝对路径")
+		return constant.ErrAppDataDataDirectoryPathInvalid
 	}
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		return err
@@ -37,8 +39,8 @@ func resolveDataDirectory() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	path := filepath.Join(home, ".config", "agentor", "conf.yaml")
-	if directory := os.Getenv("AGENTOR_DATA_DIR"); directory != "" {
+	path := filepath.Join(home, ".config", constant.AppDataApplicationName, constant.AppDataGlobalConfigFilename)
+	if directory := os.Getenv(constant.AppDataDirectoryEnvironment); directory != "" {
 		return directory, path, nil
 	}
 
@@ -58,7 +60,7 @@ func resolveDataDirectory() (string, string, error) {
 		if err != nil {
 			return "", "", err
 		}
-		config.DataDirectory = filepath.Join(base, "agentor")
+		config.DataDirectory = filepath.Join(base, constant.AppDataApplicationName)
 	}
 	if missing {
 		if err := writeGlobalConfig(path, config); err != nil {

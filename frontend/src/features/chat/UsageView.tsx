@@ -1,4 +1,4 @@
-import type { TokenUsage } from "../../../bindings/agentor/internal/codex/models";
+import type { TokenUsage } from "../../../bindings/agentor/internal/codex/model/models";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function UsageView({ usage }: { usage?: TokenUsage }) {

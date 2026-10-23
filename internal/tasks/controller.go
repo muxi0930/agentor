@@ -4,16 +4,17 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
-	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // SubmitRequest 将用户指令加入控制中心队列
-func (s *Service) SubmitRequest(input ControllerInput) (Request, error) {
-	return s.submitRequest(input, "instruction", "")
+func (s *Service) SubmitRequest(input tasksmodel.ControllerInput) (tasksmodel.Request, error) {
+	return s.submitRequest(input, constant.TasksRequestKindInstruction, "")
 }
 
 // StopRequest 取消排队或正在处理的控制中心请求
@@ -22,16 +23,16 @@ func (s *Service) StopRequest(id string) error {
 	for i := range s.state.Requests {
 		request := &s.state.Requests[i]
 		if request.ID == id {
-			if request.Status == "queued" {
-				request.Status, request.Error, request.CompletedAt = "interrupted", "用户取消排队", now()
+			if request.Status == constant.TasksStatusQueued {
+				request.Status, request.Error, request.CompletedAt = constant.TasksStatusInterrupted, constant.TasksQueueCancelledMessage, now()
 				err := s.persistLocked()
 				s.mu.Unlock()
 				s.changed()
 				return err
 			}
-			if request.Status != "running" {
+			if request.Status != constant.TasksStatusRunning {
 				s.mu.Unlock()
-				return errors.New("请求已结束")
+				return constant.ErrTasksRequestFinished
 			}
 			cancel := s.cancellations[id]
 			s.mu.Unlock()
@@ -42,61 +43,61 @@ func (s *Service) StopRequest(id string) error {
 		}
 	}
 	s.mu.Unlock()
-	return errors.New("请求不存在")
+	return constant.ErrTasksRequestNotFound
 }
 
 // CurrentRequest 查找线程当前处理的控制中心请求
 //
 //wails:ignore
-func (s *Service) CurrentRequest(threadID string) (Request, error) {
+func (s *Service) CurrentRequest(threadID string) (tasksmodel.Request, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for _, request := range s.state.Requests {
-		if request.ThreadID == threadID && request.Status == "running" {
+		if request.ThreadID == threadID && request.Status == constant.TasksStatusRunning {
 			return request, nil
 		}
 	}
-	return Request{}, errors.New("此线程没有活动控制中心请求")
+	return tasksmodel.Request{}, constant.ErrTasksActiveRequestNotFound
 }
 
 // DispatchFromController 从当前控制中心范围派发正式步骤
 //
 //wails:ignore
-func (s *Service) DispatchFromController(threadID, stepID, instruction, criteria, model, effort string) (Execution, error) {
+func (s *Service) DispatchFromController(threadID, stepID, instruction, criteria, model, effort string) (tasksmodel.Execution, error) {
 	request, err := s.CurrentRequest(threadID)
 	if err != nil {
-		return Execution{}, err
+		return tasksmodel.Execution{}, err
 	}
-	if request.Kind != "instruction" {
-		return Execution{}, errors.New("完成汇报不能重新派发任务")
+	if request.Kind != constant.TasksRequestKindInstruction {
+		return tasksmodel.Execution{}, constant.ErrTasksCompletionDispatchForbidden
 	}
 	if request.NeedsTarget {
-		return Execution{}, errors.New("当前来源没有明确目标，请先询问用户")
+		return tasksmodel.Execution{}, constant.ErrTasksTargetRequired
 	}
 	if stepID == "" {
 		stepID = request.StepID
 	}
 	if request.LockedTarget && request.StepID != "" && stepID != request.StepID {
-		return Execution{}, errors.New("本次请求已明确指定步骤，请勿派发其他目标")
+		return tasksmodel.Execution{}, constant.ErrTasksLockedTargetMismatch
 	}
 	context, err := s.work.GetStepContext(stepID)
 	if err != nil {
-		return Execution{}, err
+		return tasksmodel.Execution{}, err
 	}
 	if request.ProjectID != "" && request.ProjectID != context.ProjectID {
-		return Execution{}, errors.New("步骤不属于本次请求的项目范围")
+		return tasksmodel.Execution{}, constant.ErrTasksStepOutsideRequestProject
 	}
 
 	model, effort, err = s.SelectExecutor(request, model, effort)
 	if err != nil {
-		return Execution{}, err
+		return tasksmodel.Execution{}, err
 	}
-	return s.Dispatch(DispatchInput{StepID: stepID, Instruction: instruction, CompletionCriteria: criteria, Model: model, Effort: effort, Source: request.Source, RequestID: request.ID})
+	return s.Dispatch(tasksmodel.DispatchInput{StepID: stepID, Instruction: instruction, CompletionCriteria: criteria, Model: model, Effort: effort, Source: request.Source, RequestID: request.ID})
 }
 
 // sourceKey 区分来源应用会话与发送者
-func sourceKey(source Source) string {
+func sourceKey(source tasksmodel.Source) string {
 	raw, _ := json.Marshal([]string{source.Type, source.AppID, source.ChatID, source.SenderID})
 	return string(raw)
 }
@@ -104,16 +105,16 @@ func sourceKey(source Source) string {
 // isContinue 识别需要沿用原任务目标的继续请求
 func isContinue(text string) bool {
 	text = strings.Trim(strings.ToLower(strings.TrimSpace(text)), "。.!！?？ ")
-	return text == "继续" || text == "continue"
+	return text == constant.TasksContinueCommand || text == "continue"
 }
 
 // submitRequest 保留来源并登记去重后的控制中心请求
-func (s *Service) submitRequest(input ControllerInput, kind, completionID string, reservedID ...string) (Request, error) {
+func (s *Service) submitRequest(input tasksmodel.ControllerInput, kind, completionID string, reservedID ...string) (tasksmodel.Request, error) {
 	if strings.TrimSpace(input.Text) == "" {
-		return Request{}, errors.New("请填写控制中心请求")
+		return tasksmodel.Request{}, constant.ErrTasksRequestTextRequired
 	}
 	if input.Source.Type == "" {
-		input.Source.Type = "desktop"
+		input.Source.Type = constant.TasksSourceDesktop
 	}
 	s.mu.Lock()
 	for _, request := range s.state.Requests {
@@ -123,23 +124,23 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 		}
 	}
 	s.mu.Unlock()
-	if kind == "instruction" && s.runtime.GetStatus().Phase != "ready" {
-		return Request{}, errors.New("Codex 尚未就绪")
+	if kind == constant.TasksRequestKindInstruction && s.runtime.GetStatus().Phase != constant.CodexPhaseReady {
+		return tasksmodel.Request{}, constant.ErrTasksRuntimeNotReady
 	}
 	needsTarget := false
 	lockedTarget := input.StepID != "" || isContinue(input.Text)
-	if kind == "instruction" {
+	if kind == constant.TasksRequestKindInstruction {
 		var err error
 		input, needsTarget, err = s.resolveTarget(input)
 		if err != nil {
-			return Request{}, err
+			return tasksmodel.Request{}, err
 		}
 	}
 	model, effort, err := s.SelectModel(input.Model, input.Effort)
 	if err != nil {
-		return Request{}, err
+		return tasksmodel.Request{}, err
 	}
-	request := Request{
+	request := tasksmodel.Request{
 		Executor:     s.executorSettings(model, effort),
 		ID:           rand.Text(),
 		Kind:         kind,
@@ -150,7 +151,7 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 		Effort:       effort,
 		FastMode:     input.FastMode,
 		Source:       input.Source,
-		Status:       "queued",
+		Status:       constant.TasksStatusQueued,
 		CreatedAt:    now(),
 		CompletionID: completionID,
 		NeedsTarget:  needsTarget,
@@ -163,7 +164,7 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 	s.mu.Lock()
 	if err := s.ctx.Err(); err != nil {
 		s.mu.Unlock()
-		return Request{}, err
+		return tasksmodel.Request{}, err
 	}
 	// 模型选择期间可能收到重复投递，在入队前持锁再次检查
 	for _, existing := range s.state.Requests {
@@ -173,7 +174,7 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 		}
 	}
 	s.state.Requests = append(s.state.Requests, request)
-	if kind != "instruction" && s.runtime.GetStatus().Phase != "ready" {
+	if kind != constant.TasksRequestKindInstruction && s.runtime.GetStatus().Phase != constant.CodexPhaseReady {
 		s.state.Paused = true
 	}
 	err = s.persistLocked()
@@ -182,7 +183,7 @@ func (s *Service) submitRequest(input ControllerInput, kind, completionID string
 	}
 	s.mu.Unlock()
 	if err != nil {
-		return Request{}, err
+		return tasksmodel.Request{}, err
 	}
 	s.changed()
 	s.kickController()
@@ -208,7 +209,7 @@ func (s *Service) runControllerQueue() {
 
 	for {
 		s.mu.Lock()
-		if s.state.Paused || s.ctx.Err() != nil || s.runtime != nil && s.runtime.GetStatus().Phase != "ready" {
+		if s.state.Paused || s.ctx.Err() != nil || s.runtime != nil && s.runtime.GetStatus().Phase != constant.CodexPhaseReady {
 			s.controllerWorker = false
 			s.mu.Unlock()
 			return
@@ -216,7 +217,7 @@ func (s *Service) runControllerQueue() {
 
 		index := -1
 		for i, request := range s.state.Requests {
-			if request.Status == "queued" {
+			if request.Status == constant.TasksStatusQueued {
 				index = i
 				break
 			}
@@ -227,7 +228,7 @@ func (s *Service) runControllerQueue() {
 			return
 		}
 
-		s.state.Requests[index].Status = "running"
+		s.state.Requests[index].Status = constant.TasksStatusRunning
 		request := s.state.Requests[index]
 		ctx, cancel := context.WithCancel(s.ctx)
 		s.cancellations[request.ID] = cancel
@@ -235,13 +236,13 @@ func (s *Service) runControllerQueue() {
 		s.mu.Unlock()
 		s.changed()
 
-		status, result := "error", ""
+		status, result := constant.TasksStatusError, ""
 		if err == nil {
 			status, result, err = s.runRequest(ctx, request)
 		}
 		cancel()
 
-		var notification Notification
+		var notification tasksmodel.Notification
 		s.mu.Lock()
 		delete(s.cancellations, request.ID)
 		if s.ctx.Err() != nil {
@@ -251,7 +252,7 @@ func (s *Service) runControllerQueue() {
 		}
 		for i := range s.state.Requests {
 			current := &s.state.Requests[i]
-			if current.ID == request.ID && current.Status == "running" {
+			if current.ID == request.ID && current.Status == constant.TasksStatusRunning {
 				current.Status, current.Result, current.CompletedAt = status, result, now()
 				if err != nil {
 					current.Error = err.Error()
@@ -261,15 +262,15 @@ func (s *Service) runControllerQueue() {
 					body = current.Error
 				}
 
-				notification = Notification{
+				notification = tasksmodel.Notification{
 					ID:        rand.Text(),
-					Title:     "控制中心 · " + status,
+					Title:     constant.TasksControllerTitlePrefix + status,
 					Body:      body,
 					Source:    request.Source,
 					ProjectID: request.ProjectID,
 					RequestID: request.ID,
 					CreatedAt: now(),
-					Parts:     []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: body}},
+					Parts:     []tasksmodel.NotificationPart{{ID: rand.Text(), Kind: "text", Channel: constant.TasksSourceDesktop, Status: constant.TasksNotificationStatusSent, Content: body}},
 				}
 				s.state.Notifications = append(s.state.Notifications, notification)
 				break
@@ -285,7 +286,7 @@ func (s *Service) runControllerQueue() {
 }
 
 // executeController 恢复控制中心线程并处理当前请求
-func (s *Service) executeController(ctx context.Context, request Request) (string, string, error) {
+func (s *Service) executeController(ctx context.Context, request tasksmodel.Request) (string, string, error) {
 	cwd := s.data.GetInfo().CodexHome
 	s.mu.Lock()
 	threadID := s.state.ControllerThreadID
@@ -293,13 +294,13 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 	s.mu.Unlock()
 	instructions := controllerPrompt(request.Executor)
 	if threadID == "" || previousInstructions != instructions {
-		var tools []codex.DynamicToolSpec
+		var tools []codexmodel.DynamicToolSpec
 		if s.toolSpecs != nil {
-			tools = s.toolSpecs("controller")
+			tools = s.toolSpecs(constant.ToolRouterRoleController)
 		}
-		thread, err := s.runtime.CreateToolThread(cwd, request.Model, "read-only", "controller", instructions, tools)
+		thread, err := s.runtime.CreateToolThread(cwd, request.Model, constant.AppDataPermissionReadOnly, constant.ToolRouterRoleController, instructions, tools)
 		if err != nil {
-			return "error", "", err
+			return constant.TasksStatusError, "", err
 		}
 		threadID = thread.ID
 		s.mu.Lock()
@@ -308,17 +309,17 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 		s.mu.Unlock()
 	} else {
 		if err := s.runtime.EnsureOpen(threadID); err != nil {
-			return "error", "", err
+			return constant.TasksStatusError, "", err
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return "interrupted", "", err
+		return constant.TasksStatusInterrupted, "", err
 	}
 	waiter := &turnWaiter{items: map[string]string{}, done: make(chan turnOutcome, 1)}
 	s.mu.Lock()
 	if err := ctx.Err(); err != nil {
 		s.mu.Unlock()
-		return "interrupted", "", err
+		return constant.TasksStatusInterrupted, "", err
 	}
 	s.turns[threadID] = waiter
 	for i := range s.state.Requests {
@@ -337,27 +338,27 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 		s.mu.Unlock()
 	}()
 	if err != nil {
-		return "error", "", err
+		return constant.TasksStatusError, "", err
 	}
 	s.changed()
-	prompt := instructions + "\n\n" + fmt.Sprintf("请求类型：%s\n请求 ID：%s\n项目范围：%s（空表示用户允许查询整个工作区）\n明确步骤目标：%s\n需要用户明确目标：%t\n\n用户请求或宿主完成事件：\n%s", request.Kind, request.ID, request.ProjectID, request.StepID, request.NeedsTarget, request.Text)
+	prompt := instructions + "\n\n" + fmt.Sprintf(constant.TasksControllerRequestTemplate, request.Kind, request.ID, request.ProjectID, request.StepID, request.NeedsTarget, request.Text)
 	attachments, err := s.files.CopyRequestInputs(request.ID, threadID, "", "")
 	if err != nil {
-		return "error", "", err
+		return constant.TasksStatusError, "", err
 	}
 	tier := "default"
 	if request.FastMode {
 		tier = "fast"
 	}
-	turn, err := s.runtime.StartManagedTurn(threadID, prompt, request.Model, request.Effort, "read-only", cwd, request.ID, attachments, tier)
+	turn, err := s.runtime.StartManagedTurn(threadID, prompt, request.Model, request.Effort, constant.AppDataPermissionReadOnly, cwd, request.ID, attachments, tier)
 	if err != nil {
-		return "error", "", err
+		return constant.TasksStatusError, "", err
 	}
 	s.mu.Lock()
 	if err := s.ctx.Err(); err != nil {
 		s.mu.Unlock()
 		s.runtime.StopTurn(threadID)
-		return "interrupted", "", err
+		return constant.TasksStatusInterrupted, "", err
 	}
 	waiter.turnID = turn.ID
 	for i := range s.state.Requests {
@@ -371,7 +372,7 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 	s.changed()
 	if err != nil {
 		s.runtime.StopTurn(threadID)
-		return "error", "", err
+		return constant.TasksStatusError, "", err
 	}
 	return s.awaitTurn(ctx, waiter, threadID)
 }
@@ -379,8 +380,8 @@ func (s *Service) executeController(ctx context.Context, request Request) (strin
 // reportExecution 将步骤结果交还原始控制中心请求
 func (s *Service) reportExecution(id string) {
 	s.mu.Lock()
-	var execution Execution
-	var original Request
+	var execution tasksmodel.Execution
+	var original tasksmodel.Request
 	for _, item := range s.state.Executions {
 		if item.ID == id {
 			execution = item
@@ -397,6 +398,6 @@ func (s *Service) reportExecution(id string) {
 	if original.ID == "" || s.ctx.Err() != nil {
 		return
 	}
-	text := fmt.Sprintf("执行 %s 已结束。步骤：%s；状态：%s。\n结果：\n%s\n错误：%s\n只向用户汇报结果，不再次执行。", execution.ID, execution.Context.Step.Title, execution.Status, execution.Result, execution.Error)
-	s.submitRequest(ControllerInput{Text: text, ProjectID: execution.ProjectID, StepID: execution.StepID, Model: original.Model, Effort: original.Effort, FastMode: original.FastMode, Source: original.Source}, "execution_result", execution.ID)
+	text := fmt.Sprintf(constant.TasksCompletionPromptTemplate, execution.ID, execution.Context.Step.Title, execution.Status, execution.Result, execution.Error)
+	s.submitRequest(tasksmodel.ControllerInput{Text: text, ProjectID: execution.ProjectID, StepID: execution.StepID, Model: original.Model, Effort: original.Effort, FastMode: original.FastMode, Source: original.Source}, constant.TasksRequestKindExecutionResult, execution.ID)
 }

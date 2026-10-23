@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"agentor/internal/appdata"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestCreatedAtPersists 验证四级节点创建时间在编辑和重启后保持不变且历史数据不补写时间
@@ -15,22 +16,22 @@ func TestCreatedAtPersists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := service.SaveProject(Project{Name: "项目", Directory: t.TempDir()})
+	state, err := service.SaveProject(workspacemodel.Project{Name: "项目", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	project := state.Projects[0]
-	state, err = service.SaveVersion(project.ID, Version{Name: "版本"})
+	state, err = service.SaveVersion(project.ID, workspacemodel.Version{Name: "版本"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	version := state.Projects[0].Versions[0]
-	state, err = service.SaveFeature(project.ID, version.ID, Feature{Title: "功能"})
+	state, err = service.SaveFeature(project.ID, version.ID, workspacemodel.Feature{Title: "功能"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	feature := state.Projects[0].Versions[0].Features[0]
-	state, err = service.SaveStep(project.ID, feature.ID, Step{Title: "步骤"})
+	state, err = service.SaveStep(project.ID, feature.ID, workspacemodel.Step{Title: "步骤"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,11 +45,11 @@ func TestCreatedAtPersists(t *testing.T) {
 
 	// 更新请求携带其他时间也不能覆盖服务端记录
 	project.CreatedAt, version.CreatedAt, feature.CreatedAt, step.CreatedAt = "changed", "changed", "changed", "changed"
-	updates := []func() (State, error){
-		func() (State, error) { return service.SaveProject(project) },
-		func() (State, error) { return service.SaveVersion(project.ID, version) },
-		func() (State, error) { return service.SaveFeature(project.ID, version.ID, feature) },
-		func() (State, error) { return service.SaveStep(project.ID, feature.ID, step) },
+	updates := []func() (workspacemodel.State, error){
+		func() (workspacemodel.State, error) { return service.SaveProject(project) },
+		func() (workspacemodel.State, error) { return service.SaveVersion(project.ID, version) },
+		func() (workspacemodel.State, error) { return service.SaveFeature(project.ID, version.ID, feature) },
+		func() (workspacemodel.State, error) { return service.SaveStep(project.ID, feature.ID, step) },
 	}
 	for _, update := range updates {
 		if _, err := update(); err != nil {
@@ -83,11 +84,11 @@ func TestCreatedAtPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	project.CreatedAt, version.CreatedAt, feature.CreatedAt, step.CreatedAt = "", "", "", ""
-	updates = []func() (State, error){
-		func() (State, error) { return legacy.SaveProject(project) },
-		func() (State, error) { return legacy.SaveVersion(project.ID, version) },
-		func() (State, error) { return legacy.SaveFeature(project.ID, version.ID, feature) },
-		func() (State, error) { return legacy.SaveStep(project.ID, feature.ID, step) },
+	updates = []func() (workspacemodel.State, error){
+		func() (workspacemodel.State, error) { return legacy.SaveProject(project) },
+		func() (workspacemodel.State, error) { return legacy.SaveVersion(project.ID, version) },
+		func() (workspacemodel.State, error) { return legacy.SaveFeature(project.ID, version.ID, feature) },
+		func() (workspacemodel.State, error) { return legacy.SaveStep(project.ID, feature.ID, step) },
 	}
 	for _, update := range updates {
 		if _, err := update(); err != nil {

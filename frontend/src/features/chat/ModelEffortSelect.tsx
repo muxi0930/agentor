@@ -2,8 +2,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { useState } from "react";
 import { Slider } from "@base-ui/react/slider";
 import { ArrowLeft, ChevronDown, ChevronRight, Zap } from "lucide-react";
-import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
-import type { Model } from "../../../bindings/agentor/internal/codex/models";
+import type { Settings } from "../../../bindings/agentor/internal/appdata/model/models";
+import type { Model } from "../../../bindings/agentor/internal/codex/model/models";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
 import { Button } from "@/components/ui/button";
 import { SelectionList, SelectionListItem } from "@/components/ui/selection-list";

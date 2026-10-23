@@ -1,6 +1,4 @@
-package codex
-
-import "encoding/json"
+package model
 
 type BalanceConfig struct {
 	URL          string `json:"url"`          // 用户指定的余额接口
@@ -36,16 +34,6 @@ type ProfileInput struct {
 	Model    string        `json:"model"`    // 账号模型，可填写服务支持的自定义标识
 	APIKey   string        `json:"apiKey"`   // 只作为输入，编辑时留空保留
 	Balance  BalanceConfig `json:"balance"`  // 余额请求与字段映射
-}
-
-type storedProfile struct {
-	Profile AccountProfile  `json:"profile"`          // 公开账号信息
-	APIKey  string          `json:"apiKey,omitempty"` // 只保存在应用私有文件
-	Auth    json.RawMessage `json:"auth,omitempty"`   // 原生 Codex 生成的本应用登录凭据
-}
-
-type profileStore struct {
-	Profiles []storedProfile `json:"profiles"` // 本应用创建的账号
 }
 
 type LoginState struct {

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	appdatamodel "agentor/internal/appdata/model"
 )
 
 // TestExternalThreadPreferencePersists 验证默认关闭、持久化及独立于账号目录的会话读取设置
@@ -69,7 +71,7 @@ func TestLegacyAccountKeepsOriginalHome(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("AGENTOR_DATA_DIR", root)
 	t.Setenv("CODEX_HOME", t.TempDir())
-	if err := WriteJSON(filepath.Join(root, "settings.json"), Settings{ActiveAccountID: "old-account"}); err != nil {
+	if err := WriteJSON(filepath.Join(root, "settings.json"), appdatamodel.Settings{ActiveAccountID: "old-account"}); err != nil {
 		t.Fatal(err)
 	}
 	s, err := NewService("test")

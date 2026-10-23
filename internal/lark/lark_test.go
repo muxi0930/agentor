@@ -13,8 +13,12 @@ import (
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	larkmodel "agentor/internal/lark/model"
 	"agentor/internal/tasks"
+	tasksmodel "agentor/internal/tasks/model"
 	"agentor/internal/workspace"
+
 	larksdk "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
@@ -27,7 +31,7 @@ func TestConnectionWithoutEnableSwitch(t *testing.T) {
 	}
 	t.Cleanup(func() { s.ServiceShutdown() })
 
-	view, err := s.SaveSettings(SettingsInput{Settings: Settings{Region: "feishu"}})
+	view, err := s.SaveSettings(larkmodel.SettingsInput{Settings: larkmodel.Settings{Region: "feishu"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +58,7 @@ func TestNormalizeOrderAndAuthorization(t *testing.T) {
 	if message.Text != "Task\nfirst[图片 image-1.png]last" || len(message.Resources) != 1 || message.Source.ChatType != "group" {
 		t.Fatal(message)
 	}
-	config := Settings{AllowedUsers: []Identity{{ID: "test-user"}}, AllowedChats: []Identity{{ID: "group"}}}
+	config := larkmodel.Settings{AllowedUsers: []larkmodel.Identity{{ID: "test-user"}}, AllowedChats: []larkmodel.Identity{{ID: "group"}}}
 	if !authorized(config, "test-bot", message) {
 		t.Fatal("authorized @bot rejected")
 	}
@@ -76,7 +80,7 @@ func TestUnauthorizedMediaAndDuplicatePairingDoNotSubmitTasks(t *testing.T) {
 		requests.Add(1)
 		fmt.Fprint(w, `{"code":0}`)
 	})
-	message := Message{Source: tasks.Source{Type: "lark", AppID: "test-app", SenderID: "stranger", ChatID: "chat", MessageID: "blocked", ChatType: "p2p"}, ChatType: "p2p", SenderType: "user", Text: "image", Resources: []Resource{{Key: "img", Kind: "image", Name: "image.png"}}}
+	message := larkmodel.Message{Source: tasksmodel.Source{Type: "lark", AppID: "test-app", SenderID: "stranger", ChatID: "chat", MessageID: "blocked", ChatType: "p2p"}, ChatType: "p2p", SenderType: "user", Text: "image", Resources: []larkmodel.Resource{{Key: "img", Kind: "image", Name: "image.png"}}}
 	if err := s.receive(s.ctx, 1, s.client, message); err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +134,7 @@ func TestDeliveryRecordsSentFailedUnknownAndRetriesOnlyFailure(t *testing.T) {
 	s.tasks.SetNotificationHandler(s.OnNotification)
 	for _, messageID := range []string{"ok", "denied", "unknown"} {
 		id := "notification-" + messageID
-		if err := s.tasks.RecordNotification(tasks.Notification{ID: id, Body: "test", Source: tasks.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", MessageID: messageID, ChatType: "p2p"}}); err != nil {
+		if err := s.tasks.RecordNotification(tasksmodel.Notification{ID: id, Body: "test", Source: tasksmodel.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", MessageID: messageID, ChatType: "p2p"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -146,7 +150,7 @@ func TestDeliveryRecordsSentFailedUnknownAndRetriesOnlyFailure(t *testing.T) {
 		}
 		return len(s.tasks.GetState().Notifications) == 3
 	})
-	parts := map[string]tasks.NotificationPart{}
+	parts := map[string]tasksmodel.NotificationPart{}
 	wait(t, func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -184,8 +188,8 @@ func TestDeliveryRecordsSentFailedUnknownAndRetriesOnlyFailure(t *testing.T) {
 // TestApprovalRouteChecksIdentityAndExpiredRuntime 验证审批身份归属与上游失效检查
 func TestApprovalRouteChecksIdentityAndExpiredRuntime(t *testing.T) {
 	s, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) { t.Error("unexpected outbound request") })
-	s.state.Approvals = []ApprovalRoute{{Key: "route", ApprovalID: "42", Generation: 1, Status: "pending", Source: tasks.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", ChatType: "p2p"}}}
-	wrong := tasks.Source{Type: "lark", AppID: "test-app", SenderID: "other", ChatID: "chat"}
+	s.state.Approvals = []larkmodel.ApprovalRoute{{Key: "route", ApprovalID: "42", Generation: 1, Status: "pending", Source: tasksmodel.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", ChatType: "p2p"}}}
+	wrong := tasksmodel.Source{Type: "lark", AppID: "test-app", SenderID: "other", ChatID: "chat"}
 	if err := s.respondRoute("route", wrong, "accept", "/approve"); err == nil {
 		t.Fatal("wrong recipient accepted")
 	}
@@ -200,11 +204,11 @@ func TestApprovalRouteChecksIdentityAndExpiredRuntime(t *testing.T) {
 	if len(s.tasks.GetState().Requests) != 0 {
 		t.Fatal("approval response entered controller queue")
 	}
-	card := approvalCard(codex.Approval{ID: "42", Method: "item/permissions/requestApproval", PermissionsJSON: `{"filesystem":{"write":["/tmp/test"]}}`}, "route")
+	card := approvalCard(codexmodel.Approval{ID: "42", Method: "item/permissions/requestApproval", PermissionsJSON: `{"filesystem":{"write":["/tmp/test"]}}`}, "route")
 	if card["schema"] != "2.0" {
 		t.Fatal("card schema")
 	}
-	body := approvalBody(codex.Approval{Changes: []codex.FileChange{{Path: "/tmp/check.txt", Kind: codex.FileChangeKind{Type: "add"}, Diff: "CHECK"}}})
+	body := approvalBody(codexmodel.Approval{Changes: []codexmodel.FileChange{{Path: "/tmp/check.txt", Kind: codexmodel.FileChangeKind{Type: "add"}, Diff: "CHECK"}}})
 	if !strings.Contains(body, "/tmp/check.txt") || !strings.Contains(body, "CHECK") {
 		t.Fatal("远程卡片缺少文件修改内容")
 	}
@@ -225,7 +229,7 @@ func TestResourceDownloadKeepsPartialFailure(t *testing.T) {
 			fmt.Fprint(w, `{"code":0,"data":{"reaction_id":"busy"}}`)
 		}
 	})
-	message := Message{Source: tasks.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", ChatType: "p2p", MessageID: "resource-message"}, Text: "读取附件", Resources: []Resource{{Key: "file-ok", Kind: "file", Name: "note.md"}, {Key: "file-failed", Kind: "file", Name: "failed.md"}}}
+	message := larkmodel.Message{Source: tasksmodel.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", ChatType: "p2p", MessageID: "resource-message"}, Text: "读取附件", Resources: []larkmodel.Resource{{Key: "file-ok", Kind: "file", Name: "note.md"}, {Key: "file-failed", Kind: "file", Name: "failed.md"}}}
 	s.processMessage(s.ctx, 1, s.client, message, "resource-request", "")
 	items := s.files.GetRequestAttachments("resource-request")
 	if len(items) != 2 || items[0].Status != "ready" || items[1].Status != "failed" || !strings.Contains(items[1].Error, "permission denied") {
@@ -266,8 +270,8 @@ func fixture(t *testing.T, handler http.HandlerFunc) (*Service, *httptest.Server
 		}
 		handler(w, r)
 	}))
-	s.config = credentials{Settings: Settings{AppID: "test-app", Region: "feishu", AllowedUsers: []Identity{{ID: "test-user"}}}, AppSecret: "local-test-secret"}
-	s.status = Status{Phase: "ready", BotOpenID: "test-bot", Generation: 1}
+	s.config = credentials{Settings: larkmodel.Settings{AppID: "test-app", Region: "feishu", AllowedUsers: []larkmodel.Identity{{ID: "test-user"}}}, AppSecret: "local-test-secret"}
+	s.status = larkmodel.Status{Phase: "ready", BotOpenID: "test-bot", Generation: 1}
 	s.client = larksdk.NewClient("test-app", "local-test-secret", larksdk.WithOpenBaseUrl(server.URL), larksdk.WithHttpClient(server.Client()), larksdk.WithLogger(quietLogger{}))
 	s.connectionCtx = s.ctx
 	t.Cleanup(func() {

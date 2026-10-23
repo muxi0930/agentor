@@ -4,8 +4,8 @@ import * as Codex from "../../../bindings/agentor/internal/codex/service";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
 import * as Files from "../../../bindings/agentor/internal/artifact/service";
 import type { Attachment } from "../../../bindings/agentor/internal/artifact/models";
-import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
-import type { Conversation, Item, Model, Status, Thread } from "../../../bindings/agentor/internal/codex/models";
+import type { Settings } from "../../../bindings/agentor/internal/appdata/model/models";
+import type { Conversation, Item, Model, Status, Thread } from "../../../bindings/agentor/internal/codex/model/models";
 import { errorText } from "@/app/errors";
 import { applyNotification, cacheConversation, inputStatus, mergeItem, mergeTurn, type ConversationState, type Notification } from "./state";
 

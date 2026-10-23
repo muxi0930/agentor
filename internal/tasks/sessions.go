@@ -3,7 +3,9 @@ package tasks
 import (
 	"context"
 	"crypto/rand"
-	"errors"
+
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // RunReadOnlyTurn 复用正式执行的事件归属和中断逻辑运行只读轮次
@@ -14,7 +16,7 @@ func (s *Service) RunReadOnlyTurn(ctx context.Context, threadID, text, model, ef
 	s.mu.Lock()
 	if s.turns[threadID] != nil {
 		s.mu.Unlock()
-		return "error", "", errors.New("此专用会话已有活动请求")
+		return constant.TasksStatusError, "", constant.ErrTasksSessionBusy
 	}
 	s.turns[threadID] = waiter
 	s.mu.Unlock()
@@ -26,11 +28,11 @@ func (s *Service) RunReadOnlyTurn(ctx context.Context, threadID, text, model, ef
 		s.mu.Unlock()
 	}()
 	if err := ctx.Err(); err != nil {
-		return "interrupted", "", err
+		return constant.TasksStatusInterrupted, "", err
 	}
-	turn, err := s.runtime.StartManagedTurn(threadID, text, model, effort, "read-only", cwd, id, nil, "")
+	turn, err := s.runtime.StartManagedTurn(threadID, text, model, effort, constant.AppDataPermissionReadOnly, cwd, id, nil, "")
 	if err != nil {
-		return "error", "", err
+		return constant.TasksStatusError, "", err
 	}
 	s.mu.Lock()
 	waiter.turnID = turn.ID
@@ -42,7 +44,7 @@ func (s *Service) RunReadOnlyTurn(ctx context.Context, threadID, text, model, ef
 // RecordNotification 持久化业务结果后通知发送入口
 //
 //wails:ignore
-func (s *Service) RecordNotification(notification Notification) error {
+func (s *Service) RecordNotification(notification tasksmodel.Notification) error {
 	if s.ctx.Err() != nil {
 		return s.ctx.Err()
 	}
@@ -53,7 +55,7 @@ func (s *Service) RecordNotification(notification Notification) error {
 		notification.CreatedAt = now()
 	}
 	if len(notification.Parts) == 0 {
-		notification.Parts = []NotificationPart{{ID: rand.Text(), Kind: "text", Channel: "desktop", Status: "sent", Content: notification.Body}}
+		notification.Parts = []tasksmodel.NotificationPart{{ID: rand.Text(), Kind: "text", Channel: constant.TasksSourceDesktop, Status: constant.TasksNotificationStatusSent, Content: notification.Body}}
 	}
 	s.mu.Lock()
 	if err := s.ctx.Err(); err != nil {
@@ -78,7 +80,7 @@ func (s *Service) ReportExternalResult(requestID, kind, resultID, projectID, tex
 		return nil
 	}
 	s.mu.Lock()
-	var original Request
+	var original tasksmodel.Request
 	for _, request := range s.state.Requests {
 		if request.ID == requestID {
 			original = request
@@ -87,8 +89,8 @@ func (s *Service) ReportExternalResult(requestID, kind, resultID, projectID, tex
 	}
 	s.mu.Unlock()
 	if original.ID == "" {
-		return errors.New("原始控制中心请求不存在")
+		return constant.ErrTasksOriginalRequestNotFound
 	}
-	_, err := s.submitRequest(ControllerInput{Text: text, ProjectID: projectID, Model: original.Model, Effort: original.Effort, FastMode: original.FastMode, Source: original.Source}, kind, resultID)
+	_, err := s.submitRequest(tasksmodel.ControllerInput{Text: text, ProjectID: projectID, Model: original.Model, Effort: original.Effort, FastMode: original.FastMode, Source: original.Source}, kind, resultID)
 	return err
 }

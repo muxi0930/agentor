@@ -1,66 +1,63 @@
 package appdata
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
 
+	appdatamodel "agentor/internal/appdata/model"
+	"agentor/internal/constant"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-type Settings struct {
-	AgentTimeoutSeconds int                           `json:"agentTimeoutSeconds"` // 功能子代理最大执行秒数，零表示不限时
-	MaxConcurrentAgents int                           `json:"maxConcurrentAgents"` // 工作队列功能任务的最大并发数
-	Controller          ControllerSettings            `json:"controller"`          // 控制中心配置
-	ActiveAccountID     string                        `json:"activeAccountId"`     // 当前独立账号，空值表示尚未选择
-	AccountPreferences  map[string]AccountPreferences `json:"accountPreferences"`  // 每个连接身份的模型与权限偏好
-	Theme               string                        `json:"theme"`               // 界面主题
-	ChatWidth           string                        `json:"chatWidth"`           // 聊天消息区域宽度：standard 或 wide
-	Mode                string                        `json:"mode"`                // 当前工作模式
-	ProjectDirectory    string                        `json:"projectDirectory"`    // 当前项目目录
-	CodexPath           string                        `json:"codexPath"`           // 原生 Codex 程序路径
-	CodexHomeMode       string                        `json:"codexHomeMode"`       // Codex 数据目录模式：system 或 custom
-	CodexHomePath       string                        `json:"codexHomePath"`       // 自定义 Codex 数据目录
-	ReadExternalThreads bool                          `json:"readExternalThreads"` // 是否读取非本应用创建的会话
-	ExternalThreads     map[string]bool               `json:"externalThreads"`     // 在本应用打开过的外部会话
-	ReuseCLI            bool                          `json:"reuseCLI"`            // 是否沿用 CLI 配置
-	Model               string                        `json:"model"`               // 当前模型
-	Effort              string                        `json:"effort"`              // 当前推理强度
-	FastMode            bool                          `json:"fastMode"`            // 是否启用快速模式
-	LastThreadID        string                        `json:"lastThreadId"`        // 最近打开的会话
-	ChatThreads         map[string]string             `json:"chatThreads"`         // 本应用登记的会话及其目录
-	ProjectAliases      map[string]string             `json:"projectAliases"`      // 项目目录的显示别名
-	HiddenProjects      []string                      `json:"hiddenProjects"`      // 已隐藏的项目目录
-	PermissionMode      string                        `json:"permissionMode"`      // 当前账号的默认权限
-	ProjectPermissions  map[string]string             `json:"projectPermissions"`  // 项目权限覆盖值
-	ThreadPermissions   map[string]string             `json:"threadPermissions"`   // 会话权限覆盖值
-	PinnedThreads       map[string]bool               `json:"pinnedThreads"`       // 已置顶的会话
-	ChatOrder           map[string][]string           `json:"chatOrder"`           // 各项目内的会话顺序
-	ProjectOrder        []string                      `json:"projectOrder"`        // 项目显示顺序
-	ManagedThreads      map[string]string             `json:"managedThreads"`      // 业务专用会话及其角色
+// API 按职责列出服务的全部公开方法
+type API interface {
+	GetInfo() appdatamodel.Info                                                                 // 返回当前应用路径和运行平台
+	GetSettings() appdatamodel.Settings                                                         // 读取应用设置快照
+	SetAgentTimeoutSeconds(seconds int) (appdatamodel.Settings, error)                          // 保存功能子代理最大执行时间
+	SetMaxConcurrentAgents(limit int) (appdatamodel.Settings, error)                            // 保存工作队列功能任务的并发上限
+	SetTheme(theme string) (appdatamodel.Settings, error)                                       // 保存浅色或深色主题
+	SetChatWidth(width string) (appdatamodel.Settings, error)                                   // 保存聊天消息区域宽度
+	SetMode(mode string) (appdatamodel.Settings, error)                                         // 保存工作模式
+	SetProjectDirectory(path string) (appdatamodel.Settings, error)                             // 检查并保存当前项目目录
+	SetCodexPath(path string) (appdatamodel.Settings, error)                                    // 保存原生 Codex 程序路径
+	SetModelSelection(model, effort string) (appdatamodel.Settings, error)                      // 保存当前身份的模型和推理强度
+	SetFastMode(enabled bool) (appdatamodel.Settings, error)                                    // 保存当前身份的快速模式偏好
+	SetLastThread(threadID string) (appdatamodel.Settings, error)                               // 保存最近打开的会话
+	RememberThread(threadID, cwd string) (appdatamodel.Settings, error)                         // 登记由本应用打开的普通会话
+	RememberManagedThread(threadID, cwd, role string) error                                     // 登记业务角色专用线程
+	SetProjectAlias(cwd, name string) (appdatamodel.Settings, error)                            // 保存或清除项目分组显示名称
+	HideProject(cwd string) (appdatamodel.Settings, error)                                      // 隐藏项目分组而不删除目录
+	ChooseDirectory() (string, error)                                                           // 通过原生对话框选择项目目录
+	ChooseFile() (string, error)                                                                // 通过原生对话框选择普通文件
+	OpenDirectory(path string) error                                                            // 在系统文件管理器打开目录
+	OpenFile(path string) error                                                                 // 通过系统应用打开文件
+	OpenURL(url string) error                                                                   // 通过系统浏览器打开链接
+	SetAccountModel(id, model string) (appdatamodel.Settings, error)                            // 保存账号模型，在更换模型时清除旧推理强度
+	SelectAccount(id string, reuseCLI bool) (appdatamodel.Settings, error)                      // 切换独立账号或 CLI 接入并恢复各自偏好
+	ToggleThreadPin(threadID string) (appdatamodel.Settings, error)                             // 切换会话的置顶状态
+	SetChatOrder(cwd string, ids []string) (appdatamodel.Settings, error)                       // 保存项目或项目内会话的显示顺序
+	CreateWorktree(cwd, branch, directory string) (appdatamodel.Settings, error)                // 基于当前提交创建分支工作树并选中其目录
+	ResolveCodexHome(mode, directory string) (string, error)                                    // 解析独立于账号选择的 Codex 数据目录
+	SetCodexHome(mode, directory string) error                                                  // 在原运行时关闭后保存目录选择，保留账号与项目设置
+	SetReadExternalThreads(enabled bool) (appdatamodel.Settings, error)                         // 保存会话读取范围，不改变目录与账号选择
+	RememberExternalThread(threadID, cwd string) error                                          // 保存外部会话目录并保留其来源，避免打开后被当成本应用创建
+	SetControllerSettings(input appdatamodel.ControllerSettings) (appdatamodel.Settings, error) // 保存控制中心提示词与执行者选择范围
+	SetDataDirectory(directory string) error                                                    // 保存下次启动使用的数据目录，不改变当前服务的目录
+	SetPermission(scope, id, mode string) (appdatamodel.Settings, error)                        // 保存账号默认权限或项目会话覆盖值
+	EffectivePermission(threadID, cwd string) string                                            // 按会话项目账号的顺序取得最终权限
 }
 
-type Info struct {
-	GlobalConfigPath     string `json:"globalConfigPath"`     // 全局启动配置文件
-	DataDirectoryFromEnv bool   `json:"dataDirectoryFromEnv"` // 数据目录是否由环境变量指定
-	Name                 string `json:"name"`                 // 应用名称
-	Version              string `json:"version"`              // 应用版本
-	GoVersion            string `json:"goVersion"`            // Go 运行时版本
-	OS                   string `json:"os"`                   // 操作系统
-	Arch                 string `json:"arch"`                 // 处理器架构
-	DataDirectory        string `json:"dataDirectory"`        // 应用数据目录
-	CodexHome            string `json:"codexHome"`            // 本应用的 Codex 数据目录
-	SystemCodexHome      string `json:"systemCodexHome"`      // 系统默认 Codex 数据目录
-}
+var _ API = (*Service)(nil)
 
 type Service struct {
-	configPath string     // 全局启动配置文件
-	mu         sync.Mutex // 设置读写锁
-	root       string     // 应用数据目录
-	version    string     // 由主程序传入的应用版本
-	settings   Settings   // 当前设置
+	configPath string                // 全局启动配置文件
+	mu         sync.Mutex            // 设置读写锁
+	root       string                // 应用数据目录
+	version    string                // 由主程序传入的应用版本
+	settings   appdatamodel.Settings // 当前设置
 }
 
 // NewService 初始化服务并读取本地记录
@@ -76,18 +73,18 @@ func NewService(version string) (*Service, error) {
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return nil, err
 	}
-	s := &Service{root: root, configPath: configPath, version: version, settings: Settings{AgentTimeoutSeconds: 7200, Controller: ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: DefaultControllerPrompt}, Theme: "light", ChatWidth: "standard", Mode: "chat", ReuseCLI: true, PermissionMode: "workspace-write"}}
-	if err := ReadJSON(filepath.Join(root, "settings.json"), &s.settings); err != nil {
+	s := &Service{root: root, configPath: configPath, version: version, settings: appdatamodel.Settings{AgentTimeoutSeconds: constant.AppDataDefaultAgentTimeoutSeconds, Controller: appdatamodel.ControllerSettings{Models: []string{""}, Efforts: []string{""}, Prompt: constant.AppDataDefaultControllerPrompt}, Theme: constant.AppDataThemeLight, ChatWidth: constant.AppDataChatWidthStandard, Mode: constant.AppDataModeChat, ReuseCLI: true, PermissionMode: constant.AppDataPermissionWorkspaceWrite}}
+	if err := ReadJSON(filepath.Join(root, constant.AppDataSettingsFilename), &s.settings); err != nil {
 		return nil, err
 	}
-	if s.settings.MaxConcurrentAgents < 1 || s.settings.MaxConcurrentAgents > 50 {
-		s.settings.MaxConcurrentAgents = 5
+	if s.settings.MaxConcurrentAgents < 1 || s.settings.MaxConcurrentAgents > constant.AppDataMaxConcurrentAgents {
+		s.settings.MaxConcurrentAgents = constant.AppDataDefaultConcurrentAgents
 	}
 	// 已有独立账号继续使用原目录，之后目录选择不再随账号变化
 	if s.settings.CodexHomeMode == "" {
-		s.settings.CodexHomeMode = "system"
+		s.settings.CodexHomeMode = constant.AppDataCodexHomeSystem
 		if !s.settings.ReuseCLI {
-			s.settings.CodexHomeMode = "custom"
+			s.settings.CodexHomeMode = constant.AppDataCodexHomeCustom
 			s.settings.CodexHomePath = filepath.Join(root, "codex")
 		}
 	}
@@ -102,14 +99,14 @@ func NewService(version string) (*Service, error) {
 }
 
 // GetInfo 返回当前应用路径和运行平台
-func (s *Service) GetInfo() Info {
+func (s *Service) GetInfo() appdatamodel.Info {
 	settings := s.GetSettings()
 	home, _ := s.ResolveCodexHome(settings.CodexHomeMode, settings.CodexHomePath)
-	systemHome, _ := s.ResolveCodexHome("system", "")
-	return Info{
+	systemHome, _ := s.ResolveCodexHome(constant.AppDataCodexHomeSystem, "")
+	return appdatamodel.Info{
 		GlobalConfigPath:     s.configPath,
-		DataDirectoryFromEnv: os.Getenv("AGENTOR_DATA_DIR") != "",
-		Name:                 "agentor",
+		DataDirectoryFromEnv: os.Getenv(constant.AppDataDirectoryEnvironment) != "",
+		Name:                 constant.AppDataApplicationName,
 		Version:              s.version,
 		GoVersion:            runtime.Version(),
 		OS:                   runtime.GOOS,
@@ -121,7 +118,7 @@ func (s *Service) GetInfo() Info {
 }
 
 // GetSettings 读取应用设置快照
-func (s *Service) GetSettings() Settings {
+func (s *Service) GetSettings() appdatamodel.Settings {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -129,65 +126,65 @@ func (s *Service) GetSettings() Settings {
 }
 
 // SetAgentTimeoutSeconds 保存功能子代理最大执行时间
-func (s *Service) SetAgentTimeoutSeconds(seconds int) (Settings, error) {
+func (s *Service) SetAgentTimeoutSeconds(seconds int) (appdatamodel.Settings, error) {
 	if seconds < 0 || int64(seconds) > int64((1<<63-1)/1000000000) {
-		return Settings{}, errors.New("最大执行时间必须为非负整数且不能超过计时范围")
+		return appdatamodel.Settings{}, constant.ErrAppDataAgentTimeoutInvalid
 	}
 
-	return s.update(func(settings *Settings) { settings.AgentTimeoutSeconds = seconds })
+	return s.update(func(settings *appdatamodel.Settings) { settings.AgentTimeoutSeconds = seconds })
 }
 
 // SetMaxConcurrentAgents 保存工作队列功能任务的并发上限
-func (s *Service) SetMaxConcurrentAgents(limit int) (Settings, error) {
-	if limit < 1 || limit > 50 {
-		return Settings{}, errors.New("最大并发 agent 数必须为 1–50 的整数")
+func (s *Service) SetMaxConcurrentAgents(limit int) (appdatamodel.Settings, error) {
+	if limit < 1 || limit > constant.AppDataMaxConcurrentAgents {
+		return appdatamodel.Settings{}, constant.ErrAppDataConcurrencyLimitInvalid
 	}
 
-	return s.update(func(settings *Settings) { settings.MaxConcurrentAgents = limit })
+	return s.update(func(settings *appdatamodel.Settings) { settings.MaxConcurrentAgents = limit })
 }
 
 // SetTheme 保存浅色或深色主题
-func (s *Service) SetTheme(theme string) (Settings, error) {
-	if theme != "light" && theme != "dark" {
-		return Settings{}, errors.New("请选择浅色或深色主题")
+func (s *Service) SetTheme(theme string) (appdatamodel.Settings, error) {
+	if theme != constant.AppDataThemeLight && theme != constant.AppDataThemeDark {
+		return appdatamodel.Settings{}, constant.ErrAppDataThemeInvalid
 	}
 
-	return s.update(func(settings *Settings) { settings.Theme = theme })
+	return s.update(func(settings *appdatamodel.Settings) { settings.Theme = theme })
 }
 
 // SetChatWidth 保存聊天消息区域宽度
-func (s *Service) SetChatWidth(width string) (Settings, error) {
-	if width != "standard" && width != "wide" {
-		return Settings{}, errors.New("请选择标准或更宽布局")
+func (s *Service) SetChatWidth(width string) (appdatamodel.Settings, error) {
+	if width != constant.AppDataChatWidthStandard && width != constant.AppDataChatWidthWide {
+		return appdatamodel.Settings{}, constant.ErrAppDataChatWidthInvalid
 	}
 
-	return s.update(func(settings *Settings) { settings.ChatWidth = width })
+	return s.update(func(settings *appdatamodel.Settings) { settings.ChatWidth = width })
 }
 
 // SetMode 保存工作模式
-func (s *Service) SetMode(mode string) (Settings, error) {
-	if mode != "chat" && mode != "workspace" {
-		return Settings{}, errors.New("未知工作模式")
+func (s *Service) SetMode(mode string) (appdatamodel.Settings, error) {
+	if mode != constant.AppDataModeChat && mode != constant.AppDataModeWorkspace {
+		return appdatamodel.Settings{}, constant.ErrAppDataModeUnknown
 	}
 
-	return s.update(func(settings *Settings) { settings.Mode = mode })
+	return s.update(func(settings *appdatamodel.Settings) { settings.Mode = mode })
 }
 
 // SetProjectDirectory 检查并保存当前项目目录
-func (s *Service) SetProjectDirectory(path string) (Settings, error) {
+func (s *Service) SetProjectDirectory(path string) (appdatamodel.Settings, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
-		return Settings{}, err
+		return appdatamodel.Settings{}, err
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return Settings{}, err
+		return appdatamodel.Settings{}, err
 	}
 	if !info.IsDir() {
-		return Settings{}, errors.New("请选择项目目录")
+		return appdatamodel.Settings{}, constant.ErrAppDataProjectDirectoryRequired
 	}
 
-	return s.update(func(settings *Settings) {
+	return s.update(func(settings *appdatamodel.Settings) {
 		settings.ProjectDirectory = path
 
 		hidden := make([]string, 0, len(settings.HiddenProjects))
@@ -201,34 +198,34 @@ func (s *Service) SetProjectDirectory(path string) (Settings, error) {
 }
 
 // SetCodexPath 保存原生 Codex 程序路径
-func (s *Service) SetCodexPath(path string) (Settings, error) {
-	return s.update(func(settings *Settings) { settings.CodexPath = path })
+func (s *Service) SetCodexPath(path string) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) { settings.CodexPath = path })
 }
 
 // SetModelSelection 保存当前身份的模型和推理强度
-func (s *Service) SetModelSelection(model, effort string) (Settings, error) {
-	return s.update(func(settings *Settings) {
+func (s *Service) SetModelSelection(model, effort string) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) {
 		settings.Model, settings.Effort = model, effort
 		rememberPreferences(settings)
 	})
 }
 
 // SetFastMode 保存当前身份的快速模式偏好
-func (s *Service) SetFastMode(enabled bool) (Settings, error) {
-	return s.update(func(settings *Settings) {
+func (s *Service) SetFastMode(enabled bool) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) {
 		settings.FastMode = enabled
 		rememberPreferences(settings)
 	})
 }
 
 // SetLastThread 保存最近打开的会话
-func (s *Service) SetLastThread(threadID string) (Settings, error) {
-	return s.update(func(settings *Settings) { settings.LastThreadID = threadID })
+func (s *Service) SetLastThread(threadID string) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) { settings.LastThreadID = threadID })
 }
 
 // RememberThread 登记由本应用打开的普通会话
-func (s *Service) RememberThread(threadID, cwd string) (Settings, error) {
-	return s.update(func(settings *Settings) {
+func (s *Service) RememberThread(threadID, cwd string) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) {
 		threads := make(map[string]string, len(settings.ChatThreads)+1)
 		for id, path := range settings.ChatThreads {
 			threads[id] = path
@@ -242,7 +239,7 @@ func (s *Service) RememberThread(threadID, cwd string) (Settings, error) {
 //
 //wails:ignore
 func (s *Service) RememberManagedThread(threadID, cwd, role string) error {
-	_, err := s.update(func(settings *Settings) {
+	_, err := s.update(func(settings *appdatamodel.Settings) {
 		threads := map[string]string{}
 		for id, path := range settings.ChatThreads {
 			threads[id] = path
@@ -261,8 +258,8 @@ func (s *Service) RememberManagedThread(threadID, cwd, role string) error {
 }
 
 // SetProjectAlias 保存或清除项目分组显示名称
-func (s *Service) SetProjectAlias(cwd, name string) (Settings, error) {
-	return s.update(func(settings *Settings) {
+func (s *Service) SetProjectAlias(cwd, name string) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) {
 		aliases := make(map[string]string, len(settings.ProjectAliases)+1)
 		for path, alias := range settings.ProjectAliases {
 			aliases[path] = alias
@@ -277,8 +274,8 @@ func (s *Service) SetProjectAlias(cwd, name string) (Settings, error) {
 }
 
 // HideProject 隐藏项目分组而不删除目录
-func (s *Service) HideProject(cwd string) (Settings, error) {
-	return s.update(func(settings *Settings) {
+func (s *Service) HideProject(cwd string) (appdatamodel.Settings, error) {
+	return s.update(func(settings *appdatamodel.Settings) {
 		for _, path := range settings.HiddenProjects {
 			if path == cwd {
 				return
@@ -291,13 +288,13 @@ func (s *Service) HideProject(cwd string) (Settings, error) {
 // ChooseDirectory 通过原生对话框选择项目目录
 func (s *Service) ChooseDirectory() (string, error) {
 	app := application.Get()
-	return app.Dialog.OpenFile().AttachToWindow(app.Window.Current()).SetTitle("选择项目目录").CanChooseFiles(false).CanChooseDirectories(true).PromptForSingleSelection()
+	return app.Dialog.OpenFile().AttachToWindow(app.Window.Current()).SetTitle(constant.AppDataChooseProjectDirectoryTitle).CanChooseFiles(false).CanChooseDirectories(true).PromptForSingleSelection()
 }
 
 // ChooseFile 通过原生对话框选择普通文件
 func (s *Service) ChooseFile() (string, error) {
 	app := application.Get()
-	return app.Dialog.OpenFile().AttachToWindow(app.Window.Current()).SetTitle("选择文件").CanChooseFiles(true).CanChooseDirectories(false).PromptForSingleSelection()
+	return app.Dialog.OpenFile().AttachToWindow(app.Window.Current()).SetTitle(constant.AppDataChooseFileTitle).CanChooseFiles(true).CanChooseDirectories(false).PromptForSingleSelection()
 }
 
 // OpenDirectory 在系统文件管理器打开目录
@@ -316,13 +313,13 @@ func (s *Service) OpenURL(url string) error {
 }
 
 // update 写入新设置后替换当前状态
-func (s *Service) update(change func(*Settings)) (Settings, error) {
+func (s *Service) update(change func(*appdatamodel.Settings)) (appdatamodel.Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	next := s.settings
 	change(&next)
-	if err := WriteJSON(filepath.Join(s.root, "settings.json"), next); err != nil {
+	if err := WriteJSON(filepath.Join(s.root, constant.AppDataSettingsFilename), next); err != nil {
 		return s.settings, err
 	}
 	s.settings = next

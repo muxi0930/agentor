@@ -3,7 +3,7 @@ import { Events } from "@wailsio/runtime";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
 import * as Files from "../../../bindings/agentor/internal/artifact/service";
 import type { Attachment } from "../../../bindings/agentor/internal/artifact/models";
-import type { Status } from "../../../bindings/agentor/internal/codex/models";
+import type { Status } from "../../../bindings/agentor/internal/codex/model/models";
 import { MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport } from "@/components/ui/message-scroller";
 import { MessageView } from "@/features/chat/MessageView";
 import { PreviewContext } from "@/features/chat/HTMLView";

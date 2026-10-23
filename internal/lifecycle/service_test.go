@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"agentor/internal/appdata"
-	"agentor/internal/codex"
-	"agentor/internal/pipeline"
-	"agentor/internal/tasks"
+	codexmodel "agentor/internal/codex/model"
+	pipelinemodel "agentor/internal/pipeline/model"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestCompleteRestartLaunchesFreshProcess 验证普通重启和切换目录重启均以新进程保留原账号
@@ -85,18 +85,18 @@ func TestRestartChildProcess(t *testing.T) {
 
 // TestSnapshotIncludesEveryTaskSourceWithoutCountingManagedTurnsTwice 验证退出覆盖所有任务来源且会话不重复计数
 func TestSnapshotIncludesEveryTaskSourceWithoutCountingManagedTurnsTwice(t *testing.T) {
-	state := tasks.State{
-		Executions: []tasks.Execution{
+	state := tasksmodel.State{
+		Executions: []tasksmodel.Execution{
 			{ID: "step", Status: "running", ThreadID: "step-thread", Instruction: "修复测试"},
 			{ID: "finished", Status: "interrupted", ThreadID: "unfinished-stop"},
 		},
-		Requests: []tasks.Request{{ID: "controller", Status: "queued", Text: "检查项目"}},
+		Requests: []tasksmodel.Request{{ID: "controller", Status: "queued", Text: "检查项目"}},
 	}
-	pipelines := pipeline.State{
-		Runs:     []pipeline.Run{{ID: "run", Status: "running", Task: pipeline.Task{Name: "生成报告"}}},
-		Requests: []pipeline.SessionRequest{{ID: "session", Status: "queued", Input: pipeline.SessionInput{Text: "调整流水线"}}},
+	pipelines := pipelinemodel.State{
+		Runs:     []pipelinemodel.Run{{ID: "run", Status: "running", Task: pipelinemodel.Task{Name: "生成报告"}}},
+		Requests: []pipelinemodel.SessionRequest{{ID: "session", Status: "queued", Input: pipelinemodel.SessionInput{Text: "调整流水线"}}},
 	}
-	active := []codex.ActiveTurn{
+	active := []codexmodel.ActiveTurn{
 		{ThreadID: "step-thread", Summary: "步骤轮次"},
 		{ThreadID: "managed-thread", Summary: "专用会话"},
 		{ThreadID: "chat", Summary: "解释错误"},

@@ -13,24 +13,25 @@ import (
 	"testing"
 
 	"agentor/internal/appdata"
+	codexmodel "agentor/internal/codex/model"
 )
 
 // TestProfilesKeepCredentialsPrivateAndRestoreOwnAuth 验证独立账号凭据隔离及原生登录状态保存
 func TestProfilesKeepCredentialsPrivateAndRestoreOwnAuth(t *testing.T) {
 	s := accountFixture(t)
-	view, err := s.SaveProfile(ProfileInput{Name: "API check", Type: "api", BaseURL: "https://example.test/v1", APIKey: "private-test-key"})
+	view, err := s.SaveProfile(codexmodel.ProfileInput{Name: "API check", Type: "api", BaseURL: "https://example.test/v1", APIKey: "private-test-key"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	id := view.Profiles[0].ID
-	if _, err = s.SaveProfile(ProfileInput{ID: id, Name: "Renamed", Type: "api", BaseURL: "https://example.test/v1"}); err != nil {
+	if _, err = s.SaveProfile(codexmodel.ProfileInput{ID: id, Name: "Renamed", Type: "api", BaseURL: "https://example.test/v1"}); err != nil {
 		t.Fatal(err)
 	}
 	stored, _ := s.profile(id)
 	if stored.APIKey != "private-test-key" || stored.Profile.Name != "Renamed" {
 		t.Fatal("空密钥编辑未保留已有凭据")
 	}
-	view, err = s.SaveProfile(ProfileInput{Name: "ChatGPT check", Type: "chatgpt"})
+	view, err = s.SaveProfile(codexmodel.ProfileInput{Name: "ChatGPT check", Type: "chatgpt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +105,7 @@ func TestBalanceMappingCacheAndFailureStaySeparate(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := BalanceConfig{
+	config := codexmodel.BalanceConfig{
 		URL:          server.URL,
 		Method:       "POST",
 		HeaderName:   "Authorization",
@@ -115,7 +116,7 @@ func TestBalanceMappingCacheAndFailureStaySeparate(t *testing.T) {
 		TotalPath:    "/data/total",
 		UnitPath:     "/data/unit",
 	}
-	view, err := s.SaveProfile(ProfileInput{Name: "Balance check", Type: "api", BaseURL: server.URL, APIKey: "test-key", Balance: config})
+	view, err := s.SaveProfile(codexmodel.ProfileInput{Name: "Balance check", Type: "api", BaseURL: server.URL, APIKey: "test-key", Balance: config})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +140,7 @@ func TestBalanceMappingCacheAndFailureStaySeparate(t *testing.T) {
 		t.Fatal(value, err)
 	}
 	config.URL = server.URL + "/failed"
-	if _, err = s.SaveProfile(ProfileInput{ID: id, Name: "Balance check", Type: "api", BaseURL: server.URL, Balance: config}); err != nil {
+	if _, err = s.SaveProfile(codexmodel.ProfileInput{ID: id, Name: "Balance check", Type: "api", BaseURL: server.URL, Balance: config}); err != nil {
 		t.Fatal(err)
 	}
 	previous := s.GetStatus()
@@ -160,7 +161,7 @@ func TestNativeIndependentAccountsLoginAndCancel(t *testing.T) {
 	}))
 	defer server.Close()
 
-	view, err := s.SaveProfile(ProfileInput{Name: "Native API check", Type: "api", Model: "local-custom-model", BaseURL: server.URL + "/v1", APIKey: "local-native-test-key"})
+	view, err := s.SaveProfile(codexmodel.ProfileInput{Name: "Native API check", Type: "api", Model: "local-custom-model", BaseURL: server.URL + "/v1", APIKey: "local-native-test-key"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +187,7 @@ func TestNativeIndependentAccountsLoginAndCancel(t *testing.T) {
 	if !found {
 		t.Fatal("自定义 API 模型没有进入选择列表")
 	}
-	view, err = s.SaveProfile(ProfileInput{Name: "Native ChatGPT check", Type: "chatgpt"})
+	view, err = s.SaveProfile(codexmodel.ProfileInput{Name: "Native ChatGPT check", Type: "chatgpt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +207,7 @@ func TestNativeIndependentAccountsLoginAndCancel(t *testing.T) {
 		t.Fatal("原生登录未取消", err)
 	}
 	s.mu.Lock()
-	s.login = LoginState{ProfileID: view.Profiles[1].ID, LoginID: "00000000-0000-4000-8000-000000000000", Status: "pending"}
+	s.login = codexmodel.LoginState{ProfileID: view.Profiles[1].ID, LoginID: "00000000-0000-4000-8000-000000000000", Status: "pending"}
 	s.mu.Unlock()
 	login, err = s.CancelLogin()
 	if err != nil || login.Status != "error" || login.Error == "" {

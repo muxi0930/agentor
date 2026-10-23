@@ -7,17 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"agentor/internal/codex"
-	"agentor/internal/tasks"
+	codexmodel "agentor/internal/codex/model"
+	larkmodel "agentor/internal/lark/model"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestUpdateApprovalCardPreservesOriginalContent 验证结果更新保留原正文并移除审批按钮
 func TestUpdateApprovalCardPreservesOriginalContent(t *testing.T) {
-	approvals := []codex.Approval{
+	approvals := []codexmodel.Approval{
 		{Method: "item/commandExecution/requestApproval", Reason: "需要读取后端会话", Command: "git status", Cwd: "/tmp/project", Details: "仅检查工作区"},
-		{Method: "item/fileChange/requestApproval", Reason: "修复配置", GrantRoot: "/tmp/project", Changes: []codex.FileChange{{Path: "/tmp/project/config", Kind: codex.FileChangeKind{Type: "add"}, Diff: "+enabled=true"}}},
+		{Method: "item/fileChange/requestApproval", Reason: "修复配置", GrantRoot: "/tmp/project", Changes: []codexmodel.FileChange{{Path: "/tmp/project/config", Kind: codexmodel.FileChangeKind{Type: "add"}, Diff: "+enabled=true"}}},
 		{Method: "item/permissions/requestApproval", Reason: "读取所需资源", PermissionsJSON: `{"network":{"enabled":true}}`},
-		{Method: "item/tool/requestUserInput", Questions: []codex.Question{{ID: "choice", Header: "执行方式", Question: "选择检查范围", Options: []codex.QuestionOption{{Label: "本地", Description: "仅检查本地"}}}}},
+		{Method: "item/tool/requestUserInput", Questions: []codexmodel.Question{{ID: "choice", Header: "执行方式", Question: "选择检查范围", Options: []codexmodel.QuestionOption{{Label: "本地", Description: "仅检查本地"}}}}},
 		{Method: "mcpServer/elicitation/request", Message: "确认资源访问", URL: "https://example.invalid/confirm", SchemaJSON: `{"type":"object"}`},
 		{Method: "item/commandExecution/requestApproval", Reason: "长正文保持原截断规则", Command: strings.Repeat("检查内容", 1600)},
 	}
@@ -39,14 +40,14 @@ func TestUpdateApprovalCardPreservesOriginalContent(t *testing.T) {
 					fmt.Fprint(w, `{"code":0}`)
 				})
 				approval.ID, approval.ThreadID, approval.TurnID = "12", "thread", "turn"
-				approval.DecisionOptions = []codex.DecisionOption{{Value: "accept", Label: "允许"}, {Value: "decline", Label: "拒绝"}}
+				approval.DecisionOptions = []codexmodel.DecisionOption{{Value: "accept", Label: "允许"}, {Value: "decline", Label: "拒绝"}}
 				initial := approvalCard(approval, "route")
 				original := initial["body"].(map[string]any)["elements"].([]any)[0].(map[string]string)["content"]
-				notification := tasks.Notification{ID: "approval-notification", Body: original}
+				notification := tasksmodel.Notification{ID: "approval-notification", Body: original}
 				if err := s.tasks.RecordNotification(notification); err != nil {
 					t.Fatal(err)
 				}
-				route := ApprovalRoute{Key: "route", ApprovalID: "12", NotificationID: notification.ID, MessageID: "card-message", Source: tasks.Source{Type: "lark", AppID: "test-app", ChatID: "chat", SenderID: "test-user", ChatType: "p2p"}}
+				route := larkmodel.ApprovalRoute{Key: "route", ApprovalID: "12", NotificationID: notification.ID, MessageID: "card-message", Source: tasksmodel.Source{Type: "lark", AppID: "test-app", ChatID: "chat", SenderID: "test-user", ChatType: "p2p"}}
 				s.updateApprovalCard(route, status)
 				select {
 				case content := <-contents:
@@ -97,14 +98,14 @@ func TestApprovalResolvedBeforeDeliveryPreservesContent(t *testing.T) {
 			fmt.Fprint(w, `{"code":1}`)
 		}
 	})
-	approval := codex.Approval{ID: "12", ThreadID: "thread", TurnID: "turn", Reason: "检查待审批操作", Command: "git status", DecisionOptions: []codex.DecisionOption{{Value: "accept", Label: "允许"}}}
-	source := tasks.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", ChatType: "p2p", MessageID: "original-message"}
-	part := tasks.NotificationPart{ID: "approval-part", Kind: "approval", Channel: "lark", Status: "pending", PayloadJSON: jsonText(approvalCard(approval, "route")), Content: approvalBody(approval)}
-	notification := tasks.Notification{ID: "late-notification", Body: part.Content, Source: source, Parts: []tasks.NotificationPart{part}}
+	approval := codexmodel.Approval{ID: "12", ThreadID: "thread", TurnID: "turn", Reason: "检查待审批操作", Command: "git status", DecisionOptions: []codexmodel.DecisionOption{{Value: "accept", Label: "允许"}}}
+	source := tasksmodel.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", ChatType: "p2p", MessageID: "original-message"}
+	part := tasksmodel.NotificationPart{ID: "approval-part", Kind: "approval", Channel: "lark", Status: "pending", PayloadJSON: jsonText(approvalCard(approval, "route")), Content: approvalBody(approval)}
+	notification := tasksmodel.Notification{ID: "late-notification", Body: part.Content, Source: source, Parts: []tasksmodel.NotificationPart{part}}
 	if err := s.tasks.RecordNotification(notification); err != nil {
 		t.Fatal(err)
 	}
-	s.state.Approvals = []ApprovalRoute{{Key: "route", ApprovalID: approval.ID, Source: source, NotificationID: notification.ID, Status: "resolved"}}
+	s.state.Approvals = []larkmodel.ApprovalRoute{{Key: "route", ApprovalID: approval.ID, Source: source, NotificationID: notification.ID, Status: "resolved"}}
 	s.deliver(notification, part)
 	wait(t, func() bool { return len(contents) > 0 })
 	var updated struct {

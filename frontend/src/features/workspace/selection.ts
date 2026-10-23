@@ -1,4 +1,4 @@
-import type { Feature, Project, State, Step, Version } from "../../../bindings/agentor/internal/workspace/models";
+import type { Feature, Project, State, Step, Version } from "../../../bindings/agentor/internal/workspace/model/models";
 
 export type NodeKind = "project" | "version" | "feature" | "step";
 export type Selection = { kind: NodeKind; project: Project; version?: Version; feature?: Feature; step?: Step };

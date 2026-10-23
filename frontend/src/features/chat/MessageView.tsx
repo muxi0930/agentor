@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { Brain, Copy, Eye, FileText, SquareTerminal } from "lucide-react";
-import type { Item } from "../../../bindings/agentor/internal/codex/models";
+import type { Item } from "../../../bindings/agentor/internal/codex/model/models";
 import type { Attachment } from "../../../bindings/agentor/internal/artifact/models";
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";

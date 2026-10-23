@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plug, RefreshCw } from "lucide-react";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
-import type { Status } from "../../../bindings/agentor/internal/codex/models";
+import type { Status } from "../../../bindings/agentor/internal/codex/model/models";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { errorText } from "@/app/errors";

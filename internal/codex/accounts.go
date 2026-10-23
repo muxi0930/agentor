@@ -10,19 +10,21 @@ import (
 	"strings"
 
 	"agentor/internal/appdata"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 )
 
 // GetAccounts 读取独立账号列表和登录进度，不返回任何凭据
-func (s *Service) GetAccounts() (AccountsView, error) {
+func (s *Service) GetAccounts() (codexmodel.AccountsView, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.profilesErr != nil {
-		return AccountsView{}, s.profilesErr
+		return codexmodel.AccountsView{}, s.profilesErr
 	}
 
 	settings := s.data.GetSettings()
-	view := AccountsView{ActiveID: settings.ActiveAccountID, ReuseCLI: settings.ReuseCLI, Login: s.login, Profiles: []AccountProfile{}}
+	view := codexmodel.AccountsView{ActiveID: settings.ActiveAccountID, ReuseCLI: settings.ReuseCLI, Login: s.login, Profiles: []codexmodel.AccountProfile{}}
 	for _, stored := range s.profiles.Profiles {
 		profile := stored.Profile
 		profile.Model = settings.AccountPreferences[profile.ID].Model
@@ -37,7 +39,7 @@ func (s *Service) GetAccounts() (AccountsView, error) {
 }
 
 // SaveProfile 创建或编辑独立账号，空密钥保留原值
-func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
+func (s *Service) SaveProfile(input codexmodel.ProfileInput) (codexmodel.AccountsView, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
 
@@ -45,21 +47,21 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 	if input.Provider == "" {
 		input.Provider = input.Name
 	}
-	if input.Name == "" || input.Type != "chatgpt" && input.Type != "api" {
-		return AccountsView{}, errors.New("请填写账号名称并选择 ChatGPT 或 API")
+	if input.Name == "" || input.Type != constant.CodexAccountTypeChatGPT && input.Type != constant.CodexAccountTypeAPI {
+		return codexmodel.AccountsView{}, constant.ErrCodexProfileInputInvalid
 	}
-	if input.Type == "api" {
+	if input.Type == constant.CodexAccountTypeAPI {
 		if err := httpURL(input.BaseURL); err != nil {
-			return AccountsView{}, err
+			return codexmodel.AccountsView{}, err
 		}
 		if err := validateBalance(input.Balance); err != nil {
-			return AccountsView{}, err
+			return codexmodel.AccountsView{}, err
 		}
 	}
 	settings := s.data.GetSettings()
 	if !settings.ReuseCLI && settings.ActiveAccountID == input.ID {
 		if err := s.accountIdle(true); err != nil {
-			return AccountsView{}, err
+			return codexmodel.AccountsView{}, err
 		}
 	}
 
@@ -67,7 +69,7 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 	if s.profilesErr != nil {
 		err := s.profilesErr
 		s.mu.Unlock()
-		return AccountsView{}, err
+		return codexmodel.AccountsView{}, err
 	}
 
 	stored, index := storedProfile{}, -1
@@ -80,7 +82,7 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 
 	if input.ID != "" && index < 0 || index >= 0 && stored.Profile.Type != input.Type {
 		s.mu.Unlock()
-		return AccountsView{}, errors.New("账号不存在或类型发生变化，请新建对应类型的账号")
+		return codexmodel.AccountsView{}, constant.ErrCodexProfileTypeChanged
 	}
 	if input.ID == "" {
 		input.ID = rand.Text()
@@ -88,12 +90,12 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 	if input.APIKey != "" {
 		stored.APIKey = input.APIKey
 	}
-	if input.Type == "api" && stored.APIKey == "" {
+	if input.Type == constant.CodexAccountTypeAPI && stored.APIKey == "" {
 		s.mu.Unlock()
-		return AccountsView{}, errors.New("请在设置中填写 API 密钥")
+		return codexmodel.AccountsView{}, constant.ErrCodexAPIKeyRequired
 	}
 
-	stored.Profile = AccountProfile{ID: input.ID, Name: input.Name, Type: input.Type, Provider: input.Provider, BaseURL: input.BaseURL, Balance: input.Balance}
+	stored.Profile = codexmodel.AccountProfile{ID: input.ID, Name: input.Name, Type: input.Type, Provider: input.Provider, BaseURL: input.BaseURL, Balance: input.Balance}
 	if index < 0 {
 		s.profiles.Profiles = append(s.profiles.Profiles, stored)
 	} else {
@@ -103,27 +105,27 @@ func (s *Service) SaveProfile(input ProfileInput) (AccountsView, error) {
 	err := appdata.WriteJSON(s.profilesPath(), s.profiles)
 	s.mu.Unlock()
 	if err != nil {
-		return AccountsView{}, err
+		return codexmodel.AccountsView{}, err
 	}
 	if _, err = s.data.SetAccountModel(input.ID, strings.TrimSpace(input.Model)); err != nil {
-		return AccountsView{}, err
+		return codexmodel.AccountsView{}, err
 	}
 	if !settings.ReuseCLI && settings.ActiveAccountID == input.ID {
 		if _, err = s.connect(); err != nil {
-			return AccountsView{}, err
+			return codexmodel.AccountsView{}, err
 		}
 	}
 	return s.GetAccounts()
 }
 
 // DeleteProfile 删除未使用账号的私有记录，保留共享会话库
-func (s *Service) DeleteProfile(id string) (AccountsView, error) {
+func (s *Service) DeleteProfile(id string) (codexmodel.AccountsView, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
 
 	settings := s.data.GetSettings()
 	if !settings.ReuseCLI && settings.ActiveAccountID == id {
-		return AccountsView{}, errors.New("请先切换到其他账号，再删除当前账号")
+		return codexmodel.AccountsView{}, constant.ErrCodexActiveProfileDeletion
 	}
 
 	s.mu.Lock()
@@ -137,7 +139,7 @@ func (s *Service) DeleteProfile(id string) (AccountsView, error) {
 
 	if index < 0 {
 		s.mu.Unlock()
-		return AccountsView{}, errors.New("账号不存在")
+		return codexmodel.AccountsView{}, constant.ErrCodexProfileNotFound
 	}
 
 	s.profiles.Profiles = append(s.profiles.Profiles[:index], s.profiles.Profiles[index+1:]...)
@@ -145,14 +147,14 @@ func (s *Service) DeleteProfile(id string) (AccountsView, error) {
 	err := appdata.WriteJSON(s.profilesPath(), s.profiles)
 	s.mu.Unlock()
 	if err != nil {
-		return AccountsView{}, err
+		return codexmodel.AccountsView{}, err
 	}
 
 	return s.GetAccounts()
 }
 
 // UseAccount 在所有业务空闲后切换身份，空标识表示沿用 CLI
-func (s *Service) UseAccount(id string) (Status, error) {
+func (s *Service) UseAccount(id string) (codexmodel.Status, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
 
@@ -168,10 +170,10 @@ func (s *Service) UseAccount(id string) (Status, error) {
 	s.mu.Lock()
 	if len(s.active) > 0 {
 		s.mu.Unlock()
-		return previous, errors.New("有新的对话正在启动，请结束后再切换")
+		return previous, constant.ErrCodexTurnStarting
 	}
 
-	s.status.Phase = "starting"
+	s.status.Phase = constant.CodexPhaseStarting
 	s.mu.Unlock()
 	if _, err := s.data.SelectAccount(id, id == ""); err != nil {
 		s.setStatus(previous.Generation, previous.Phase, previous.Message)
@@ -192,7 +194,7 @@ func (s *Service) SetAccountGuard(guard func(bool) error) {
 
 // profilesPath 返回当前应用的私有账号记录路径
 func (s *Service) profilesPath() string {
-	return filepath.Join(s.data.GetInfo().DataDirectory, "accounts.json")
+	return filepath.Join(s.data.GetInfo().DataDirectory, constant.CodexAccountsFilename)
 }
 
 // profile 读取供内部请求使用的账号副本
@@ -210,7 +212,7 @@ func (s *Service) profile(id string) (storedProfile, error) {
 		}
 	}
 
-	return storedProfile{}, errors.New("请选择一个独立账号")
+	return storedProfile{}, constant.ErrCodexProfileRequired
 }
 
 // accountIdle 核验普通对话和正式任务都已空闲
@@ -219,7 +221,7 @@ func (s *Service) accountIdle(changing bool) error {
 	busy, guard := len(s.active) > 0, s.accountGuard
 	s.mu.Unlock()
 	if busy {
-		return errors.New("请先结束活动对话，再切换连接或登录")
+		return constant.ErrCodexActiveTurns
 	}
 	if guard != nil {
 		return guard(changing)
@@ -238,19 +240,19 @@ func (s *Service) captureAuth() error {
 	}
 
 	stored, err := s.profile(id)
-	if err != nil || stored.Profile.Type != "chatgpt" {
+	if err != nil || stored.Profile.Type != constant.CodexAccountTypeChatGPT {
 		return err
 	}
 
-	raw, err := os.ReadFile(filepath.Join(s.data.GetInfo().CodexHome, "auth.json"))
+	raw, err := os.ReadFile(filepath.Join(s.data.GetInfo().CodexHome, constant.CodexAuthFilename))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
-		return errors.New("无法保存当前独立账号的登录状态")
+		return constant.ErrCodexAuthSaveFailed
 	}
 	if !json.Valid(raw) {
-		return errors.New("原生 Codex 登录文件无法解析")
+		return constant.ErrCodexAuthInvalid
 	}
 
 	var auth struct {
@@ -283,18 +285,18 @@ func (s *Service) prepareProfile(stored storedProfile) error {
 	if model := s.data.GetSettings().Model; model != "" {
 		config += "model = " + mustJSON(model) + "\n"
 	}
-	if stored.Profile.Type == "api" {
+	if stored.Profile.Type == constant.CodexAccountTypeAPI {
 		config += "model_provider = \"agentor_api\"\n[model_providers.agentor_api]\nname = " +
 			mustJSON(stored.Profile.Provider) + "\nbase_url = " + mustJSON(stored.Profile.BaseURL) +
 			"\nwire_api = \"responses\"\nenv_key = \"AGENTOR_ACCOUNT_API_KEY\"\nrequires_openai_auth = false\n"
 	}
-	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(config), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(home, constant.CodexConfigFilename), []byte(config), 0600); err != nil {
 		return err
 	}
 
 	auth := stored.Auth
-	if stored.Profile.Type != "chatgpt" || len(auth) == 0 {
-		err := os.Remove(filepath.Join(home, "auth.json"))
+	if stored.Profile.Type != constant.CodexAccountTypeChatGPT || len(auth) == 0 {
+		err := os.Remove(filepath.Join(home, constant.CodexAuthFilename))
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
@@ -302,14 +304,14 @@ func (s *Service) prepareProfile(stored storedProfile) error {
 		return err
 	}
 
-	return appdata.WriteJSON(filepath.Join(home, "auth.json"), auth)
+	return appdata.WriteJSON(filepath.Join(home, constant.CodexAuthFilename), auth)
 }
 
 // httpURL 核验用户配置的是明确的 HTTP 服务地址
 func httpURL(raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Host == "" || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.User != nil {
-		return errors.New("请填写不含内嵌凭据的完整 HTTP 或 HTTPS 服务地址")
+		return constant.ErrCodexBaseURLInvalid
 	}
 
 	return nil

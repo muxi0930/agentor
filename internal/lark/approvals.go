@@ -4,27 +4,29 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"agentor/internal/appdata"
-	"agentor/internal/codex"
-	"agentor/internal/tasks"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	larkmodel "agentor/internal/lark/model"
+	tasksmodel "agentor/internal/tasks/model"
+
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
 // StartPairing 为指定联系人生成一次性配对码
-func (s *Service) StartPairing(senderID string) (Pairing, error) {
+func (s *Service) StartPairing(senderID string) (larkmodel.Pairing, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !hasIdentity(s.config.AllowedUsers, senderID) {
-		return Pairing{}, errors.New("请先将接收者加入允许的联系人")
+		return larkmodel.Pairing{}, constant.ErrLarkPairingRecipientUnauthorized
 	}
-	s.pairing = Pairing{Code: rand.Text()[:8], SenderID: senderID, ExpiresAt: time.Now().UTC().Add(10 * time.Minute).Format(time.RFC3339Nano)}
+	s.pairing = larkmodel.Pairing{Code: rand.Text()[:constant.LarkPairingCodeLength], SenderID: senderID, ExpiresAt: time.Now().UTC().Add(constant.LarkPairingDuration).Format(time.RFC3339Nano)}
 	return s.pairing, nil
 }
 
@@ -33,7 +35,7 @@ func (s *Service) ClearBinding() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.config
-	next.Binding = tasks.Source{}
+	next.Binding = tasksmodel.Source{}
 	if err := appdata.WriteJSON(s.configPath(), next); err != nil {
 		return err
 	}
@@ -45,24 +47,24 @@ func (s *Service) ClearBinding() error {
 // OnCodexEvent 处理上游事件并同步所属任务状态
 //
 //wails:ignore
-func (s *Service) OnCodexEvent(event codex.Event) {
-	if event.Method == "host/approvalsUpdated" || event.Method == "turn/completed" || event.Method == "host/status" || event.Method == "serverRequest/resolved" {
+func (s *Service) OnCodexEvent(event codexmodel.Event) {
+	if event.Method == "host/approvalsUpdated" || event.Method == constant.CodexMethodTurnCompleted || event.Method == "host/status" || event.Method == "serverRequest/resolved" {
 		go s.syncApprovals()
 	}
 }
 
 // configPath 返回当前应用的飞书私有配置路径
 func (s *Service) configPath() string {
-	return filepath.Join(s.root, "config.json")
+	return filepath.Join(s.root, constant.LarkConfigFilename)
 }
 
 // pair 核验配对码并绑定原单聊
-func (s *Service) pair(source tasks.Source, code string) error {
+func (s *Service) pair(source tasksmodel.Source, code string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	expires, err := time.Parse(time.RFC3339Nano, s.pairing.ExpiresAt)
-	if err != nil || time.Now().After(expires) || code != s.pairing.Code || source.SenderID != s.pairing.SenderID || source.ChatType != "p2p" || source.AppID != s.config.AppID {
-		return errors.New("配对码无效、已过期或接收者不匹配")
+	if err != nil || time.Now().After(expires) || code != s.pairing.Code || source.SenderID != s.pairing.SenderID || source.ChatType != constant.LarkChatTypePrivate || source.AppID != s.config.AppID {
+		return constant.ErrLarkPairingInvalid
 	}
 	next := s.config
 	next.Binding = source
@@ -71,13 +73,13 @@ func (s *Service) pair(source tasks.Source, code string) error {
 		return err
 	}
 	s.config = next
-	s.pairing = Pairing{}
+	s.pairing = larkmodel.Pairing{}
 	s.changed()
 	return nil
 }
 
 // textControl 直接处理配对与审批响应而不进入任务队列
-func (s *Service) textControl(message Message) (bool, error) {
+func (s *Service) textControl(message larkmodel.Message) (bool, error) {
 	parts := strings.SplitN(strings.TrimSpace(message.Text), " ", 3)
 	if len(parts) == 0 {
 		return false, nil
@@ -85,7 +87,7 @@ func (s *Service) textControl(message Message) (bool, error) {
 	command := parts[0]
 	if command == "/pair" {
 		if len(parts) != 2 {
-			return true, errors.New("格式：/pair 配对码")
+			return true, constant.ErrLarkPairCommandInvalid
 		}
 		return true, s.pair(message.Source, strings.TrimSpace(parts[1]))
 	}
@@ -93,28 +95,28 @@ func (s *Service) textControl(message Message) (bool, error) {
 		return false, nil
 	}
 	if len(parts) != 3 {
-		return true, errors.New("格式：/approve 审批ID accept|decline；/answer 审批ID {问题ID:[答案]}；/elicitation 审批ID JSON")
+		return true, constant.ErrLarkApprovalCommandInvalid
 	}
 	s.mu.Lock()
-	var route ApprovalRoute
+	var route larkmodel.ApprovalRoute
 	for _, item := range s.state.Approvals {
-		if item.ApprovalID == parts[1] && item.Status == "pending" && item.Source.AppID == message.Source.AppID && item.Source.ChatID == message.Source.ChatID && item.Source.SenderID == message.Source.SenderID {
+		if item.ApprovalID == parts[1] && item.Status == constant.LarkStatusPending && item.Source.AppID == message.Source.AppID && item.Source.ChatID == message.Source.ChatID && item.Source.SenderID == message.Source.SenderID {
 			route = item
 			break
 		}
 	}
 	s.mu.Unlock()
 	if route.Key == "" {
-		return true, errors.New("没有属于当前发送者和会话的待处理审批")
+		return true, constant.ErrLarkSenderApprovalNotFound
 	}
 	return true, s.respondRoute(route.Key, message.Source, parts[2], command)
 }
 
 // approvalSource 查找原任务来源或桌面配对接收者
-func (s *Service) approvalSource(threadID string) tasks.Source {
+func (s *Service) approvalSource(threadID string) tasksmodel.Source {
 	state := s.tasks.GetState()
 	for _, execution := range state.Executions {
-		if execution.ThreadID == threadID && execution.Status == "running" {
+		if execution.ThreadID == threadID && execution.Status == constant.TasksStatusRunning {
 			if execution.Source.Type == "lark" {
 				return execution.Source
 			}
@@ -122,7 +124,7 @@ func (s *Service) approvalSource(threadID string) tasks.Source {
 		}
 	}
 	for _, request := range state.Requests {
-		if request.ThreadID == threadID && request.Status == "running" {
+		if request.ThreadID == threadID && request.Status == constant.TasksStatusRunning {
 			if request.Source.Type == "lark" {
 				return request.Source
 			}
@@ -171,7 +173,7 @@ func (s *Service) syncApprovals() {
 			continue
 		}
 		s.mu.Unlock()
-		if approval.Status != "pending" {
+		if approval.Status != constant.LarkStatusPending {
 			continue
 		}
 		source := s.approvalSource(approval.ThreadID)
@@ -179,7 +181,7 @@ func (s *Service) syncApprovals() {
 			continue
 		}
 		notificationID := rand.Text()
-		route := ApprovalRoute{Key: key, ApprovalID: approval.ID, Generation: approval.Generation, Source: source, NotificationID: notificationID, Status: "pending"}
+		route := larkmodel.ApprovalRoute{Key: key, ApprovalID: approval.ID, Generation: approval.Generation, Source: source, NotificationID: notificationID, Status: constant.LarkStatusPending}
 		s.mu.Lock()
 		exists := false
 		for _, existing := range s.state.Approvals {
@@ -199,7 +201,7 @@ func (s *Service) syncApprovals() {
 			continue
 		}
 		body := approvalBody(approval)
-		err = s.tasks.RecordNotification(tasks.Notification{ID: notificationID, Title: "Codex 审批与问答", Body: body, Source: source, Parts: []tasks.NotificationPart{{ID: rand.Text(), Kind: "approval", Channel: "lark", Target: source.ChatID, Status: "pending", PayloadJSON: jsonText(approvalCard(approval, key)), Content: body}}})
+		err = s.tasks.RecordNotification(tasksmodel.Notification{ID: notificationID, Title: constant.LarkApprovalTitle, Body: body, Source: source, Parts: []tasksmodel.NotificationPart{{ID: rand.Text(), Kind: "approval", Channel: "lark", Target: source.ChatID, Status: constant.LarkStatusPending, PayloadJSON: jsonText(approvalCard(approval, key)), Content: body}}})
 		if err != nil {
 			s.mu.Lock()
 			for i := range s.state.Approvals {
@@ -215,47 +217,47 @@ func (s *Service) syncApprovals() {
 }
 
 // approvalBody 生成审批内容和文本回答说明
-func approvalBody(approval codex.Approval) string {
-	parts := []string{"审批 ID：" + approval.ID, "会话：" + approval.ThreadID, "轮次：" + approval.TurnID, approval.Reason}
+func approvalBody(approval codexmodel.Approval) string {
+	parts := []string{constant.LarkApprovalIDLabel + approval.ID, constant.LarkThreadLabel + approval.ThreadID, constant.LarkTurnLabel + approval.TurnID, approval.Reason}
 	if approval.Command != "" {
 		parts = append(parts, "```\n"+approval.Command+"\n```")
 	}
 	if approval.Cwd != "" {
-		parts = append(parts, "目录："+approval.Cwd)
+		parts = append(parts, constant.LarkDirectoryLabel+approval.Cwd)
 	}
 	if approval.GrantRoot != "" {
-		parts = append(parts, "写入范围："+approval.GrantRoot)
+		parts = append(parts, constant.LarkWriteScopeLabel+approval.GrantRoot)
 	}
 	parts = append(parts, approval.Details, approval.PermissionsJSON)
 	for _, change := range approval.Changes {
 		diff := []rune(change.Diff)
 		if len(diff) > 2000 {
-			diff = append(diff[:2000], []rune("\n…完整修改请在桌面审批中心查看")...)
+			diff = append(diff[:2000], []rune(constant.LarkDiffTruncatedMessage)...)
 		}
-		parts = append(parts, "文件："+change.Path+"\n操作："+change.Kind.Type+"\n```diff\n"+string(diff)+"\n```")
+		parts = append(parts, constant.LarkFileLabel+change.Path+constant.LarkOperationLabel+change.Kind.Type+"\n```diff\n"+string(diff)+"\n```")
 		if change.Kind.MovePath != "" {
-			parts = append(parts, "移动至："+change.Kind.MovePath)
+			parts = append(parts, constant.LarkMoveTargetLabel+change.Kind.MovePath)
 		}
 	}
 	for _, question := range approval.Questions {
-		parts = append(parts, question.Header+"\n"+question.Question+"\n问题 ID："+question.ID)
+		parts = append(parts, question.Header+"\n"+question.Question+constant.LarkQuestionIDLabel+question.ID)
 		for _, option := range question.Options {
 			parts = append(parts, "- "+option.Label+"："+option.Description)
 		}
 	}
-	if approval.Method == "item/tool/requestUserInput" {
-		parts = append(parts, "请在原会话发送 `/answer "+approval.ID+" {\"问题ID\":[\"答案\"]}`，或在桌面问答中心提交。")
+	if approval.Method == constant.CodexMethodItemToolRequestUserInput {
+		parts = append(parts, constant.LarkAnswerCommandPrefix+approval.ID+constant.LarkAnswerCommandSuffix)
 	}
-	if approval.Method == "mcpServer/elicitation/request" {
-		instruction := "发送 `/elicitation " + approval.ID + " JSON` 提交回答，或在桌面继续。"
+	if approval.Method == constant.CodexMethodMcpServerElicitationRequest {
+		instruction := constant.LarkElicitationCommandPrefix + approval.ID + constant.LarkElicitationCommandSuffix
 		if isEmptyElicitationForm(approval) {
-			instruction = "此授权无需填写内容，请点击「同意」「拒绝」或「取消」。"
+			instruction = constant.LarkEmptyApprovalInstructions
 		}
 		parts = append(parts, approval.Message, approval.URL, approval.SchemaJSON, instruction)
 	}
 	body := []rune(strings.Join(parts, "\n\n"))
 	if len(body) > 6000 {
-		return string(body[:6000]) + "\n\n…完整请求请在桌面审批中心查看"
+		return string(body[:6000]) + constant.LarkRequestTruncatedMessage
 	}
 	return string(body)
 }
@@ -266,19 +268,19 @@ func card(title string, elements []any) map[string]any {
 }
 
 // approvalCard 按上游实际支持的选项构造审批卡片
-func approvalCard(approval codex.Approval, key string) map[string]any {
+func approvalCard(approval codexmodel.Approval, key string) map[string]any {
 	elements := []any{map[string]string{"tag": "markdown", "content": approvalBody(approval)}}
 	options := approval.DecisionOptions
-	if approval.Method == "item/permissions/requestApproval" {
-		options = []codex.DecisionOption{{Value: "accept", Label: "允许本轮"}, {Value: "decline", Label: "拒绝"}}
+	if approval.Method == constant.CodexMethodItemPermissionsRequestApproval {
+		options = []codexmodel.DecisionOption{{Value: constant.CodexApprovalAccept, Label: constant.LarkAllowTurnLabel}, {Value: constant.CodexApprovalDecline, Label: constant.LarkDeclineLabel}}
 	}
-	if approval.Method == "mcpServer/elicitation/request" {
-		options = []codex.DecisionOption{{Value: "decline", Label: "拒绝"}, {Value: "cancel", Label: "取消"}}
+	if approval.Method == constant.CodexMethodMcpServerElicitationRequest {
+		options = []codexmodel.DecisionOption{{Value: constant.CodexApprovalDecline, Label: constant.LarkDeclineLabel}, {Value: constant.CodexApprovalCancel, Label: constant.LarkCancelLabel}}
 		if isEmptyElicitationForm(approval) {
-			options = append([]codex.DecisionOption{{Value: "accept", Label: "同意"}}, options...)
+			options = append([]codexmodel.DecisionOption{{Value: constant.CodexApprovalAccept, Label: constant.LarkAcceptLabel}}, options...)
 		}
 	}
-	if approval.Method == "item/tool/requestUserInput" {
+	if approval.Method == constant.CodexMethodItemToolRequestUserInput {
 		options = nil
 	}
 	columns := make([]any, 0, len(options))
@@ -290,12 +292,12 @@ func approvalCard(approval codex.Approval, key string) map[string]any {
 		// 使用第二版分栏容器保持按钮同排，关闭窄屏流式换行
 		elements = append(elements, map[string]any{"tag": "column_set", "flex_mode": "none", "horizontal_spacing": "8px", "columns": columns})
 	}
-	return card("Codex 审批与问答", elements)
+	return card(constant.LarkApprovalTitle, elements)
 }
 
 // isEmptyElicitationForm 仅识别无需输入且没有额外约束的明确空对象表单
-func isEmptyElicitationForm(approval codex.Approval) bool {
-	if approval.Method != "mcpServer/elicitation/request" || (approval.Mode != "form" && approval.Mode != "openai/form") {
+func isEmptyElicitationForm(approval codexmodel.Approval) bool {
+	if approval.Method != constant.CodexMethodMcpServerElicitationRequest || (approval.Mode != "form" && approval.Mode != "openai/form") {
 		return false
 	}
 	var schema map[string]json.RawMessage
@@ -325,9 +327,9 @@ func isEmptyElicitationForm(approval codex.Approval) bool {
 }
 
 // respondRoute 核验接收者和当前请求后回复原审批
-func (s *Service) respondRoute(key string, source tasks.Source, answer, command string) error {
+func (s *Service) respondRoute(key string, source tasksmodel.Source, answer, command string) error {
 	s.mu.Lock()
-	var route ApprovalRoute
+	var route larkmodel.ApprovalRoute
 	for _, item := range s.state.Approvals {
 		if item.Key == key {
 			route = item
@@ -336,7 +338,7 @@ func (s *Service) respondRoute(key string, source tasks.Source, answer, command 
 	}
 	appID := s.config.AppID
 	allowed := hasIdentity(s.config.AllowedUsers, route.Source.SenderID)
-	if route.Source.ChatType == "group" {
+	if route.Source.ChatType == constant.LarkChatTypeGroup {
 		allowed = hasIdentity(s.config.AllowedChats, route.Source.ChatID)
 	}
 	if route.Source.MessageID == "" {
@@ -344,44 +346,44 @@ func (s *Service) respondRoute(key string, source tasks.Source, answer, command 
 		allowed = allowed && binding.AppID == route.Source.AppID && binding.ChatID == route.Source.ChatID && binding.SenderID == route.Source.SenderID
 	}
 	s.mu.Unlock()
-	if !allowed || route.Key == "" || route.Status != "pending" || route.Source.AppID != appID || route.Source.AppID != source.AppID || route.Source.ChatID != source.ChatID || route.Source.SenderID != source.SenderID {
-		return errors.New("审批已失效，或不属于当前接收者及会话")
+	if !allowed || route.Key == "" || route.Status != constant.LarkStatusPending || route.Source.AppID != appID || route.Source.AppID != source.AppID || route.Source.ChatID != source.ChatID || route.Source.SenderID != source.SenderID {
+		return constant.ErrLarkApprovalScopeInvalid
 	}
-	var approval codex.Approval
+	var approval codexmodel.Approval
 	for _, item := range s.runtime.GetApprovals() {
 		if item.ID == route.ApprovalID && item.Generation == route.Generation {
 			approval = item
 			break
 		}
 	}
-	if approval.ID == "" || approval.Status != "pending" {
-		return errors.New("该请求已处理或失效")
+	if approval.ID == "" || approval.Status != constant.LarkStatusPending {
+		return constant.ErrLarkApprovalExpired
 	}
 	if command == "/answer" {
 		var input map[string][]string
 		if err := json.Unmarshal([]byte(answer), &input); err != nil {
 			return err
 		}
-		answers := map[string]codex.QuestionAnswer{}
+		answers := map[string]codexmodel.QuestionAnswer{}
 		for id, values := range input {
-			answers[id] = codex.QuestionAnswer{Answers: values}
+			answers[id] = codexmodel.QuestionAnswer{Answers: values}
 		}
 		return s.runtime.AnswerQuestions(approval.ID, answers)
 	}
 	if command == "/elicitation" {
-		return s.runtime.AnswerElicitation(approval.ID, "accept", answer)
+		return s.runtime.AnswerElicitation(approval.ID, constant.CodexApprovalAccept, answer)
 	}
-	if approval.Method == "item/permissions/requestApproval" {
-		if answer != "accept" && answer != "decline" {
-			return errors.New("权限审批只支持 accept 或 decline")
+	if approval.Method == constant.CodexMethodItemPermissionsRequestApproval {
+		if answer != constant.CodexApprovalAccept && answer != constant.CodexApprovalDecline {
+			return constant.ErrLarkPermissionDecisionInvalid
 		}
-		return s.runtime.RespondPermissions(approval.ID, answer == "accept", "turn")
+		return s.runtime.RespondPermissions(approval.ID, answer == constant.CodexApprovalAccept, "turn")
 	}
-	if approval.Method == "mcpServer/elicitation/request" {
+	if approval.Method == constant.CodexMethodMcpServerElicitationRequest {
 		content := ""
-		if answer == "accept" {
+		if answer == constant.CodexApprovalAccept {
 			if !isEmptyElicitationForm(approval) {
-				return errors.New("该问答需要填写内容，请提交 JSON 回答或在桌面继续")
+				return constant.ErrLarkQuestionContentRequired
 			}
 			content = "{}"
 		}
@@ -392,7 +394,7 @@ func (s *Service) respondRoute(key string, source tasks.Source, answer, command 
 
 // cardAction 将按钮回调直接回复到对应的上游审批
 func (s *Service) cardAction(_ context.Context, generation uint64, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
-	response := &callback.CardActionTriggerResponse{Toast: &callback.Toast{Type: "error", Content: "无效的审批操作"}}
+	response := &callback.CardActionTriggerResponse{Toast: &callback.Toast{Type: constant.LarkStatusError, Content: constant.LarkApprovalActionInvalidMessage}}
 	if event == nil || event.Event == nil || event.Event.Operator == nil || event.Event.Context == nil || event.Event.Action == nil {
 		return response, nil
 	}
@@ -405,27 +407,27 @@ func (s *Service) cardAction(_ context.Context, generation uint64, event *callba
 	}
 	key, _ := action.Action.Value["routeKey"].(string)
 	decision, _ := action.Action.Value["decision"].(string)
-	err := s.respondRoute(key, tasks.Source{Type: "lark", AppID: appID, ChatID: action.Context.OpenChatID, SenderID: action.Operator.OpenID}, decision, "/approve")
+	err := s.respondRoute(key, tasksmodel.Source{Type: "lark", AppID: appID, ChatID: action.Context.OpenChatID, SenderID: action.Operator.OpenID}, decision, "/approve")
 	if err != nil {
 		response.Toast.Content = err.Error()
 		return response, nil
 	}
 	// 卡片由状态同步统一更新，避免回调覆盖原审批内容或较新的结果
-	response.Toast = &callback.Toast{Type: "success", Content: "已回复审批，最终执行结果仍以任务记录为准"}
+	response.Toast = &callback.Toast{Type: "success", Content: constant.LarkApprovalRepliedMessage}
 	return response, nil
 }
 
 // updateApprovalCard 将已处理状态更新到原审批卡片
-func (s *Service) updateApprovalCard(route ApprovalRoute, status string) {
+func (s *Service) updateApprovalCard(route larkmodel.ApprovalRoute, status string) {
 	client, parent, err := s.deliveryClient(route.Source)
 	if err != nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
+	ctx, cancel := context.WithTimeout(parent, constant.LarkHTTPTimeout)
 	defer cancel()
 	notification, err := s.tasks.GetNotification(route.NotificationID)
 	if err == nil {
-		content := jsonText(card("审批状态", []any{map[string]string{"tag": "markdown", "content": notification.Body + "\n\n状态：" + status}}))
+		content := jsonText(card(constant.LarkApprovalStatusTitle, []any{map[string]string{"tag": "markdown", "content": notification.Body + constant.LarkStatusLabel + status}}))
 		var response *larkim.PatchMessageResp
 		response, err = client.Im.V1.Message.Patch(ctx, larkim.NewPatchMessageReqBuilder().MessageId(route.MessageID).Body(larkim.NewPatchMessageReqBodyBuilder().Content(content).Build()).Build())
 		if err == nil && !response.Success() {

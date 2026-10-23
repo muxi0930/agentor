@@ -1,6 +1,8 @@
-package pipeline
+package model
 
-import "agentor/internal/tasks"
+import (
+	tasksmodel "agentor/internal/tasks/model"
+)
 
 type InputField struct {
 	Name     string `json:"name"`     // 输入字段名称
@@ -36,13 +38,13 @@ type ActionSpec struct {
 }
 
 type RunInput struct {
-	SessionRequestID string         `json:"sessionRequestId"` // 发起运行的专用会话请求标识
-	TaskID           string         `json:"taskId"`           // 待运行任务标识
-	Inputs           map[string]any `json:"inputs"`           // 本次运行的输入值
-	Model            string         `json:"model"`            // 本次使用的模型
-	Effort           string         `json:"effort"`           // 本次使用的推理强度
-	Source           tasks.Source   `json:"source"`           // 任务请求来源
-	RequestID        string         `json:"requestId"`        // 关联的外部请求标识
+	SessionRequestID string            `json:"sessionRequestId"` // 发起运行的专用会话请求标识
+	TaskID           string            `json:"taskId"`           // 待运行任务标识
+	Inputs           map[string]any    `json:"inputs"`           // 本次运行的输入值
+	Model            string            `json:"model"`            // 本次使用的模型
+	Effort           string            `json:"effort"`           // 本次使用的推理强度
+	Source           tasksmodel.Source `json:"source"`           // 任务请求来源
+	RequestID        string            `json:"requestId"`        // 关联的外部请求标识
 }
 
 type ActionResult struct {
@@ -57,23 +59,23 @@ type ActionResult struct {
 }
 
 type Run struct {
-	SessionRequestID string         `json:"sessionRequestId"` // 发起运行的专用会话请求标识
-	ID               string         `json:"id"`               // 运行记录标识
-	ProjectID        string         `json:"projectId"`        // 所属项目标识
-	TaskID           string         `json:"taskId"`           // 对应任务标识
-	Task             Task           `json:"task"`             // 本次运行冻结的任务定义
-	Inputs           map[string]any `json:"inputs"`           // 本次运行冻结的输入值
-	Model            string         `json:"model"`            // 实际使用的模型
-	Effort           string         `json:"effort"`           // 实际使用的推理强度
-	Source           tasks.Source   `json:"source"`           // 任务请求来源
-	RequestID        string         `json:"requestId"`        // 关联的外部请求标识
-	ScheduleID       string         `json:"scheduleId"`       // 发起运行的调度标识
-	Status           string         `json:"status"`           // 流水线运行状态
-	Error            string         `json:"error"`            // 运行错误说明
-	CreatedAt        string         `json:"createdAt"`        // 运行创建时间
-	CompletedAt      string         `json:"completedAt"`      // 运行结束时间
-	Actions          []ActionResult `json:"actions"`          // 按执行顺序保存的动作结果
-	ArtifactIDs      []string       `json:"artifactIds"`      // 本次运行生成的报告产物标识
+	SessionRequestID string            `json:"sessionRequestId"` // 发起运行的专用会话请求标识
+	ID               string            `json:"id"`               // 运行记录标识
+	ProjectID        string            `json:"projectId"`        // 所属项目标识
+	TaskID           string            `json:"taskId"`           // 对应任务标识
+	Task             Task              `json:"task"`             // 本次运行冻结的任务定义
+	Inputs           map[string]any    `json:"inputs"`           // 本次运行冻结的输入值
+	Model            string            `json:"model"`            // 实际使用的模型
+	Effort           string            `json:"effort"`           // 实际使用的推理强度
+	Source           tasksmodel.Source `json:"source"`           // 任务请求来源
+	RequestID        string            `json:"requestId"`        // 关联的外部请求标识
+	ScheduleID       string            `json:"scheduleId"`       // 发起运行的调度标识
+	Status           string            `json:"status"`           // 流水线运行状态
+	Error            string            `json:"error"`            // 运行错误说明
+	CreatedAt        string            `json:"createdAt"`        // 运行创建时间
+	CompletedAt      string            `json:"completedAt"`      // 运行结束时间
+	Actions          []ActionResult    `json:"actions"`          // 按执行顺序保存的动作结果
+	ArtifactIDs      []string          `json:"artifactIds"`      // 本次运行生成的报告产物标识
 }
 
 type Schedule struct {
@@ -96,13 +98,13 @@ type Schedule struct {
 }
 
 type SessionInput struct {
-	ProjectID string       `json:"projectId"` // 专用会话所属项目标识
-	Role      string       `json:"role"`      // 管理或配置会话角色
-	Text      string       `json:"text"`      // 用户请求或完成结果正文
-	Model     string       `json:"model"`     // 请求使用的模型
-	Effort    string       `json:"effort"`    // 请求使用的推理强度
-	Source    tasks.Source `json:"source"`    // 会话请求来源
-	RequestID string       `json:"requestId"` // 关联的外部请求标识
+	ProjectID string            `json:"projectId"` // 专用会话所属项目标识
+	Role      string            `json:"role"`      // 管理或配置会话角色
+	Text      string            `json:"text"`      // 用户请求或完成结果正文
+	Model     string            `json:"model"`     // 请求使用的模型
+	Effort    string            `json:"effort"`    // 请求使用的推理强度
+	Source    tasksmodel.Source `json:"source"`    // 会话请求来源
+	RequestID string            `json:"requestId"` // 关联的外部请求标识
 }
 
 type SessionRequest struct {

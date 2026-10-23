@@ -9,8 +9,11 @@ import (
 
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
+	pipelinemodel "agentor/internal/pipeline/model"
 	"agentor/internal/tasks"
+	tasksmodel "agentor/internal/tasks/model"
 	"agentor/internal/workspace"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestTaskReferencesSnapshotAndReport 验证任务快照、结果引用与报告产物
@@ -21,7 +24,7 @@ func TestTaskReferencesSnapshotAndReport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	run, err := s.RunTask(RunInput{TaskID: task.ID})
+	run, err := s.RunTask(pipelinemodel.RunInput{TaskID: task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +81,7 @@ func TestValidationRejectsForwardWrongTypeAndForeignReferences(t *testing.T) {
 	}
 
 	bad = snapshotTask()
-	bad.Inputs = []InputField{{Name: "version", Type: "number", Required: true}}
+	bad.Inputs = []pipelinemodel.InputField{{Name: "version", Type: "number", Required: true}}
 	bad.Actions[0].Params = map[string]any{"versionId": map[string]any{"input": "version"}}
 	if _, err := s.ValidateTask(projectID, textOf(bad)); err == nil {
 		t.Fatal("wrong parameter type accepted")
@@ -96,28 +99,28 @@ func TestValidationRejectsForwardWrongTypeAndForeignReferences(t *testing.T) {
 		t.Fatal("report path escape accepted")
 	}
 
-	state, err := s.work.SaveProject(workspace.Project{Name: "other", Directory: t.TempDir()})
+	state, err := s.work.SaveProject(workspacemodel.Project{Name: "other", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	other := state.SelectedID
-	state, err = s.work.SaveVersion(other, workspace.Version{Name: "v"})
+	state, err = s.work.SaveVersion(other, workspacemodel.Version{Name: "v"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	state, err = s.work.SaveFeature(other, state.SelectedID, workspace.Feature{Title: "f"})
+	state, err = s.work.SaveFeature(other, state.SelectedID, workspacemodel.Feature{Title: "f"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	state, err = s.work.SaveStep(other, state.SelectedID, workspace.Step{Title: "s"})
+	state, err = s.work.SaveStep(other, state.SelectedID, workspacemodel.Step{Title: "s"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	bad = Task{Name: "foreign", Actions: []Action{{ID: "step", Type: "step.run", Params: map[string]any{"stepId": state.SelectedID, "instruction": "test"}}}}
+	bad = pipelinemodel.Task{Name: "foreign", Actions: []pipelinemodel.Action{{ID: "step", Type: "step.run", Params: map[string]any{"stepId": state.SelectedID, "instruction": "test"}}}}
 	if _, err = s.ValidateTask(projectID, textOf(bad)); err == nil {
 		t.Fatal("foreign project step accepted")
 	}
@@ -138,7 +141,7 @@ func TestSchedulesMisfireAnchorAndNonReentry(t *testing.T) {
 	}
 
 	for _, policy := range []string{"skip", "fire_once"} {
-		_, err = s.SaveSchedule(Schedule{
+		_, err = s.SaveSchedule(pipelinemodel.Schedule{
 			ProjectID:       projectID,
 			TaskID:          task.ID,
 			Name:            policy,
@@ -171,9 +174,9 @@ func TestSchedulesMisfireAnchorAndNonReentry(t *testing.T) {
 	}
 
 	s.mu.Lock()
-	s.state.Runs = append(s.state.Runs, Run{ID: "active", TaskID: task.ID, Status: "running"})
+	s.state.Runs = append(s.state.Runs, pipelinemodel.Run{ID: "active", TaskID: task.ID, Status: "running"})
 	s.mu.Unlock()
-	if _, err = s.RunTask(RunInput{TaskID: task.ID}); err == nil {
+	if _, err = s.RunTask(pipelinemodel.RunInput{TaskID: task.ID}); err == nil {
 		t.Fatal("same task reentered")
 	}
 
@@ -198,7 +201,7 @@ func TestOneTimeScheduleAndTriggerSource(t *testing.T) {
 	}
 
 	at := time.Date(2026, 10, 20, 1, 0, 0, 0, time.UTC)
-	schedule, err := s.SaveSchedule(Schedule{
+	schedule, err := s.SaveSchedule(pipelinemodel.Schedule{
 		ProjectID:     projectID,
 		TaskID:        task.ID,
 		Name:          "once",
@@ -236,10 +239,10 @@ func TestOneTimeScheduleAndTriggerSource(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	run, err := s.TriggerScheduleFor(projectID, schedule.ID, RunInput{
+	run, err := s.TriggerScheduleFor(projectID, schedule.ID, pipelinemodel.RunInput{
 		Model:  "chosen",
 		Effort: "high",
-		Source: tasks.Source{Type: "lark", ChatID: "test-chat", SenderID: "test-user"},
+		Source: tasksmodel.Source{Type: "lark", ChatID: "test-chat", SenderID: "test-user"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -271,7 +274,7 @@ func fixture(t *testing.T) (*Service, string) {
 		t.Fatal(err)
 	}
 
-	state, err := work.SaveProject(workspace.Project{Name: "test", Directory: t.TempDir()})
+	state, err := work.SaveProject(workspacemodel.Project{Name: "test", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,17 +302,17 @@ func fixture(t *testing.T) (*Service, string) {
 }
 
 // textOf 将任务编码为测试使用的 JSON 配置
-func textOf(task Task) string {
+func textOf(task pipelinemodel.Task) string {
 	raw, _ := json.Marshal(task)
 	return string(raw)
 }
 
 // snapshotTask 创建读取快照并输出报告的测试任务
-func snapshotTask() Task {
-	return Task{
+func snapshotTask() pipelinemodel.Task {
+	return pipelinemodel.Task{
 		Name:   "snapshot report",
-		Inputs: []InputField{},
-		Actions: []Action{
+		Inputs: []pipelinemodel.InputField{},
+		Actions: []pipelinemodel.Action{
 			{ID: "snapshot", Type: "workspace.snapshot", Params: map[string]any{}},
 			{ID: "report", Type: "report.write", Params: map[string]any{
 				"fileName": "result.md",
@@ -320,7 +323,7 @@ func snapshotTask() Task {
 }
 
 // waitRun 等待指定测试运行完成或超时
-func waitRun(t *testing.T, s *Service, id string) Run {
+func waitRun(t *testing.T, s *Service, id string) pipelinemodel.Run {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -334,5 +337,5 @@ func waitRun(t *testing.T, s *Service, id string) Run {
 	}
 
 	t.Fatal("run did not finish")
-	return Run{}
+	return pipelinemodel.Run{}
 }

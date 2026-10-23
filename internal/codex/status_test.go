@@ -1,6 +1,8 @@
 package codex
 
-import "testing"
+import (
+	"testing"
+)
 
 // TestOldConnectionCannotOverwriteStatus 验证旧连接不能覆盖当前连接状态
 func TestOldConnectionCannotOverwriteStatus(t *testing.T) {

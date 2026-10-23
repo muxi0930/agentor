@@ -3,7 +3,6 @@ package codex
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,7 +10,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
+
+	"agentor/internal/constant"
 )
 
 // CheckPath 检测指定路径的原生程序能否运行，不改变当前连接
@@ -21,7 +21,7 @@ func (s *Service) CheckPath(path string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.ctx, constant.CodexBinaryCheckTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, resolved, "--version")
 	hideProcessWindow(command)
@@ -49,7 +49,7 @@ func resolveBinary(path string) (string, string, error) {
 			}
 		}
 		if err != nil || path == "" {
-			return "", "", errors.New("未在 PATH 中找到 Codex，请在设置中选择原生程序")
+			return "", "", constant.ErrCodexBinaryNotFound
 		}
 	}
 	resolved, err := filepath.EvalSymlinks(path)
@@ -78,7 +78,7 @@ func resolveBinary(path string) (string, string, error) {
 	magic := binary.BigEndian.Uint32(header[:])
 	native := string(header[:]) == "\x7fELF" || string(header[:2]) == "MZ" || magic == 0xfeedfacf || magic == 0xcffaedfe || magic == 0xcafebabe || magic == 0xbebafeca
 	if !native {
-		return "", "", errors.New("请选择 Codex 原生可执行文件，不支持 Node、Shell 或其他脚本入口")
+		return "", "", constant.ErrCodexNativeBinaryRequired
 	}
 
 	resolved, err = filepath.Abs(resolved)
@@ -91,7 +91,7 @@ func loginShellPath() (string, error) {
 	if shell == "" {
 		shell = "/bin/zsh"
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), constant.CodexShellPathTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, shell, "-ilc", `printf '\000%s\000' "$PATH"`)
 	output, err := command.Output()
@@ -100,7 +100,7 @@ func loginShellPath() (string, error) {
 	}
 	parts := strings.Split(string(output), "\x00")
 	if len(parts) < 3 || parts[len(parts)-2] == "" {
-		return "", errors.New("登录 Shell 未返回 PATH")
+		return "", constant.ErrCodexShellPathMissing
 	}
 	return parts[len(parts)-2], nil
 }
@@ -132,7 +132,7 @@ func npmBinary(path, platform, architecture string) (string, error) {
 			return native, nil
 		}
 	}
-	return "", errors.New("未找到 npm 包内的 Codex 原生程序，请在设置中选择原生程序")
+	return "", constant.ErrCodexNPMBinaryNotFound
 }
 
 // processEnvironment 按身份隔离凭据并排除宿主线程与工具管道

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { Copy, Square } from "lucide-react";
 import * as Tasks from "../../bindings/agentor/internal/tasks/service";
-import type { Execution } from "../../bindings/agentor/internal/tasks/models";
+import type { Execution } from "../../bindings/agentor/internal/tasks/model/models";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SettingsSection } from "@/components/ui/settings-section";

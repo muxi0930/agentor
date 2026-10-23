@@ -1,26 +1,21 @@
 package workspace
 
 import (
-	"errors"
 	"path/filepath"
 	"reflect"
 	"time"
 
 	"agentor/internal/appdata"
+	"agentor/internal/constant"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
-type StepCompletion struct {
-	Completed    bool   // 是否已完成
-	CompletedAt  string // 完成时间，未完成时为空
-	DispatchedAt string // 最后一次派发时间
-}
-
 // CompleteStep 手动完成步骤并汇总所属功能状态
-func (s *Service) CompleteStep(stepID string) (State, error) {
-	return s.mutate(func(state *State) error {
+func (s *Service) CompleteStep(stepID string) (workspacemodel.State, error) {
+	return s.mutate(func(state *workspacemodel.State) error {
 		_, _, _, step := findStep(state, stepID)
 		if step == nil {
-			return errors.New("步骤不存在")
+			return constant.ErrWorkspaceStepNotFound
 		}
 		if !step.Completed {
 			step.Completed, step.CompletedAt = true, time.Now().UTC().Format(time.RFC3339Nano)
@@ -32,7 +27,7 @@ func (s *Service) CompleteStep(stepID string) (State, error) {
 // SyncCompletion 根据各步骤最后一次派发的执行记录同步完成状态
 //
 //wails:ignore
-func (s *Service) SyncCompletion(latest map[string]StepCompletion) error {
+func (s *Service) SyncCompletion(latest map[string]workspacemodel.StepCompletion) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -60,7 +55,7 @@ func (s *Service) SyncCompletion(latest map[string]StepCompletion) error {
 	if reflect.DeepEqual(s.state, next) {
 		return nil
 	}
-	if err := appdata.WriteJSON(filepath.Join(s.root, "workspace.json"), next); err != nil {
+	if err := appdata.WriteJSON(filepath.Join(s.root, constant.WorkspaceStateFilename), next); err != nil {
 		return err
 	}
 	s.state = next
@@ -68,7 +63,7 @@ func (s *Service) SyncCompletion(latest map[string]StepCompletion) error {
 }
 
 // summarizeCompletion 按全部步骤的完成状态汇总功能及其最晚完成时间
-func summarizeCompletion(state *State) {
+func summarizeCompletion(state *workspacemodel.State) {
 	for p := range state.Projects {
 		for v := range state.Projects[p].Versions {
 			for f := range state.Projects[p].Versions[v].Features {

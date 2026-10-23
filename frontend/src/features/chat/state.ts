@@ -1,4 +1,4 @@
-import type { Item, Thread, TokenUsage, Turn, TurnError } from "../../../bindings/agentor/internal/codex/models";
+import type { Item, Thread, TokenUsage, Turn, TurnError } from "../../../bindings/agentor/internal/codex/model/models";
 
 export type ConversationState = {
   thread: Thread; turns: Turn[]; cursor: string | null; activeTurnId: string;

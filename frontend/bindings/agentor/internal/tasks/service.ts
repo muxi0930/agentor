@@ -7,19 +7,19 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as $models from "./models.js";
+import * as model$0 from "./model/models.js";
 
 /**
  * Dispatch 冻结步骤参数并加入正式执行队列
  */
-export function Dispatch(input: $models.DispatchInput): $CancellablePromise<$models.Execution> {
+export function Dispatch(input: model$0.DispatchInput): $CancellablePromise<model$0.Execution> {
     return $Call.ByID(1837082755, input);
 }
 
 /**
  * GetState 返回不包含密钥的状态快照
  */
-export function GetState(): $CancellablePromise<$models.State> {
+export function GetState(): $CancellablePromise<model$0.State> {
     return $Call.ByID(1870479024);
 }
 
@@ -75,6 +75,6 @@ export function StopRequest(id: string): $CancellablePromise<void> {
 /**
  * SubmitRequest 将用户指令加入控制中心队列
  */
-export function SubmitRequest(input: $models.ControllerInput): $CancellablePromise<$models.Request> {
+export function SubmitRequest(input: model$0.ControllerInput): $CancellablePromise<model$0.Request> {
     return $Call.ByID(3848601978, input);
 }

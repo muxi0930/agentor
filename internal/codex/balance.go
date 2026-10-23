@@ -3,7 +3,6 @@ package codex
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -11,32 +10,35 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 )
 
 // GetBalance 查询指定 API 账号的余额，短时缓存与聊天连接互不影响
-func (s *Service) GetBalance(id string, force bool) (BalanceResult, error) {
+func (s *Service) GetBalance(id string, force bool) (codexmodel.BalanceResult, error) {
 	stored, err := s.profile(id)
 	if err != nil {
-		return BalanceResult{}, err
+		return codexmodel.BalanceResult{}, err
 	}
-	if stored.Profile.Type != "api" || stored.Profile.Balance.URL == "" {
-		return BalanceResult{}, errors.New("此账号尚未配置 API 余额接口")
+	if stored.Profile.Type != constant.CodexAccountTypeAPI || stored.Profile.Balance.URL == "" {
+		return codexmodel.BalanceResult{}, constant.ErrCodexBalanceNotConfigured
 	}
 
 	s.mu.Lock()
 	cached, exists := s.balances[id]
 	s.mu.Unlock()
-	if checked, err := time.Parse(time.RFC3339Nano, cached.CheckedAt); !force && exists && err == nil && time.Since(checked) < time.Minute {
+	if checked, err := time.Parse(time.RFC3339Nano, cached.CheckedAt); !force && exists && err == nil && time.Since(checked) < constant.CodexBalanceCacheDuration {
 		return cached, nil
 	}
 
-	result := BalanceResult{ProfileID: id, CheckedAt: time.Now().UTC().Format(time.RFC3339Nano), Unit: stored.Profile.Balance.Unit}
+	result := codexmodel.BalanceResult{ProfileID: id, CheckedAt: time.Now().UTC().Format(time.RFC3339Nano), Unit: stored.Profile.Balance.Unit}
 	config := stored.Profile.Balance
 	var body io.Reader
 	if config.Method == "POST" && config.Body != "" {
 		var document any
 		if err := json.Unmarshal([]byte(config.Body), &document); err != nil {
-			return result, errors.New("余额请求正文必须是 JSON")
+			return result, constant.ErrCodexBalanceBodyInvalid
 		}
 
 		raw, _ := json.Marshal(replaceAPIKey(document, stored.APIKey))
@@ -75,7 +77,7 @@ func (s *Service) GetBalance(id string, force bool) (BalanceResult, error) {
 						if text, ok := unit.(string); ok {
 							result.Unit = text
 						} else if err == nil {
-							err = errors.New("单位映射字段不是字符串")
+							err = constant.ErrCodexBalanceUnitInvalid
 						}
 					}
 				}
@@ -84,7 +86,7 @@ func (s *Service) GetBalance(id string, force bool) (BalanceResult, error) {
 	}
 	if err != nil {
 		result.Balance, result.Used, result.Total = nil, nil, nil
-		result.Error = "余额查询失败：" + strings.ReplaceAll(err.Error(), stored.APIKey, "[密钥]")
+		result.Error = constant.CodexBalanceFailurePrefix + strings.ReplaceAll(err.Error(), stored.APIKey, constant.CodexRedactedKeyLabel)
 	}
 	s.mu.Lock()
 	s.balances[id] = result
@@ -98,27 +100,27 @@ func (s *Service) CheckAccountConnection(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if stored.Profile.Type == "chatgpt" {
+	if stored.Profile.Type == constant.CodexAccountTypeChatGPT {
 		settings := s.data.GetSettings()
 		if settings.ReuseCLI || settings.ActiveAccountID != id {
-			return "", errors.New("请先启用要检查的 ChatGPT 账号")
+			return "", constant.ErrCodexChatGPTProfileInactive
 		}
 		if _, err := s.GetRateLimits(); err != nil {
 			return "", err
 		}
 
-		return "已从当前 ChatGPT 账号读取真实额度", nil
+		return constant.CodexChatGPTConnectionSuccess, nil
 	}
 
 	request, err := http.NewRequestWithContext(s.ctx, "GET", stored.Profile.BaseURL+"/models", nil)
 	if err != nil {
-		return "", errors.New("API 服务地址无法使用")
+		return "", constant.ErrCodexAPIBaseURLInvalid
 	}
 
 	request.Header.Set("Authorization", "Bearer "+stored.APIKey)
 	response, err := accountHTTP().Do(request)
 	if err != nil {
-		return "", errors.New("API 连接失败，请检查服务地址、网络和密钥")
+		return "", constant.ErrCodexAPIConnectionFailed
 	}
 
 	defer response.Body.Close()
@@ -127,11 +129,11 @@ func (s *Service) CheckAccountConnection(id string) (string, error) {
 		return "", fmt.Errorf("模型接口返回 HTTP %d", response.StatusCode)
 	}
 
-	return "模型接口请求成功；实际模型调用仍以对话结果为准", nil
+	return constant.CodexAPIConnectionSuccess, nil
 }
 
 // validateBalance 核验余额请求配置，保留空配置表示暂不启用
-func validateBalance(config BalanceConfig) error {
+func validateBalance(config codexmodel.BalanceConfig) error {
 	if config.URL == "" {
 		return nil
 	}
@@ -139,15 +141,15 @@ func validateBalance(config BalanceConfig) error {
 		return err
 	}
 	if config.Method != "GET" && config.Method != "POST" {
-		return errors.New("余额接口只支持 GET 或 POST")
+		return constant.ErrCodexBalanceMethodUnsupported
 	}
 	if config.Method == "POST" && config.Body != "" && !json.Valid([]byte(config.Body)) {
-		return errors.New("余额 POST 正文必须是 JSON；密钥引用使用完整字符串值 $API_KEY")
+		return constant.ErrCodexBalancePostBodyInvalid
 	}
 
 	for _, path := range []string{config.BalancePath, config.UsedPath, config.TotalPath, config.UnitPath} {
 		if path != "" && !strings.HasPrefix(path, "/") {
-			return errors.New("余额字段使用 JSON Pointer，例如 /data/balance")
+			return constant.ErrCodexBalancePointerInvalid
 		}
 	}
 
@@ -156,7 +158,7 @@ func validateBalance(config BalanceConfig) error {
 
 // accountHTTP 为账号诊断提供有超时且不自动转发凭据的请求客户端
 func accountHTTP() *http.Client {
-	return &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
+	return &http.Client{Timeout: constant.CodexHTTPTimeout, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
 }

@@ -2,45 +2,47 @@ package pipeline
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
+
+	"agentor/internal/constant"
+	pipelinemodel "agentor/internal/pipeline/model"
 )
 
 // GetActions 读取流水线支持的固定动作目录
-func (s *Service) GetActions() []ActionSpec {
-	return []ActionSpec{
+func (s *Service) GetActions() []pipelinemodel.ActionSpec {
+	return []pipelinemodel.ActionSpec{
 		{
-			"workspace.snapshot",
-			"读取当前项目的结构及步骤最新状态。",
-			[]Parameter{{"versionId", "string", false}, {"featureId", "string", false}},
-			"项目结构和步骤状态对象",
+			constant.PipelineActionSnapshot,
+			constant.PipelineInspectActionDescription,
+			[]pipelinemodel.Parameter{{"versionId", "string", false}, {"featureId", "string", false}},
+			constant.PipelineInspectActionResult,
 		},
 		{
-			"step.run",
-			"进入正式步骤队列并等待完成。停止流水线只取消本次发起的执行。",
-			[]Parameter{{"stepId", "string", true}, {"instruction", "string", true}, {"completionCriteria", "string", false}},
-			"executionId、status、result、artifactIds 对象",
+			constant.PipelineActionRunStep,
+			constant.PipelineDispatchActionDescription,
+			[]pipelinemodel.Parameter{{"stepId", "string", true}, {"instruction", "string", true}, {"completionCriteria", "string", false}},
+			constant.PipelineDispatchActionResult,
 		},
 		{
-			"knowledge.read",
-			"读取当前项目共享或指定功能绑定的知识正文。",
-			[]Parameter{{"documentId", "string", true}, {"featureId", "string", false}},
-			"document 和 content 对象",
+			constant.PipelineActionReadKnowledge,
+			constant.PipelineKnowledgeActionDescription,
+			[]pipelinemodel.Parameter{{"documentId", "string", true}, {"featureId", "string", false}},
+			constant.PipelineKnowledgeActionResult,
 		},
 		{
-			"report.write",
-			"将文字或前序完整结果确定性写为 Markdown 报告产物。",
-			[]Parameter{{"fileName", "string", true}, {"content", "any", true}},
-			"artifactId 和 fileName 对象",
+			constant.PipelineActionWriteReport,
+			constant.PipelineReportActionDescription,
+			[]pipelinemodel.Parameter{{"fileName", "string", true}, {"content", "any", true}},
+			constant.PipelineReportActionResult,
 		},
 	}
 }
 
 // ValidateTask 解析并校验当前项目的任务配置
-func (s *Service) ValidateTask(projectID, text string) (Task, error) {
+func (s *Service) ValidateTask(projectID, text string) (pipelinemodel.Task, error) {
 	task, err := parseTask(projectID, text)
 	if err != nil {
 		return task, err
@@ -82,8 +84,8 @@ func reference(value any) (string, string, bool) {
 }
 
 // parseTask 解析单个任务并固定所属项目
-func parseTask(projectID, text string) (Task, error) {
-	var task Task
+func parseTask(projectID, text string) (pipelinemodel.Task, error) {
+	var task pipelinemodel.Task
 	decoder := json.NewDecoder(strings.NewReader(text))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&task); err != nil {
@@ -92,11 +94,11 @@ func parseTask(projectID, text string) (Task, error) {
 
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
-		return task, errors.New("配置只能包含一个 JSON 任务")
+		return task, constant.ErrPipelineMultipleTaskDefinitions
 	}
 
 	if task.ProjectID != "" && task.ProjectID != projectID {
-		return task, errors.New("任务不能改变所属项目")
+		return task, constant.ErrPipelineTaskProjectChanged
 	}
 
 	task.ProjectID = projectID
@@ -104,19 +106,19 @@ func parseTask(projectID, text string) (Task, error) {
 }
 
 // validateTask 校验动作参数、引用顺序与项目归属
-func (s *Service) validateTask(task Task) error {
+func (s *Service) validateTask(task pipelinemodel.Task) error {
 	if _, err := s.project(task.ProjectID); err != nil {
 		return err
 	}
 
 	if strings.TrimSpace(task.Name) == "" || len(task.Actions) == 0 {
-		return errors.New("请填写名称和至少一个固定动作")
+		return constant.ErrPipelineTaskDefinitionRequired
 	}
 
 	fields := map[string]string{}
 	for _, field := range task.Inputs {
 		if field.Name == "" || fields[field.Name] != "" {
-			return errors.New("输入字段名称为空或重复")
+			return constant.ErrPipelineInputNameInvalid
 		}
 
 		if field.Type != "string" && field.Type != "number" && field.Type != "boolean" {
@@ -129,10 +131,10 @@ func (s *Service) validateTask(task Task) error {
 	previous := map[string]bool{}
 	for _, action := range task.Actions {
 		if action.ID == "" || previous[action.ID] {
-			return errors.New("动作 ID 为空或重复")
+			return constant.ErrPipelineActionIDInvalid
 		}
 
-		var spec *ActionSpec
+		var spec *pipelinemodel.ActionSpec
 		for _, option := range s.GetActions() {
 			if option.Name == action.Type {
 				copy := option
@@ -145,7 +147,7 @@ func (s *Service) validateTask(task Task) error {
 			return fmt.Errorf("不支持固定动作 %s", action.Type)
 		}
 
-		parameters := map[string]Parameter{}
+		parameters := map[string]pipelinemodel.Parameter{}
 		for _, param := range spec.Parameters {
 			parameters[param.Name] = param
 			if param.Required {
@@ -183,7 +185,7 @@ func (s *Service) validateTask(task Task) error {
 
 			if kind == "object" {
 				if _, _, ok := reference(value); !ok {
-					return errors.New("参数对象只支持整个值的 input/result 引用")
+					return constant.ErrPipelineParameterReferenceInvalid
 				}
 			}
 		}
@@ -195,7 +197,7 @@ func (s *Service) validateTask(task Task) error {
 			}
 
 			if context.ProjectID != task.ProjectID {
-				return errors.New("步骤不属于当前项目")
+				return constant.ErrPipelineStepOutsideProject
 			}
 		}
 
@@ -214,15 +216,15 @@ func (s *Service) validateTask(task Task) error {
 // reportName 校验报告使用单个 Markdown 文件名
 func reportName(name string) error {
 	if name == "" || strings.ContainsAny(name, "/\\") || filepath.Base(name) != name || strings.ToLower(filepath.Ext(name)) != ".md" {
-		return errors.New("报告文件名必须是单个 .md 文件名")
+		return constant.ErrPipelineReportFilenameInvalid
 	}
 
 	return nil
 }
 
 // validateInputs 校验运行输入的必填项与字段类型
-func validateInputs(task Task, inputs map[string]any) error {
-	fields := map[string]InputField{}
+func validateInputs(task pipelinemodel.Task, inputs map[string]any) error {
+	fields := map[string]pipelinemodel.InputField{}
 	for _, field := range task.Inputs {
 		fields[field.Name] = field
 		value, exists := inputs[field.Name]

@@ -8,14 +8,14 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"agentor/internal/codex"
-	"agentor/internal/tasks"
+	codexmodel "agentor/internal/codex/model"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestReplyFooterUsesLastContext 验证脚注使用最近上下文而非累计令牌，并保留未知状态
 func TestReplyFooterUsesLastContext(t *testing.T) {
 	window := int64(100000)
-	usage := &codex.TokenUsage{Last: codex.TokenBreakdown{TotalTokens: 40000}, Total: codex.TokenBreakdown{TotalTokens: 800000}, ModelContextWindow: &window}
+	usage := &codexmodel.TokenUsage{Last: codexmodel.TokenBreakdown{TotalTokens: 40000}, Total: codexmodel.TokenBreakdown{TotalTokens: 800000}, ModelContextWindow: &window}
 	if got := formatReplyFooter("gpt-6-luna", "high", usage); got != "gpt-6-luna · high · ctx 40%" {
 		t.Fatal(got)
 	}
@@ -90,7 +90,7 @@ func TestNotificationSendsMarkdownCard(t *testing.T) {
 		fmt.Fprint(w, `{"code":0,"data":{"message_id":"reply-id"}}`)
 	})
 	body := "**结果**\n\n```go\nfmt.Println(1)\n```"
-	if err := s.tasks.RecordNotification(tasks.Notification{ID: "markdown-card", Body: body, Source: tasks.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", MessageID: "original", ChatType: "p2p"}}); err != nil {
+	if err := s.tasks.RecordNotification(tasksmodel.Notification{ID: "markdown-card", Body: body, Source: tasksmodel.Source{Type: "lark", AppID: "test-app", SenderID: "test-user", ChatID: "chat", MessageID: "original", ChatType: "p2p"}}); err != nil {
 		t.Fatal(err)
 	}
 	notification, _ := s.tasks.GetNotification("markdown-card")

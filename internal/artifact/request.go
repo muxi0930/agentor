@@ -2,12 +2,13 @@ package artifact
 
 import (
 	"crypto/rand"
-	"errors"
 	"io"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"agentor/internal/constant"
 )
 
 // SaveRequestInput 保存远程请求的独立输入附件
@@ -21,7 +22,7 @@ func (s *Service) SaveRequestInput(requestID, name, mediaType string, input io.R
 //
 //wails:ignore
 func (s *Service) RecordFailedInput(requestID, name, reason string) error {
-	item := Attachment{ID: rand.Text(), Name: name, RequestID: requestID, Kind: "input", Source: "lark", Status: "failed", Error: reason, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	item := Attachment{ID: rand.Text(), Name: name, RequestID: requestID, Kind: "input", Source: "lark", Status: constant.ArtifactStatusFailed, Error: reason, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
 	s.mu.Lock()
 	s.items[item.ID] = item
 	err := s.persist()
@@ -54,7 +55,7 @@ func (s *Service) CopyRequestInputs(requestID, threadID, executionID, stepID str
 	}
 
 	for _, item := range s.GetRequestAttachments(requestID) {
-		if item.Status != "ready" {
+		if item.Status != constant.ArtifactStatusReady {
 			continue
 		}
 		copy, err := s.ImportFile(threadID, item.LocalPath)
@@ -83,7 +84,7 @@ func (s *Service) GetAttachment(id string) (Attachment, error) {
 
 	item, ok := s.items[id]
 	if !ok {
-		return Attachment{}, errors.New("附件不存在")
+		return Attachment{}, constant.ErrArtifactAttachmentNotFound
 	}
 	return item, nil
 }

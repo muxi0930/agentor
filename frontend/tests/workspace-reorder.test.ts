@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { State } from "../bindings/agentor/internal/workspace/models.ts";
+import type { State } from "../bindings/agentor/internal/workspace/model/models.ts";
 import { nodeMove } from "../src/features/workspace/reorder.ts";
 
 const state = {

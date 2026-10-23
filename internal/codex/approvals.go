@@ -2,69 +2,21 @@ package codex
 
 import (
 	"encoding/json"
-	"errors"
 	"sort"
 	"time"
+
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-type QuestionOption struct {
-	Label       string `json:"label"`       // 选项显示文字
-	Description string `json:"description"` // 说明文字
-}
-
-type Question struct {
-	ID       string           `json:"id"`       // 问题标识
-	Header   string           `json:"header"`   // 问题分组标题
-	Question string           `json:"question"` // 问题正文
-	IsOther  bool             `json:"isOther"`  // 是否允许填写其他答案
-	IsSecret bool             `json:"isSecret"` // 是否隐藏答案文字
-	Options  []QuestionOption `json:"options"`  // 可用选项
-}
-
-type Approval struct {
-	ID                 string             `json:"id"`                 // 审批请求标识
-	Method             string             `json:"method"`             // 协议请求方法
-	ThreadID           string             `json:"threadId"`           // 所属会话标识
-	TurnID             string             `json:"turnId"`             // 所属轮次标识
-	ItemID             string             `json:"itemId"`             // 所属过程节点标识
-	Command            string             `json:"command"`            // 待执行命令
-	Reason             string             `json:"reason"`             // 申请原因
-	Cwd                string             `json:"cwd"`                // 执行目录
-	GrantRoot          string             `json:"grantRoot"`          // 申请授权的根目录
-	AvailableDecisions []string           `json:"availableDecisions"` // 上游允许的决策
-	Questions          []Question         `json:"questions"`          // 待回答的问题
-	Status             string             `json:"status"`             // 当前处理状态
-	Generation         uint64             `json:"generation"`         // 所属连接代次
-	DecisionOptions    []DecisionOption   `json:"decisionOptions"`    // 可展示的审批选项
-	PermissionsJSON    string             `json:"permissionsJSON"`    // 原始权限请求
-	Details            string             `json:"details"`            // 补充请求详情
-	ServerName         string             `json:"serverName"`         // 发起请求的 MCP 服务
-	Mode               string             `json:"mode"`               // MCP 问答模式
-	Message            string             `json:"message"`            // 可读提示信息
-	URL                string             `json:"url"`                // 请求提供的链接
-	SchemaJSON         string             `json:"schemaJSON"`         // 原始表单结构
-	Fields             []ElicitationField `json:"fields"`             // 可展示的表单字段
-	Changes            []FileChange       `json:"changes"`            // 待审批的文件变更
-}
-
-type DecisionOption struct {
-	Value   string `json:"value"`   // 选项值
-	Label   string `json:"label"`   // 选项显示文字
-	Details string `json:"details"` // 补充请求详情
-}
-
-type QuestionAnswer struct {
-	Answers []string `json:"answers"` // 用户选择或填写的答案
-}
-
 // GetApprovals 返回审批和问答记录
-func (s *Service) GetApprovals() []Approval {
+func (s *Service) GetApprovals() []codexmodel.Approval {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	result := make([]Approval, 0, len(s.approvals))
+	result := make([]codexmodel.Approval, 0, len(s.approvals))
 	for _, approval := range s.approvals {
 		result = append(result, approval)
 	}
@@ -80,8 +32,8 @@ func (s *Service) RespondApproval(id, decision string) error {
 	s.mu.Lock()
 	approval, found := s.approvals[id]
 	s.mu.Unlock()
-	if !found || (approval.Method != "item/commandExecution/requestApproval" && approval.Method != "item/fileChange/requestApproval") {
-		return errors.New("该请求不是命令或文件审批")
+	if !found || (approval.Method != constant.CodexMethodItemCommandExecutionRequestApproval && approval.Method != constant.CodexMethodItemFileChangeRequestApproval) {
+		return constant.ErrCodexApprovalTypeInvalid
 	}
 
 	valid := false
@@ -92,7 +44,7 @@ func (s *Service) RespondApproval(id, decision string) error {
 	}
 
 	if !valid {
-		return errors.New("该审批不支持此选项")
+		return constant.ErrCodexApprovalOptionUnsupported
 	}
 
 	var value any = decision
@@ -109,11 +61,11 @@ func (s *Service) RespondPermissions(id string, allow bool, scope string) error 
 	s.mu.Lock()
 	approval, found := s.approvals[id]
 	s.mu.Unlock()
-	if !found || approval.Method != "item/permissions/requestApproval" {
-		return errors.New("该请求不是权限审批")
+	if !found || approval.Method != constant.CodexMethodItemPermissionsRequestApproval {
+		return constant.ErrCodexPermissionApprovalRequired
 	}
 	if scope != "turn" && scope != "session" {
-		return errors.New("请选择本轮或本会话")
+		return constant.ErrCodexPermissionScopeInvalid
 	}
 
 	permissions := json.RawMessage(`{}`)
@@ -124,17 +76,17 @@ func (s *Service) RespondPermissions(id string, allow bool, scope string) error 
 }
 
 // AnswerQuestions 将结构化答案回复原问答请求
-func (s *Service) AnswerQuestions(id string, answers map[string]QuestionAnswer) error {
+func (s *Service) AnswerQuestions(id string, answers map[string]codexmodel.QuestionAnswer) error {
 	s.mu.Lock()
 	approval, found := s.approvals[id]
 	s.mu.Unlock()
-	if !found || approval.Method != "item/tool/requestUserInput" {
-		return errors.New("该请求不是用户问答")
+	if !found || approval.Method != constant.CodexMethodItemToolRequestUserInput {
+		return constant.ErrCodexQuestionApprovalRequired
 	}
 
 	for _, question := range approval.Questions {
 		if len(answers[question.ID].Answers) == 0 {
-			return errors.New("请回答所有问题")
+			return constant.ErrCodexQuestionsIncomplete
 		}
 	}
 
@@ -154,7 +106,7 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 	if c == nil {
 		return
 	}
-	if message.Method == "item/tool/call" {
+	if message.Method == constant.CodexMethodItemToolCall {
 		s.handleToolRequest(generation, message, c)
 		return
 	}
@@ -162,17 +114,17 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 		c.write(map[string]any{"id": message.ID, "result": map[string]int64{"currentTimeAt": time.Now().Unix()}})
 		return
 	}
-	if message.Method != "item/commandExecution/requestApproval" &&
-		message.Method != "item/fileChange/requestApproval" &&
-		message.Method != "item/tool/requestUserInput" &&
-		message.Method != "item/permissions/requestApproval" &&
-		message.Method != "mcpServer/elicitation/request" {
-		c.write(packet{ID: message.ID, Error: &rpcError{Code: -32601, Message: "agentor 尚不支持该服务器请求: " + message.Method}})
+	if message.Method != constant.CodexMethodItemCommandExecutionRequestApproval &&
+		message.Method != constant.CodexMethodItemFileChangeRequestApproval &&
+		message.Method != constant.CodexMethodItemToolRequestUserInput &&
+		message.Method != constant.CodexMethodItemPermissionsRequestApproval &&
+		message.Method != constant.CodexMethodMcpServerElicitationRequest {
+		c.write(packet{ID: message.ID, Error: &rpcError{Code: -32601, Message: constant.CodexUnsupportedServerRequestPrefix + message.Method}})
 		return
 	}
 
 	var params struct {
-		Approval                                 // 上游审批基本信息
+		codexmodel.Approval                      // 上游审批基本信息
 		AvailableDecisions     []json.RawMessage `json:"availableDecisions"`     // 上游允许的决策
 		Permissions            json.RawMessage   `json:"permissions"`            // 原始权限范围
 		RequestedSchema        json.RawMessage   `json:"requestedSchema"`        // MCP 请求的表单结构
@@ -185,7 +137,7 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 	}
 
 	approval := params.Approval
-	approval.ID, approval.Method, approval.Status, approval.Generation = string(message.ID), message.Method, "pending", generation
+	approval.ID, approval.Method, approval.Status, approval.Generation = string(message.ID), message.Method, constant.CodexStatusPending, generation
 	for _, raw := range params.AvailableDecisions {
 		var decision string
 		if json.Unmarshal(raw, &decision) != nil {
@@ -195,18 +147,18 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 	}
 
 	if params.AvailableDecisions == nil {
-		approval.AvailableDecisions = []string{"accept", "acceptForSession", "decline", "cancel"}
+		approval.AvailableDecisions = []string{constant.CodexApprovalAccept, constant.CodexApprovalAcceptForSession, constant.CodexApprovalDecline, constant.CodexApprovalCancel}
 	}
 	for _, value := range approval.AvailableDecisions {
-		option := DecisionOption{Value: value, Label: map[string]string{"accept": "允许本次", "acceptForSession": "本会话允许", "decline": "拒绝", "cancel": "拒绝并停止"}[value]}
+		option := codexmodel.DecisionOption{Value: value, Label: map[string]string{"accept": constant.CodexAllowOnceLabel, "acceptForSession": constant.CodexAllowSessionLabel, "decline": constant.CodexDeclineLabel, "cancel": constant.CodexCancelLabel}[value]}
 		if option.Label == "" {
 			var object map[string]json.RawMessage
 			json.Unmarshal([]byte(value), &object)
 			if object["acceptWithExecpolicyAmendment"] != nil {
-				option.Label = "允许并保存命令规则"
+				option.Label = constant.CodexSaveCommandRuleLabel
 			}
 			if object["applyNetworkPolicyAmendment"] != nil {
-				option.Label = "保存网络规则"
+				option.Label = constant.CodexSaveNetworkRuleLabel
 			}
 			option.Details = value
 		}
@@ -219,12 +171,12 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 		approval.PermissionsJSON = string(params.Permissions)
 	}
 	if len(params.AdditionalPermissions) > 0 && string(params.AdditionalPermissions) != "null" {
-		approval.Details = "额外权限：\n" + string(params.AdditionalPermissions)
+		approval.Details = constant.CodexAdditionalPermissionsHeading + string(params.AdditionalPermissions)
 	}
 	if len(params.NetworkApprovalContext) > 0 && string(params.NetworkApprovalContext) != "null" {
-		approval.Details += "\n网络请求：\n" + string(params.NetworkApprovalContext)
+		approval.Details += constant.CodexNetworkRequestHeading + string(params.NetworkApprovalContext)
 	}
-	if message.Method == "mcpServer/elicitation/request" {
+	if message.Method == constant.CodexMethodMcpServerElicitationRequest {
 		approval.SchemaJSON = string(params.RequestedSchema)
 		approval.Fields = elicitationFields(params.RequestedSchema)
 	}
@@ -239,12 +191,12 @@ func (s *Service) handleServerRequest(generation uint64, message packet) {
 
 // emitApprovals 发布审批变化并通知业务观察者
 func (s *Service) emitApprovals(generation uint64) {
-	event := Event{Generation: generation, Method: "host/approvalsUpdated", Params: "{}"}
+	event := codexmodel.Event{Generation: generation, Method: "host/approvalsUpdated", Params: "{}"}
 	s.mu.Lock()
 	handler := s.eventHandler
 	s.mu.Unlock()
 	if app := application.Get(); app != nil {
-		app.Event.Emit("codex:event", event)
+		app.Event.Emit(constant.CodexEventMessage, event)
 	}
 	if handler != nil {
 		handler(event)
@@ -255,19 +207,19 @@ func (s *Service) emitApprovals(generation uint64) {
 func (s *Service) resolveApproval(id string, result any) error {
 	s.mu.Lock()
 	approval, found := s.approvals[id]
-	if !found || approval.Status != "pending" || approval.Generation != s.status.Generation || s.status.Phase != "ready" {
+	if !found || approval.Status != constant.CodexStatusPending || approval.Generation != s.status.Generation || s.status.Phase != constant.CodexPhaseReady {
 		s.mu.Unlock()
-		return errors.New("该请求已处理或失效")
+		return constant.ErrCodexApprovalExpired
 	}
 
 	c := s.client
-	approval.Status = "resolved"
+	approval.Status = constant.CodexApprovalResolved
 	s.approvals[id] = approval
 	s.mu.Unlock()
 	err := c.write(map[string]any{"id": json.RawMessage(id), "result": result})
 	if err != nil {
 		s.mu.Lock()
-		approval.Status = "expired"
+		approval.Status = constant.CodexApprovalExpired
 		if s.approvals[id].Generation == approval.Generation {
 			s.approvals[id] = approval
 		}
@@ -280,8 +232,8 @@ func (s *Service) resolveApproval(id string, result any) error {
 // expireApprovalsLocked 使已结束轮次或连接的审批失效
 func (s *Service) expireApprovalsLocked(threadID, turnID string) {
 	for id, approval := range s.approvals {
-		if approval.Status == "pending" && (threadID == "" || (approval.ThreadID == threadID && approval.TurnID == turnID)) {
-			approval.Status = "expired"
+		if approval.Status == constant.CodexStatusPending && (threadID == "" || (approval.ThreadID == threadID && approval.TurnID == turnID)) {
+			approval.Status = constant.CodexApprovalExpired
 			s.approvals[id] = approval
 		}
 	}

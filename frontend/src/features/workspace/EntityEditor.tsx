@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Work from "../../../bindings/agentor/internal/workspace/service";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
-import type { Project, State } from "../../../bindings/agentor/internal/workspace/models";
+import type { Project, State } from "../../../bindings/agentor/internal/workspace/model/models";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";

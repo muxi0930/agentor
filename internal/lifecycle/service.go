@@ -9,10 +9,28 @@ import (
 
 	"agentor/internal/appdata"
 	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 	"agentor/internal/pipeline"
+	pipelinemodel "agentor/internal/pipeline/model"
 	"agentor/internal/tasks"
+	tasksmodel "agentor/internal/tasks/model"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+// API 按职责列出服务的全部公开方法
+type API interface {
+	GetExitState() ExitState                       // 读取确认退出时受影响的任务及数量
+	Quit() error                                   // 请求应用在服务完成关闭后退出
+	Restart() error                                // 复用立即退出流程，等待关闭完成后以当前配置重启应用
+	RestartCodexHome(mode, directory string) error // 确认目录后复用立即退出流程，等待关闭完成再重启
+	RestartDataDirectory(directory string) error   // 保存数据目录后完整重启，旧目录仍用于当前进程的关闭收尾
+	CompleteRestart() error                        // 在服务关闭和单实例锁释放后按需保存目录并启动完整应用
+	ServiceShutdown() error                        // 在各服务等待退出前同时取消所有任务
+}
+
+var _ API = (*Service)(nil)
 
 type PendingTask struct {
 	ID      string `json:"id"`      // 分类内的任务标识
@@ -52,7 +70,7 @@ func (s *Service) GetExitState() ExitState {
 func (s *Service) Quit() error {
 	app := application.Get()
 	if app == nil {
-		return errors.New("应用尚未启动")
+		return constant.ErrLifecycleAppNotStarted
 	}
 
 	go app.Quit()
@@ -62,7 +80,7 @@ func (s *Service) Quit() error {
 // Restart 复用立即退出流程，等待关闭完成后以当前配置重启应用
 func (s *Service) Restart() error {
 	if application.Get() == nil {
-		return errors.New("应用尚未启动")
+		return constant.ErrLifecycleAppNotStarted
 	}
 	s.mu.Lock()
 	s.restarting = true
@@ -73,7 +91,7 @@ func (s *Service) Restart() error {
 // RestartCodexHome 确认目录后复用立即退出流程，等待关闭完成再重启
 func (s *Service) RestartCodexHome(mode, directory string) error {
 	if application.Get() == nil {
-		return errors.New("应用尚未启动")
+		return constant.ErrLifecycleAppNotStarted
 	}
 	home, err := s.data.ResolveCodexHome(mode, directory)
 	if err != nil {
@@ -92,7 +110,7 @@ func (s *Service) RestartCodexHome(mode, directory string) error {
 // RestartDataDirectory 保存数据目录后完整重启，旧目录仍用于当前进程的关闭收尾
 func (s *Service) RestartDataDirectory(directory string) error {
 	if application.Get() == nil {
-		return errors.New("应用尚未启动")
+		return constant.ErrLifecycleAppNotStarted
 	}
 	if err := s.data.SetDataDirectory(directory); err != nil {
 		return err
@@ -139,11 +157,11 @@ func (s *Service) ServiceShutdown() error {
 }
 
 // snapshot 汇总实际任务状态并去除已归属业务任务的对话轮次
-func snapshot(state tasks.State, pipelines pipeline.State, active []codex.ActiveTurn, managed map[string]string) ExitState {
+func snapshot(state tasksmodel.State, pipelines pipelinemodel.State, active []codexmodel.ActiveTurn, managed map[string]string) ExitState {
 	result := ExitState{Tasks: []PendingTask{}}
 	ownedThreads := make(map[string]bool)
 	appendTask := func(id, kind, status, summary string) {
-		if status != "running" && status != "queued" {
+		if status != constant.TasksStatusRunning && status != constant.TasksStatusQueued {
 			return
 		}
 		summary = strings.Join(strings.Fields(summary), " ")
@@ -154,7 +172,7 @@ func snapshot(state tasks.State, pipelines pipeline.State, active []codex.Active
 			summary = string(runes[:120]) + "…"
 		}
 		result.Tasks = append(result.Tasks, PendingTask{ID: id, Kind: kind, Status: status, Summary: summary})
-		if status == "running" {
+		if status == constant.TasksStatusRunning {
 			result.Running++
 		} else {
 			result.Queued++
@@ -162,44 +180,44 @@ func snapshot(state tasks.State, pipelines pipeline.State, active []codex.Active
 	}
 
 	for _, execution := range state.Executions {
-		if execution.Status == "running" || execution.Status == "queued" {
+		if execution.Status == constant.TasksStatusRunning || execution.Status == constant.TasksStatusQueued {
 			ownedThreads[execution.ThreadID] = true
 		}
 		summary := execution.Context.Step.Title
 		if execution.Instruction != "" {
 			summary += " · " + execution.Instruction
 		}
-		appendTask(execution.ID, "步骤", execution.Status, summary)
+		appendTask(execution.ID, constant.LifecycleStepLabel, execution.Status, summary)
 	}
 	for _, request := range state.Requests {
-		if request.Status == "running" || request.Status == "queued" {
+		if request.Status == constant.TasksStatusRunning || request.Status == constant.TasksStatusQueued {
 			ownedThreads[request.ThreadID] = true
 		}
-		appendTask(request.ID, "控制中心", request.Status, request.Text)
+		appendTask(request.ID, constant.LifecycleControllerLabel, request.Status, request.Text)
 	}
 	for _, run := range pipelines.Runs {
-		appendTask(run.ID, "流水线", run.Status, run.Task.Name)
+		appendTask(run.ID, constant.LifecyclePipelineLabel, run.Status, run.Task.Name)
 	}
 	for _, request := range pipelines.Requests {
-		if request.Status == "running" || request.Status == "queued" {
+		if request.Status == constant.TasksStatusRunning || request.Status == constant.TasksStatusQueued {
 			ownedThreads[request.ThreadID] = true
 		}
-		appendTask(request.ID, "流水线会话", request.Status, request.Input.Text)
+		appendTask(request.ID, constant.LifecyclePipelineSessionLabel, request.Status, request.Input.Text)
 	}
 	for _, turn := range active {
 		if ownedThreads[turn.ThreadID] {
 			continue
 		}
-		kind := "对话"
+		kind := constant.LifecycleChatLabel
 		switch managed[turn.ThreadID] {
-		case "step":
-			kind = "步骤对话"
-		case "controller":
-			kind = "控制中心对话"
-		case "pipeline_manager", "pipeline_config":
-			kind = "流水线对话"
+		case constant.WorkspaceKindStep:
+			kind = constant.LifecycleStepChatLabel
+		case constant.ToolRouterRoleController:
+			kind = constant.LifecycleControllerChatLabel
+		case constant.ToolRouterRolePipelineManager, constant.ToolRouterRolePipelineConfig:
+			kind = constant.LifecyclePipelineChatLabel
 		}
-		appendTask(turn.ThreadID, kind, "running", turn.Summary)
+		appendTask(turn.ThreadID, kind, constant.TasksStatusRunning, turn.Summary)
 	}
 	return result
 }

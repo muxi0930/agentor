@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useState } from "react";
 import { FileDiff, Image, Minimize2, Search, Wrench } from "lucide-react";
-import type { Item } from "../../../bindings/agentor/internal/codex/models";
+import type { Item } from "../../../bindings/agentor/internal/codex/model/models";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
 import { Trace, TraceCollapsible, TraceCollapsibleContent, TraceCollapsibleTrigger, TraceDescription, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { Button } from "@/components/ui/button";

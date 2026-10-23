@@ -5,10 +5,3 @@ import * as Service from "./service.js";
 export {
     Service
 };
-
-export type {
-    AccountPreferences,
-    ControllerSettings,
-    Info,
-    Settings
-} from "./models.js";

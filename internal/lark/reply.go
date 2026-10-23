@@ -5,12 +5,13 @@ import (
 	"math"
 	"strings"
 
-	"agentor/internal/codex"
-	"agentor/internal/tasks"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // replyFooter 从通知所属请求读取实际模型、思考强度与上下文占用
-func (s *Service) replyFooter(notification tasks.Notification) string {
+func (s *Service) replyFooter(notification tasksmodel.Notification) string {
 	model, effort, threadID := "", "", ""
 	state := s.tasks.GetState()
 	for _, request := range state.Requests {
@@ -33,7 +34,7 @@ func (s *Service) replyFooter(notification tasks.Notification) string {
 			}
 		}
 	}
-	var usage *codex.TokenUsage
+	var usage *codexmodel.TokenUsage
 	if s.runtime != nil && threadID != "" {
 		usage = s.runtime.GetTokenUsage(threadID)
 	}
@@ -41,14 +42,14 @@ func (s *Service) replyFooter(notification tasks.Notification) string {
 }
 
 // formatReplyFooter 保留未知状态，不以默认设置冒充实际会话数据
-func formatReplyFooter(model, effort string, usage *codex.TokenUsage) string {
+func formatReplyFooter(model, effort string, usage *codexmodel.TokenUsage) string {
 	if model == "" {
-		model = "未知模型"
+		model = constant.LarkUnknownModelLabel
 	}
 	if effort == "" {
-		effort = "未知强度"
+		effort = constant.LarkUnknownEffortLabel
 	}
-	context := "未知"
+	context := constant.LarkUnknownValueLabel
 	if usage != nil && usage.ModelContextWindow != nil && *usage.ModelContextWindow > 0 {
 		percent := math.Round(float64(usage.Last.TotalTokens) / float64(*usage.ModelContextWindow) * 100)
 		context = fmt.Sprintf("%.0f%%", percent)

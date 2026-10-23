@@ -9,9 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"agentor/internal/appdata"
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestMain 在子进程中模拟原生协议服务，记录实际发送载荷而不调用模型
@@ -106,8 +108,8 @@ func TestControllerSecurityPromptPayload(t *testing.T) {
 		want    string  // 发送的安全提示词
 		threads int     // 累计创建会话数
 	}{
-		{"默认配置替换旧会话", nil, appdata.DefaultControllerSecurityPrompt, 1},
-		{"不变配置复用会话", nil, appdata.DefaultControllerSecurityPrompt, 1},
+		{"默认配置替换旧会话", nil, constant.AppDataDefaultControllerSecurityPrompt, 1},
+		{"不变配置复用会话", nil, constant.AppDataDefaultControllerSecurityPrompt, 1},
 		{"自定义配置重建会话", &custom, custom, 2},
 		{"清空配置重建会话", &empty, "", 3},
 		{"清空配置复用会话", &empty, "", 3},
@@ -117,7 +119,7 @@ func TestControllerSecurityPromptPayload(t *testing.T) {
 			if _, err := data.SetControllerSettings(config); err != nil {
 				t.Fatal(err)
 			}
-			request, err := service.submitRequest(ControllerInput{Text: "测试请求", Model: "controller", Effort: "medium"}, "execution_result", "test")
+			request, err := service.submitRequest(tasksmodel.ControllerInput{Text: "测试请求", Model: "controller", Effort: "medium"}, "execution_result", "test")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -142,10 +144,10 @@ func TestControllerSecurityPromptPayload(t *testing.T) {
 				var message struct {
 					Method string `json:"method"` // 请求方法
 					Params struct {
-						Cwd          string        `json:"cwd"`                   // 工作目录
-						Instructions string        `json:"developerInstructions"` // 会话指令
-						ThreadID     string        `json:"threadId"`              // 会话标识
-						Input        []codex.Input `json:"input"`                 // 模型输入
+						Cwd          string             `json:"cwd"`                   // 工作目录
+						Instructions string             `json:"developerInstructions"` // 会话指令
+						ThreadID     string             `json:"threadId"`              // 会话标识
+						Input        []codexmodel.Input `json:"input"`                 // 模型输入
 					} `json:"params"` // 发送参数
 				}
 				if err := decoder.Decode(&message); err != nil {
@@ -171,7 +173,7 @@ func TestControllerSecurityPromptPayload(t *testing.T) {
 			if test.want != "" && !strings.HasSuffix(instructions, "\n\n"+test.want) {
 				t.Fatal("最终载荷缺少配置的安全提示词")
 			}
-			if test.want == "" && (strings.Contains(input, custom) || strings.Contains(input, appdata.DefaultControllerSecurityPrompt)) {
+			if test.want == "" && (strings.Contains(input, custom) || strings.Contains(input, constant.AppDataDefaultControllerSecurityPrompt)) {
 				t.Fatal("明确清空后仍发送安全提示词")
 			}
 		})

@@ -1,72 +1,74 @@
 package workspace
 
 import (
-	"errors"
 	"slices"
+
+	"agentor/internal/constant"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // MoveNode 调整项目标签版本功能或步骤的顺序
-func (s *Service) MoveNode(kind, id string, offset int) (State, error) {
+func (s *Service) MoveNode(kind, id string, offset int) (workspacemodel.State, error) {
 	if offset == 0 {
-		return State{}, errors.New("移动距离不能为零")
+		return workspacemodel.State{}, constant.ErrWorkspaceMoveOffsetZero
 	}
 
-	return s.mutate(func(state *State) error {
-		if kind == "project" {
-			return move(state.Projects, id, offset, func(v Project) string { return v.ID })
+	return s.mutate(func(state *workspacemodel.State) error {
+		if kind == constant.WorkspaceKindProject {
+			return move(state.Projects, id, offset, func(v workspacemodel.Project) string { return v.ID })
 		}
 		for p := range state.Projects {
 			project := &state.Projects[p]
-			if kind == "tag" && slices.ContainsFunc(project.Tags, func(v Tag) bool { return v.ID == id }) {
-				return move(project.Tags, id, offset, func(v Tag) string { return v.ID })
+			if kind == constant.WorkspaceKindTag && slices.ContainsFunc(project.Tags, func(v workspacemodel.Tag) bool { return v.ID == id }) {
+				return move(project.Tags, id, offset, func(v workspacemodel.Tag) string { return v.ID })
 			}
-			if kind == "version" && findVersion(project, id) != nil {
-				return move(project.Versions, id, offset, func(v Version) string { return v.ID })
+			if kind == constant.WorkspaceKindVersion && findVersion(project, id) != nil {
+				return move(project.Versions, id, offset, func(v workspacemodel.Version) string { return v.ID })
 			}
 			for v := range project.Versions {
 				version := &project.Versions[v]
-				if kind == "feature" && slices.ContainsFunc(version.Features, func(v Feature) bool { return v.ID == id }) {
-					return move(version.Features, id, offset, func(v Feature) string { return v.ID })
+				if kind == constant.WorkspaceKindFeature && slices.ContainsFunc(version.Features, func(v workspacemodel.Feature) bool { return v.ID == id }) {
+					return move(version.Features, id, offset, func(v workspacemodel.Feature) string { return v.ID })
 				}
 				for f := range version.Features {
 					feature := &version.Features[f]
-					if kind == "step" && slices.ContainsFunc(feature.Steps, func(v Step) bool { return v.ID == id }) {
-						return move(feature.Steps, id, offset, func(v Step) string { return v.ID })
+					if kind == constant.WorkspaceKindStep && slices.ContainsFunc(feature.Steps, func(v workspacemodel.Step) bool { return v.ID == id }) {
+						return move(feature.Steps, id, offset, func(v workspacemodel.Step) string { return v.ID })
 					}
 				}
 			}
 		}
-		return errors.New("排序对象不存在")
+		return constant.ErrWorkspaceSortTargetNotFound
 	})
 }
 
 // MoveFeature 将功能移动到同一项目内的另一版本
-func (s *Service) MoveFeature(projectID, featureID, targetVersionID string) (State, error) {
-	return s.mutate(func(state *State) error {
+func (s *Service) MoveFeature(projectID, featureID, targetVersionID string) (workspacemodel.State, error) {
+	return s.mutate(func(state *workspacemodel.State) error {
 		project := findProject(state, projectID)
 		source, feature := findFeature(project, featureID)
 		target := findVersion(project, targetVersionID)
 		if feature == nil || target == nil {
-			return errors.New("功能和目标版本必须属于同一项目")
+			return constant.ErrWorkspaceMoveFeatureOutsideProject
 		}
 		if source.ID == target.ID {
 			return nil
 		}
 		target.Features = append(target.Features, *feature)
-		source.Features = slices.DeleteFunc(source.Features, func(v Feature) bool { return v.ID == featureID })
+		source.Features = slices.DeleteFunc(source.Features, func(v workspacemodel.Feature) bool { return v.ID == featureID })
 		return nil
 	})
 }
 
 // DeleteNode 删除节点前检查关联任务并移除节点
-func (s *Service) DeleteNode(kind, id string) (State, error) {
-	if s.deleteGuard != nil && kind != "tag" {
+func (s *Service) DeleteNode(kind, id string) (workspacemodel.State, error) {
+	if s.deleteGuard != nil && kind != constant.WorkspaceKindTag {
 		steps := []string{}
 		for _, project := range s.GetState().Projects {
 			for _, version := range project.Versions {
 				for _, feature := range version.Features {
 					for _, step := range feature.Steps {
-						if kind == "project" && project.ID == id || kind == "version" && version.ID == id || kind == "feature" && feature.ID == id || kind == "step" && step.ID == id {
+						if kind == constant.WorkspaceKindProject && project.ID == id || kind == constant.WorkspaceKindVersion && version.ID == id || kind == constant.WorkspaceKindFeature && feature.ID == id || kind == constant.WorkspaceKindStep && step.ID == id {
 							steps = append(steps, step.ID)
 						}
 					}
@@ -76,7 +78,7 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 		if len(steps) > 0 {
 			release, err := s.deleteGuard(steps)
 			if err != nil {
-				return State{}, err
+				return workspacemodel.State{}, err
 			}
 			if release != nil {
 				defer release()
@@ -84,22 +86,22 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 		}
 	}
 
-	return s.mutate(func(state *State) error {
+	return s.mutate(func(state *workspacemodel.State) error {
 		found := false
-		if kind == "project" {
-			state.Projects = slices.DeleteFunc(state.Projects, func(v Project) bool {
+		if kind == constant.WorkspaceKindProject {
+			state.Projects = slices.DeleteFunc(state.Projects, func(v workspacemodel.Project) bool {
 				if v.ID == id {
 					found = true
 					return true
 				}
 				return false
 			})
-			state.Documents = slices.DeleteFunc(state.Documents, func(v Document) bool { return v.ProjectID == id })
+			state.Documents = slices.DeleteFunc(state.Documents, func(v workspacemodel.Document) bool { return v.ProjectID == id })
 		}
 		for p := range state.Projects {
 			project := &state.Projects[p]
-			if kind == "tag" {
-				project.Tags = slices.DeleteFunc(project.Tags, func(v Tag) bool {
+			if kind == constant.WorkspaceKindTag {
+				project.Tags = slices.DeleteFunc(project.Tags, func(v workspacemodel.Tag) bool {
 					if v.ID == id {
 						found = true
 						return true
@@ -110,8 +112,8 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 					project.Versions[i].TagIDs = slices.DeleteFunc(project.Versions[i].TagIDs, func(value string) bool { return value == id })
 				}
 			}
-			if kind == "version" {
-				project.Versions = slices.DeleteFunc(project.Versions, func(v Version) bool {
+			if kind == constant.WorkspaceKindVersion {
+				project.Versions = slices.DeleteFunc(project.Versions, func(v workspacemodel.Version) bool {
 					if v.ID == id {
 						found = true
 						return true
@@ -121,8 +123,8 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 			}
 			for v := range project.Versions {
 				version := &project.Versions[v]
-				if kind == "feature" {
-					version.Features = slices.DeleteFunc(version.Features, func(v Feature) bool {
+				if kind == constant.WorkspaceKindFeature {
+					version.Features = slices.DeleteFunc(version.Features, func(v workspacemodel.Feature) bool {
 						if v.ID == id {
 							found = true
 							return true
@@ -132,8 +134,8 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 				}
 				for f := range version.Features {
 					feature := &version.Features[f]
-					if kind == "step" {
-						feature.Steps = slices.DeleteFunc(feature.Steps, func(v Step) bool {
+					if kind == constant.WorkspaceKindStep {
+						feature.Steps = slices.DeleteFunc(feature.Steps, func(v workspacemodel.Step) bool {
 							if v.ID == id {
 								found = true
 								return true
@@ -145,9 +147,9 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 			}
 		}
 		if !found {
-			return errors.New("对象不存在")
+			return constant.ErrWorkspaceObjectNotFound
 		}
-		if kind != "tag" {
+		if kind != constant.WorkspaceKindTag {
 			state.SelectedID = ""
 		}
 		return nil
@@ -158,7 +160,7 @@ func (s *Service) DeleteNode(kind, id string) (State, error) {
 func move[T any](items []T, id string, offset int, key func(T) string) error {
 	index := slices.IndexFunc(items, func(v T) bool { return key(v) == id })
 	if index < 0 {
-		return errors.New("排序对象不存在")
+		return constant.ErrWorkspaceSortTargetNotFound
 	}
 	target := index + offset
 	if target >= 0 && target < len(items) {

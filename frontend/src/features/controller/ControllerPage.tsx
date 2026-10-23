@@ -6,10 +6,10 @@ import { ArrowUp, LoaderCircle, RotateCcw, Settings2, Square } from "lucide-reac
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
 import * as Tasks from "../../../bindings/agentor/internal/tasks/service";
 import * as Work from "../../../bindings/agentor/internal/workspace/service";
-import type { State } from "../../../bindings/agentor/internal/tasks/models";
-import type { State as WorkState } from "../../../bindings/agentor/internal/workspace/models";
-import type { Model, Status } from "../../../bindings/agentor/internal/codex/models";
-import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
+import type { State } from "../../../bindings/agentor/internal/tasks/model/models";
+import type { State as WorkState } from "../../../bindings/agentor/internal/workspace/model/models";
+import type { Model, Status } from "../../../bindings/agentor/internal/codex/model/models";
+import type { Settings } from "../../../bindings/agentor/internal/appdata/model/models";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";

@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"agentor/internal/appdata"
-	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	tasksmodel "agentor/internal/tasks/model"
 	"agentor/internal/workspace"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestDeletingStepStopsItsRunningAndQueuedExecutionsFirst 验证删除步骤前先停止关联运行与排队执行
@@ -19,20 +21,20 @@ func TestDeletingStepStopsItsRunningAndQueuedExecutionsFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := work.SaveProject(workspace.Project{Name: "delete check", Directory: t.TempDir()})
+	state, err := work.SaveProject(workspacemodel.Project{Name: "delete check", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
-	state, err = work.SaveVersion(projectID, workspace.Version{Name: "v"})
+	state, err = work.SaveVersion(projectID, workspacemodel.Version{Name: "v"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err = work.SaveFeature(projectID, state.SelectedID, workspace.Feature{Title: "feature"})
+	state, err = work.SaveFeature(projectID, state.SelectedID, workspacemodel.Feature{Title: "feature"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err = work.SaveStep(projectID, state.SelectedID, workspace.Step{Title: "step"})
+	state, err = work.SaveStep(projectID, state.SelectedID, workspacemodel.Step{Title: "step"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,14 +51,14 @@ func TestDeletingStepStopsItsRunningAndQueuedExecutionsFirst(t *testing.T) {
 	work.SetDeleteGuard(s.PrepareDelete)
 	started := make(chan struct{})
 	stoppedBeforeRemoval := make(chan bool, 1)
-	s.runExecution = func(ctx context.Context, execution Execution) (string, string, error) {
+	s.runExecution = func(ctx context.Context, execution tasksmodel.Execution) (string, string, error) {
 		close(started)
 		<-ctx.Done()
 		_, err := work.GetStepContext(stepID)
 		stoppedBeforeRemoval <- err == nil
 		return "interrupted", "", ctx.Err()
 	}
-	s.state.Executions = []Execution{{ID: "running", StepID: stepID, FeatureID: stepContext.FeatureID, Status: "queued"}, {ID: "queued", StepID: stepID, FeatureID: stepContext.FeatureID, Status: "queued"}}
+	s.state.Executions = []tasksmodel.Execution{{ID: "running", StepID: stepID, FeatureID: stepContext.FeatureID, Status: "queued"}, {ID: "queued", StepID: stepID, FeatureID: stepContext.FeatureID, Status: "queued"}}
 	s.kick(stepContext.FeatureID)
 	select {
 	case <-started:
@@ -88,7 +90,7 @@ func TestFeatureQueueIsSerialAndDifferentFeaturesRunTogether(t *testing.T) {
 	t.Cleanup(func() { s.ServiceShutdown() })
 	started := make(chan string, 4)
 	release := map[string]chan struct{}{"a1": make(chan struct{}), "a2": make(chan struct{}), "a3": make(chan struct{}), "b1": make(chan struct{})}
-	s.runExecution = func(ctx context.Context, execution Execution) (string, string, error) {
+	s.runExecution = func(ctx context.Context, execution tasksmodel.Execution) (string, string, error) {
 		started <- execution.ID
 		select {
 		case <-release[execution.ID]:
@@ -97,7 +99,7 @@ func TestFeatureQueueIsSerialAndDifferentFeaturesRunTogether(t *testing.T) {
 			return "interrupted", "", ctx.Err()
 		}
 	}
-	s.state.Executions = []Execution{{ID: "a1", ProjectID: "project", FeatureID: "a", StepID: "step-a1", Status: "queued"}, {ID: "a2", ProjectID: "project", FeatureID: "a", StepID: "step-a2", Status: "queued"}, {ID: "a3", ProjectID: "project", FeatureID: "a", StepID: "step-a1", Status: "queued"}, {ID: "b1", ProjectID: "project", FeatureID: "b", StepID: "step-b1", Status: "queued"}}
+	s.state.Executions = []tasksmodel.Execution{{ID: "a1", ProjectID: "project", FeatureID: "a", StepID: "step-a1", Status: "queued"}, {ID: "a2", ProjectID: "project", FeatureID: "a", StepID: "step-a2", Status: "queued"}, {ID: "a3", ProjectID: "project", FeatureID: "a", StepID: "step-a1", Status: "queued"}, {ID: "b1", ProjectID: "project", FeatureID: "b", StepID: "step-b1", Status: "queued"}}
 	s.kick("a")
 	s.kick("a")
 	s.kick("b")
@@ -146,7 +148,7 @@ func TestFeatureQueueIsSerialAndDifferentFeaturesRunTogether(t *testing.T) {
 // TestRestartInterruptsRunningAndLeavesQueuedPaused 验证重启后中断活动执行并暂停保留的排队项
 func TestRestartInterruptsRunningAndLeavesQueuedPaused(t *testing.T) {
 	data := testData(t)
-	if err := appdata.WriteJSON(filepath.Join(data.GetInfo().DataDirectory, "tasks.json"), State{Executions: []Execution{{ID: "running", Status: "running"}, {ID: "queued", Status: "queued"}, {ID: "done", Status: "completed"}}}); err != nil {
+	if err := appdata.WriteJSON(filepath.Join(data.GetInfo().DataDirectory, "tasks.json"), tasksmodel.State{Executions: []tasksmodel.Execution{{ID: "running", Status: "running"}, {ID: "queued", Status: "queued"}, {ID: "done", Status: "completed"}}}); err != nil {
 		t.Fatal(err)
 	}
 	s, err := NewService(data, nil, nil, nil)
@@ -169,8 +171,8 @@ func TestPartialTurnCompletionKeepsFinalAgentText(t *testing.T) {
 	defer s.ServiceShutdown()
 	waiter := &turnWaiter{turnID: "turn", items: map[string]string{}, done: make(chan turnOutcome, 1)}
 	s.turns["thread"] = waiter
-	s.OnCodexEvent(codex.Event{Method: "item/completed", Params: `{"threadId":"thread","turnId":"turn","item":{"type":"agentMessage","id":"answer","text":"FINAL_RESULT","phase":"final_answer"}}`})
-	s.OnCodexEvent(codex.Event{Method: "turn/completed", Params: `{"threadId":"thread","turn":{"id":"turn","status":"completed","items":[{"type":"userMessage","id":"user","content":[{"type":"text","text":"task"}]}]}}`})
+	s.OnCodexEvent(codexmodel.Event{Method: "item/completed", Params: `{"threadId":"thread","turnId":"turn","item":{"type":"agentMessage","id":"answer","text":"FINAL_RESULT","phase":"final_answer"}}`})
+	s.OnCodexEvent(codexmodel.Event{Method: "turn/completed", Params: `{"threadId":"thread","turn":{"id":"turn","status":"completed","items":[{"type":"userMessage","id":"user","content":[{"type":"text","text":"task"}]}]}}`})
 	select {
 	case result := <-waiter.done:
 		if result.result != "FINAL_RESULT" || result.status != "completed" {

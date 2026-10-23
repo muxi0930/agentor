@@ -7,11 +7,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as tasks$0 from "../tasks/models.js";
-
+import * as model$1 from "./model/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as $models from "./models.js";
+import * as model$0 from "../tasks/model/models.js";
 
 /**
  * ClearBinding 解除桌面任务的远程接收者绑定
@@ -44,14 +43,14 @@ export function Disconnect(): $CancellablePromise<void> {
 /**
  * GetArtifactShareTarget 查询产物将要发送的接收者
  */
-export function GetArtifactShareTarget(artifactID: string): $CancellablePromise<tasks$0.Source> {
+export function GetArtifactShareTarget(artifactID: string): $CancellablePromise<model$0.Source> {
     return $Call.ByID(1756498355, artifactID);
 }
 
 /**
  * GetState 返回不包含密钥的状态快照
  */
-export function GetState(): $CancellablePromise<$models.View> {
+export function GetState(): $CancellablePromise<model$1.View> {
     return $Call.ByID(4291311886);
 }
 
@@ -72,7 +71,7 @@ export function RetryNotificationPart(id: string, partID: string): $CancellableP
 /**
  * SaveSettings 保存配置成功后建立连接
  */
-export function SaveSettings(input: $models.SettingsInput): $CancellablePromise<$models.View> {
+export function SaveSettings(input: model$1.SettingsInput): $CancellablePromise<model$1.View> {
     return $Call.ByID(2982112267, input);
 }
 
@@ -93,6 +92,6 @@ export function ShareArtifact(artifactID: string): $CancellablePromise<void> {
 /**
  * StartPairing 为指定联系人生成一次性配对码
  */
-export function StartPairing(senderID: string): $CancellablePromise<$models.Pairing> {
+export function StartPairing(senderID: string): $CancellablePromise<model$1.Pairing> {
     return $Call.ByID(2580431507, senderID);
 }

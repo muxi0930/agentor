@@ -3,30 +3,28 @@ package codex
 import (
 	"slices"
 	"strings"
-)
 
-type ActiveTurn struct {
-	ThreadID string `json:"threadId"` // 活动会话标识
-	Summary  string `json:"summary"`  // 当前用户输入的简述
-}
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+)
 
 // GetActiveTurns 返回活动轮次的本地快照
 //
 //wails:ignore
-func (s *Service) GetActiveTurns() []ActiveTurn {
+func (s *Service) GetActiveTurns() []codexmodel.ActiveTurn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	result := make([]ActiveTurn, 0, len(s.active))
+	result := make([]codexmodel.ActiveTurn, 0, len(s.active))
 	for threadID := range s.active {
 		summary := strings.TrimSpace(s.activeText[threadID])
 		if summary == "" {
-			summary = "会话 " + threadID
+			summary = constant.CodexThreadSummaryPrefix + threadID
 		}
-		result = append(result, ActiveTurn{ThreadID: threadID, Summary: summary})
+		result = append(result, codexmodel.ActiveTurn{ThreadID: threadID, Summary: summary})
 	}
 
-	slices.SortFunc(result, func(a, b ActiveTurn) int {
+	slices.SortFunc(result, func(a, b codexmodel.ActiveTurn) int {
 		return strings.Compare(a.ThreadID, b.ThreadID)
 	})
 	return result
@@ -45,7 +43,7 @@ func (s *Service) PrepareShutdown() {
 	s.closing = true
 	threadIDs := make([]string, 0, len(s.active))
 	for threadID, turnID := range s.active {
-		if turnID != "starting" {
+		if turnID != constant.CodexPhaseStarting {
 			threadIDs = append(threadIDs, threadID)
 		}
 	}

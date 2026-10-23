@@ -1,31 +1,34 @@
 package appdata
 
-import "errors"
+import (
+	appdatamodel "agentor/internal/appdata/model"
+	"agentor/internal/constant"
+)
 
 // SetPermission 保存账号默认权限或项目会话覆盖值
-func (s *Service) SetPermission(scope, id, mode string) (Settings, error) {
-	if mode != "read-only" && mode != "workspace-write" && mode != "danger-full-access" && mode != "" {
-		return Settings{}, errors.New("不支持的权限模式")
+func (s *Service) SetPermission(scope, id, mode string) (appdatamodel.Settings, error) {
+	if mode != constant.AppDataPermissionReadOnly && mode != constant.AppDataPermissionWorkspaceWrite && mode != constant.AppDataPermissionDangerFullAccess && mode != "" {
+		return appdatamodel.Settings{}, constant.ErrAppDataPermissionModeUnsupported
 	}
-	if scope == "default" && mode == "" {
-		return Settings{}, errors.New("请选择默认权限")
+	if scope == constant.AppDataPermissionScopeDefault && mode == "" {
+		return appdatamodel.Settings{}, constant.ErrAppDataDefaultPermissionRequired
 	}
-	if scope != "default" && scope != "project" && scope != "thread" {
-		return Settings{}, errors.New("未知权限范围")
+	if scope != constant.AppDataPermissionScopeDefault && scope != constant.WorkspaceKindProject && scope != constant.AppDataPermissionScopeThread {
+		return appdatamodel.Settings{}, constant.ErrAppDataPermissionScopeUnknown
 	}
-	if scope != "default" && id == "" {
-		return Settings{}, errors.New("请选择项目或会话")
+	if scope != constant.AppDataPermissionScopeDefault && id == "" {
+		return appdatamodel.Settings{}, constant.ErrAppDataPermissionTargetRequired
 	}
 
-	return s.update(func(settings *Settings) {
-		if scope == "default" {
+	return s.update(func(settings *appdatamodel.Settings) {
+		if scope == constant.AppDataPermissionScopeDefault {
 			settings.PermissionMode = mode
 			rememberPreferences(settings)
 			return
 		}
 		next := map[string]string{}
 		source := settings.ProjectPermissions
-		if scope == "thread" {
+		if scope == constant.AppDataPermissionScopeThread {
 			source = settings.ThreadPermissions
 		}
 		for key, value := range source {
@@ -36,7 +39,7 @@ func (s *Service) SetPermission(scope, id, mode string) (Settings, error) {
 		} else {
 			next[id] = mode
 		}
-		if scope == "thread" {
+		if scope == constant.AppDataPermissionScopeThread {
 			settings.ThreadPermissions = next
 		} else {
 			settings.ProjectPermissions = next

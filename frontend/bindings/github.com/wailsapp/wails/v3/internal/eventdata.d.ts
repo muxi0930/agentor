@@ -7,25 +7,25 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as codex$0 from "../../../../../agentor/internal/codex/models.js";
+import type * as model$0 from "../../../../../agentor/internal/codex/model/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as lark$0 from "../../../../../agentor/internal/lark/models.js";
+import type * as model$1 from "../../../../../agentor/internal/lark/model/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as pipeline$0 from "../../../../../agentor/internal/pipeline/models.js";
+import type * as model$2 from "../../../../../agentor/internal/pipeline/model/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as tasks$0 from "../../../../../agentor/internal/tasks/models.js";
+import type * as model$3 from "../../../../../agentor/internal/tasks/model/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
-            "codex:event": codex$0.Event;
-            "codex:status": codex$0.Status;
-            "lark:changed": lark$0.Changed;
-            "pipeline:changed": pipeline$0.Changed;
-            "tasks:changed": tasks$0.Changed;
+            "codex:event": model$0.Event;
+            "codex:status": model$0.Status;
+            "lark:changed": model$1.Changed;
+            "pipeline:changed": model$2.Changed;
+            "tasks:changed": model$3.Changed;
         }
     }
 }

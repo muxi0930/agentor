@@ -2,33 +2,35 @@ package codex
 
 import (
 	"encoding/json"
-	"errors"
 	"time"
+
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // StartLogin 通过当前原生协议启动独立 ChatGPT 账号登录
-func (s *Service) StartLogin() (LoginState, error) {
+func (s *Service) StartLogin() (codexmodel.LoginState, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
 
 	if err := s.accountIdle(true); err != nil {
-		return LoginState{}, err
+		return codexmodel.LoginState{}, err
 	}
 
 	settings := s.data.GetSettings()
 	if settings.ReuseCLI {
-		return LoginState{}, errors.New("请先选择 agentor 的独立 ChatGPT 账号；CLI 登录保持原样")
+		return codexmodel.LoginState{}, constant.ErrCodexIndependentChatGPTProfileRequired
 	}
 
 	stored, err := s.profile(settings.ActiveAccountID)
-	if err != nil || stored.Profile.Type != "chatgpt" {
-		return LoginState{}, errors.New("请先选择独立 ChatGPT 账号")
+	if err != nil || stored.Profile.Type != constant.CodexAccountTypeChatGPT {
+		return codexmodel.LoginState{}, constant.ErrCodexChatGPTProfileRequired
 	}
 
 	s.mu.Lock()
-	if s.login.Status == "pending" {
+	if s.login.Status == constant.CodexStatusPending {
 		current := s.login
 		s.mu.Unlock()
 		return current, nil
@@ -40,15 +42,15 @@ func (s *Service) StartLogin() (LoginState, error) {
 		LoginID string `json:"loginId"` // 原生登录流程标识
 		AuthURL string `json:"authUrl"` // 浏览器登录地址
 	}
-	if err = s.call("account/login/start", map[string]any{"type": "chatgpt"}, &result); err != nil {
-		return LoginState{}, err
+	if err = s.call(constant.CodexMethodAccountLoginStart, map[string]any{"type": constant.CodexAccountTypeChatGPT}, &result); err != nil {
+		return codexmodel.LoginState{}, err
 	}
 	if result.LoginID == "" || result.AuthURL == "" {
-		return LoginState{}, errors.New("原生登录响应缺少登录标识或浏览器地址")
+		return codexmodel.LoginState{}, constant.ErrCodexLoginResponseInvalid
 	}
 
 	s.mu.Lock()
-	s.login = LoginState{ProfileID: stored.Profile.ID, LoginID: result.LoginID, URL: result.AuthURL, Status: "pending"}
+	s.login = codexmodel.LoginState{ProfileID: stored.Profile.ID, LoginID: result.LoginID, URL: result.AuthURL, Status: constant.CodexStatusPending}
 	current := s.login
 	s.mu.Unlock()
 	return current, nil
@@ -59,39 +61,39 @@ func (s *Service) ContinueLogin() error {
 	s.mu.Lock()
 	current := s.login
 	s.mu.Unlock()
-	if current.Status != "pending" || current.URL == "" {
-		return errors.New("当前没有等待中的登录，请重新发起")
+	if current.Status != constant.CodexStatusPending || current.URL == "" {
+		return constant.ErrCodexLoginNotPending
 	}
 
 	return application.Get().Browser.OpenURL(current.URL)
 }
 
 // CancelLogin 取消当前原生登录流程并保留可重试状态
-func (s *Service) CancelLogin() (LoginState, error) {
+func (s *Service) CancelLogin() (codexmodel.LoginState, error) {
 	s.connectMu.Lock()
 	defer s.connectMu.Unlock()
 
 	s.mu.Lock()
 	current := s.login
 	s.mu.Unlock()
-	if current.Status != "pending" {
+	if current.Status != constant.CodexStatusPending {
 		return current, nil
 	}
 
 	var result struct {
 		Status string `json:"status"` // 上游取消结果
 	}
-	if err := s.call("account/login/cancel", map[string]string{"loginId": current.LoginID}, &result); err != nil {
+	if err := s.call(constant.CodexMethodAccountLoginCancel, map[string]string{"loginId": current.LoginID}, &result); err != nil {
 		return current, err
 	}
 
-	status, message := "cancelled", ""
+	status, message := constant.CodexStatusCancelled, ""
 	if result.Status == "notFound" {
-		status, message = "error", "原登录流程已经结束，请重新发起登录"
-		if account, err := s.GetAccount(); err == nil && account.Account != nil && account.Account.Type == "chatgpt" {
-			status, message = "completed", ""
+		status, message = constant.CodexStatusError, constant.CodexLoginEndedMessage
+		if account, err := s.GetAccount(); err == nil && account.Account != nil && account.Account.Type == constant.CodexAccountTypeChatGPT {
+			status, message = constant.CodexStatusCompleted, ""
 			if err := s.captureAuth(); err != nil {
-				status, message = "error", err.Error()
+				status, message = constant.CodexStatusError, err.Error()
 			}
 		}
 	}
@@ -103,9 +105,9 @@ func (s *Service) CancelLogin() (LoginState, error) {
 }
 
 // GetRateLimits 读取上游真实额度，不用模型列表推断账号权益
-func (s *Service) GetRateLimits() (RateLimits, error) {
-	var result RateLimits
-	if err := s.call("account/rateLimits/read", map[string]any{}, &result); err != nil {
+func (s *Service) GetRateLimits() (codexmodel.RateLimits, error) {
+	var result codexmodel.RateLimits
+	if err := s.call(constant.CodexMethodAccountRateLimitsRead, map[string]any{}, &result); err != nil {
 		return result, err
 	}
 
@@ -128,22 +130,22 @@ func (s *Service) trackLogin(generation uint64, raw json.RawMessage) {
 	}
 
 	s.mu.Lock()
-	if generation != s.status.Generation || s.login.Status != "pending" || result.LoginID != s.login.LoginID {
+	if generation != s.status.Generation || s.login.Status != constant.CodexStatusPending || result.LoginID != s.login.LoginID {
 		s.mu.Unlock()
 		return
 	}
 
-	s.login.Status, s.login.Error, s.login.URL = "error", result.Error, ""
+	s.login.Status, s.login.Error, s.login.URL = constant.CodexStatusError, result.Error, ""
 	if result.Success {
-		s.login.Status = "completed"
+		s.login.Status = constant.CodexStatusCompleted
 	} else if s.login.Error == "" {
-		s.login.Error = "登录未完成，请重新尝试"
+		s.login.Error = constant.CodexLoginFailedMessage
 	}
 	s.mu.Unlock()
 	if result.Success {
 		if err := s.captureAuth(); err != nil {
 			s.mu.Lock()
-			s.login.Status, s.login.Error = "error", err.Error()
+			s.login.Status, s.login.Error = constant.CodexStatusError, err.Error()
 			s.mu.Unlock()
 		}
 	}
@@ -151,6 +153,6 @@ func (s *Service) trackLogin(generation uint64, raw json.RawMessage) {
 	current := s.login
 	s.mu.Unlock()
 	if app := application.Get(); app != nil {
-		app.Event.Emit("codex:event", Event{Generation: generation, Method: "host/loginUpdated", Params: mustJSON(current)})
+		app.Event.Emit(constant.CodexEventMessage, codexmodel.Event{Generation: generation, Method: constant.CodexEventLoginUpdated, Params: mustJSON(current)})
 	}
 }

@@ -1,9 +1,10 @@
 package artifact
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
+
+	"agentor/internal/constant"
 )
 
 // DiscardDraftAttachment 只清理尚未发送的应用托管附件副本
@@ -16,7 +17,7 @@ func (s *Service) DiscardDraftAttachment(id string) error {
 		return nil
 	}
 	if item.Kind != "input" || item.TurnID != "" || item.MessageID != "" || item.RequestID != "" || item.ExecutionID != "" || item.PipelineRunID != "" {
-		return errors.New("附件已被消息或任务引用，不能清理")
+		return constant.ErrArtifactAttachmentReferenced
 	}
 
 	if err := os.RemoveAll(filepath.Join(s.root, item.ID)); err != nil {

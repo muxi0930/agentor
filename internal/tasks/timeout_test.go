@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestAgentTimeoutAtStart 验证启动时应用最新时限并保留更短的任务时限
@@ -27,13 +29,13 @@ func TestAgentTimeoutAtStart(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { s.ServiceShutdown() })
-			s.state.Executions = []Execution{{ID: "task", FeatureID: "feature", Status: "queued", TimeoutSeconds: item.task}}
+			s.state.Executions = []tasksmodel.Execution{{ID: "task", FeatureID: "feature", Status: "queued", TimeoutSeconds: item.task}}
 			if _, err := data.SetAgentTimeoutSeconds(item.limit); err != nil {
 				t.Fatal(err)
 			}
 			started := make(chan context.Context, 1)
 			release := make(chan struct{})
-			s.runExecution = func(ctx context.Context, execution Execution) (string, string, error) {
+			s.runExecution = func(ctx context.Context, execution tasksmodel.Execution) (string, string, error) {
 				started <- ctx
 				select {
 				case <-ctx.Done():

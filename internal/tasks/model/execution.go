@@ -1,8 +1,8 @@
-package tasks
+package model
 
 import (
-	"agentor/internal/appdata"
-	"agentor/internal/workspace"
+	appdatamodel "agentor/internal/appdata/model"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 type Source struct {
@@ -29,30 +29,30 @@ type DispatchInput struct {
 }
 
 type Execution struct {
-	AttachmentRequestID string                `json:"attachmentRequestId"` // 附件原始请求，独立于完成汇报请求
-	PipelineRunID       string                `json:"pipelineRunId"`       // 所属流水线运行
-	ID                  string                `json:"id"`                  // 稳定标识
-	StepID              string                `json:"stepId"`              // 目标工作区步骤
-	ProjectID           string                `json:"projectId"`           // 所属项目
-	FeatureID           string                `json:"featureId"`           // 所属功能
-	Instruction         string                `json:"instruction"`         // 本次执行指令
-	CompletionCriteria  string                `json:"completionCriteria"`  // 完成标准
-	Model               string                `json:"model"`               // 使用的模型
-	Effort              string                `json:"effort"`              // 推理强度
-	Permission          string                `json:"permission"`          // 执行权限
-	Source              Source                `json:"source"`              // 原始请求来源
-	RequestID           string                `json:"requestId"`           // 所属控制中心请求
-	Context             workspace.StepContext `json:"context"`             // 派发时冻结的步骤上下文
-	Status              string                `json:"status"`              // 处理状态
-	ThreadID            string                `json:"threadId"`            // 执行会话
-	TurnID              string                `json:"turnId"`              // 执行轮次
-	Result              string                `json:"result"`              // 执行结果正文
-	Error               string                `json:"error"`               // 失败原因
-	CreatedAt           string                `json:"createdAt"`           // 创建时间
-	StartedAt           string                `json:"startedAt"`           // 开始时间
-	CompletedAt         string                `json:"completedAt"`         // 结束时间
-	StopRequested       bool                  `json:"stopRequested"`       // 用户是否已请求停止
-	TimeoutSeconds      int                   `json:"timeoutSeconds"`      // 执行超时秒数，零表示不限时
+	AttachmentRequestID string                     `json:"attachmentRequestId"` // 附件原始请求，独立于完成汇报请求
+	PipelineRunID       string                     `json:"pipelineRunId"`       // 所属流水线运行
+	ID                  string                     `json:"id"`                  // 稳定标识
+	StepID              string                     `json:"stepId"`              // 目标工作区步骤
+	ProjectID           string                     `json:"projectId"`           // 所属项目
+	FeatureID           string                     `json:"featureId"`           // 所属功能
+	Instruction         string                     `json:"instruction"`         // 本次执行指令
+	CompletionCriteria  string                     `json:"completionCriteria"`  // 完成标准
+	Model               string                     `json:"model"`               // 使用的模型
+	Effort              string                     `json:"effort"`              // 推理强度
+	Permission          string                     `json:"permission"`          // 执行权限
+	Source              Source                     `json:"source"`              // 原始请求来源
+	RequestID           string                     `json:"requestId"`           // 所属控制中心请求
+	Context             workspacemodel.StepContext `json:"context"`             // 派发时冻结的步骤上下文
+	Status              string                     `json:"status"`              // 处理状态
+	ThreadID            string                     `json:"threadId"`            // 执行会话
+	TurnID              string                     `json:"turnId"`              // 执行轮次
+	Result              string                     `json:"result"`              // 执行结果正文
+	Error               string                     `json:"error"`               // 失败原因
+	CreatedAt           string                     `json:"createdAt"`           // 创建时间
+	StartedAt           string                     `json:"startedAt"`           // 开始时间
+	CompletedAt         string                     `json:"completedAt"`         // 结束时间
+	StopRequested       bool                       `json:"stopRequested"`       // 用户是否已请求停止
+	TimeoutSeconds      int                        `json:"timeoutSeconds"`      // 执行超时秒数，零表示不限时
 }
 
 type NotificationPart struct {
@@ -106,26 +106,26 @@ type ControllerInput struct {
 }
 
 type Request struct {
-	Executor     appdata.ControllerSettings `json:"executor"`     // 入队时冻结并解析默认值的控制中心配置
-	ID           string                     `json:"id"`           // 稳定标识
-	Kind         string                     `json:"kind"`         // 业务类型
-	Text         string                     `json:"text"`         // 请求正文
-	ProjectID    string                     `json:"projectId"`    // 所属项目
-	StepID       string                     `json:"stepId"`       // 目标工作区步骤
-	Model        string                     `json:"model"`        // 使用的模型
-	Effort       string                     `json:"effort"`       // 推理强度
-	FastMode     bool                       `json:"fastMode"`     // 入队时选定的快速模式
-	Source       Source                     `json:"source"`       // 原始请求来源
-	Status       string                     `json:"status"`       // 处理状态
-	ThreadID     string                     `json:"threadId"`     // 执行会话
-	TurnID       string                     `json:"turnId"`       // 执行轮次
-	Result       string                     `json:"result"`       // 执行结果正文
-	Error        string                     `json:"error"`        // 失败原因
-	CreatedAt    string                     `json:"createdAt"`    // 创建时间
-	CompletedAt  string                     `json:"completedAt"`  // 结束时间
-	CompletionID string                     `json:"completionId"` // 待汇报的完成事件标识
-	NeedsTarget  bool                       `json:"needsTarget"`  // 是否需要用户明确执行目标
-	LockedTarget bool                       `json:"lockedTarget"` // 是否限制为请求已指定的步骤
+	Executor     appdatamodel.ControllerSettings `json:"executor"`     // 入队时冻结并解析默认值的控制中心配置
+	ID           string                          `json:"id"`           // 稳定标识
+	Kind         string                          `json:"kind"`         // 业务类型
+	Text         string                          `json:"text"`         // 请求正文
+	ProjectID    string                          `json:"projectId"`    // 所属项目
+	StepID       string                          `json:"stepId"`       // 目标工作区步骤
+	Model        string                          `json:"model"`        // 使用的模型
+	Effort       string                          `json:"effort"`       // 推理强度
+	FastMode     bool                            `json:"fastMode"`     // 入队时选定的快速模式
+	Source       Source                          `json:"source"`       // 原始请求来源
+	Status       string                          `json:"status"`       // 处理状态
+	ThreadID     string                          `json:"threadId"`     // 执行会话
+	TurnID       string                          `json:"turnId"`       // 执行轮次
+	Result       string                          `json:"result"`       // 执行结果正文
+	Error        string                          `json:"error"`        // 失败原因
+	CreatedAt    string                          `json:"createdAt"`    // 创建时间
+	CompletedAt  string                          `json:"completedAt"`  // 结束时间
+	CompletionID string                          `json:"completionId"` // 待汇报的完成事件标识
+	NeedsTarget  bool                            `json:"needsTarget"`  // 是否需要用户明确执行目标
+	LockedTarget bool                            `json:"lockedTarget"` // 是否限制为请求已指定的步骤
 }
 
 type Scope struct {

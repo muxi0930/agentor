@@ -1,4 +1,4 @@
-import type { Task } from "../../../bindings/agentor/internal/pipeline/models";
+import type { Task } from "../../../bindings/agentor/internal/pipeline/model/models";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

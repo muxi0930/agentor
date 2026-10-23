@@ -1,0 +1,712 @@
+{
+  "controller": [
+    {
+      "type": "function",
+      "name": "list_workspaces",
+      "description": "查询本次请求范围内的项目、版本、功能和步骤摘要及稳定 ID。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "get_work_item",
+      "description": "按稳定 ID 读取项目、版本、功能或步骤的详细定义。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "对象 ID",
+            "type": "string"
+          },
+          "kind": {
+            "description": "project / version / feature / step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "create_version",
+      "description": "在本次请求范围内的指定项目创建版本，不改变桌面选择；无法唯一确定项目时先询问用户。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "版本说明，可为空",
+            "type": "string"
+          },
+          "name": {
+            "description": "版本名称",
+            "type": "string"
+          },
+          "projectId": {
+            "description": "当前范围内明确的项目 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "name",
+          "description"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "create_feature",
+      "description": "在本次请求范围内的版本创建功能，不改变桌面选择。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "description": "功能上下文",
+            "type": "string"
+          },
+          "description": {
+            "description": "功能说明",
+            "type": "string"
+          },
+          "prompt": {
+            "description": "功能提示词",
+            "type": "string"
+          },
+          "title": {
+            "description": "功能标题",
+            "type": "string"
+          },
+          "versionId": {
+            "description": "版本 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId",
+          "title",
+          "description",
+          "context",
+          "prompt"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "create_step",
+      "description": "在本次请求范围内的功能创建步骤，执行权限继承项目配置。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "步骤说明",
+            "type": "string"
+          },
+          "featureId": {
+            "description": "功能 ID",
+            "type": "string"
+          },
+          "prompt": {
+            "description": "步骤提示词",
+            "type": "string"
+          },
+          "title": {
+            "description": "步骤标题",
+            "type": "string"
+          }
+        },
+        "required": [
+          "featureId",
+          "title",
+          "description",
+          "prompt"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "dispatch_step",
+      "description": "正式派发步骤；同一功能下的步骤按派发顺序排队，不同功能可并行。从本次请求允许范围中选择执行模型与 effort。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "completionCriteria": {
+            "description": "完成标准，可为空",
+            "type": "string"
+          },
+          "effort": {
+            "description": "从允许范围选择兼容的 effort，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "instruction": {
+            "description": "执行指令",
+            "type": "string"
+          },
+          "model": {
+            "description": "从允许范围选择模型，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "stepId": {
+            "description": "明确的步骤 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stepId",
+          "instruction",
+          "completionCriteria",
+          "model",
+          "effort"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "list_executions",
+      "description": "查询本次项目范围内的执行状态与结果。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "stop_execution",
+      "description": "停止一项明确的执行，或取消该项排队。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "executionId": {
+            "description": "执行记录 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "executionId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "rebuild_step_context",
+      "description": "在步骤空闲时重建会话，保留已有执行记录，不重放任务。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "stepId": {
+            "description": "步骤 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stepId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "list_pipeline_tasks",
+      "description": "查询本次项目范围内的流水线任务、调度与运行记录。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "run_pipeline",
+      "description": "运行已有流水线任务，同一任务不重入。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "effort": {
+            "description": "从允许范围选择兼容的 effort，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "inputs": {
+            "description": "任务契约要求的输入值",
+            "type": "object"
+          },
+          "model": {
+            "description": "从允许范围选择模型，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "taskId": {
+            "description": "任务 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "inputs",
+          "model",
+          "effort"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "request_pipeline_session",
+      "description": "给项目专用管理/配置会话提交请求。管理会话运行已有任务，配置会话维护 JSON 和调度。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "effort": {
+            "description": "从允许范围选择兼容的 effort，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "model": {
+            "description": "从允许范围选择模型，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "projectId": {
+            "description": "当前范围内的项目 ID",
+            "type": "string"
+          },
+          "role": {
+            "description": "pipeline_manager / pipeline_config",
+            "type": "string"
+          },
+          "text": {
+            "description": "会话请求",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "role",
+          "text",
+          "model",
+          "effort"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "set_schedule_enabled",
+      "description": "启用或停用当前项目的调度。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "scheduleId": {
+            "description": "调度 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleId",
+          "enabled"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "trigger_schedule",
+      "description": "手动触发已有调度，同任务不重入。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "effort": {
+            "description": "从允许范围选择兼容的 effort，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "model": {
+            "description": "从允许范围选择模型，空字符串跟随默认会话",
+            "type": "string"
+          },
+          "scheduleId": {
+            "description": "调度 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleId",
+          "model",
+          "effort"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "share_artifact",
+      "description": "将当前项目的已登记产物发送到原始飞书会话；桌面任务使用已配对接收者。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "description": "产物 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "pipeline_config": [
+    {
+      "type": "function",
+      "name": "list_actions",
+      "description": "读取固定 Go 动作及参数/结果契约。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "list_pipeline_tasks",
+      "description": "查询当前项目的任务、调度和运行记录。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "validate_pipeline_task",
+      "description": "只读验证 JSON 任务，不执行动作。任务字段为 id（新建可空）、name、inputs、actions。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整 JSON 配置",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "save_pipeline_task",
+      "description": "验证并保存当前项目 JSON 任务；新建 ID 留空，修改保留 ID。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整 JSON 配置",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "delete_pipeline_task",
+      "description": "删除当前项目的空闲任务；有关联调度时需先移除调度。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "description": "任务 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "save_pipeline_schedule",
+      "description": "保存一次性或间隔调度。字段 id/taskId/name/kind/enabled/at/anchor/intervalSeconds/timezone/inputs/misfirePolicy。时间为带时区 RFC3339。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整调度 JSON",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "delete_pipeline_schedule",
+      "description": "删除当前项目调度。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "scheduleId": {
+            "description": "调度 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleId"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "pipeline_manager": [
+    {
+      "type": "function",
+      "name": "list_actions",
+      "description": "读取固定 Go 动作及参数/结果契约。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "list_pipeline_tasks",
+      "description": "查询当前项目的任务、调度和运行记录。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "validate_pipeline_task",
+      "description": "只读验证 JSON 任务，不执行动作。任务字段为 id（新建可空）、name、inputs、actions。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整 JSON 配置",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "run_pipeline",
+      "description": "运行当前项目已有任务；模型和来源沿用此会话请求。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "inputs": {
+            "type": "object"
+          },
+          "taskId": {
+            "description": "任务 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "inputs"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "share_artifact",
+      "description": "显式分享当前项目的报告或步骤产物到原飞书会话。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "description": "已登记产物 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "step": [
+    {
+      "type": "function",
+      "name": "get_step_context",
+      "description": "读取宿主绑定的当前步骤、项目和功能上下文，以及可读取的知识文档索引。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "search_knowledge",
+      "description": "在当前项目、所属版本和当前功能绑定的 Markdown 中搜索标题与正文。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "description": "检索文字",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "read_knowledge",
+      "description": "读取当前步骤范围内的完整 Markdown。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "documentId": {
+            "description": "文档索引中的稳定 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "prepare_knowledge_document",
+      "description": "创建托管 Markdown 文档并绑定至当前功能；随后用 sync_knowledge_document 写入正文。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "description": "文档标题",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "bind_knowledge_document",
+      "description": "将当前项目内的文档绑定至当前功能。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "documentId": {
+            "description": "当前项目内的文档 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "sync_knowledge_document",
+      "description": "更新当前步骤可访问的托管 Markdown 正文，不修改原始导入文件。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "完整 Markdown 正文",
+            "type": "string"
+          },
+          "documentId": {
+            "description": "托管文档 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentId",
+          "content"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "register_artifact",
+      "description": "登记当前项目内由本次执行产生的文件，供用户查看或分享。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "项目内文件的相对或绝对路径",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "share_artifact",
+      "description": "显式分享本次执行登记的产物，发往原始飞书会话或桌面已配对接收者。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "description": "register_artifact 返回的 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

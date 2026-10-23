@@ -14,8 +14,11 @@ import (
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
 	"agentor/internal/tasks"
+	tasksmodel "agentor/internal/tasks/model"
 	"agentor/internal/workspace"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestNativeStepKnowledgeTool 验证原生步骤会话调用知识工具
@@ -49,7 +52,7 @@ func TestNativeStepKnowledgeTool(t *testing.T) {
 	router := &Router{tasks: executions, work: work}
 	executions.ConfigureTools(router.Specs)
 	var reads atomic.Int32
-	runtime.SetToolHandler(func(call codex.ToolCall) (any, error) {
+	runtime.SetToolHandler(func(call codexmodel.ToolCall) (any, error) {
 		value, err := router.Call(call)
 		if call.Tool == "read_knowledge" && err == nil {
 			reads.Add(1)
@@ -61,21 +64,21 @@ func TestNativeStepKnowledgeTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	directory := t.TempDir()
-	state, err := work.SaveProject(workspace.Project{Name: "Native execution check", Directory: directory})
+	state, err := work.SaveProject(workspacemodel.Project{Name: "Native execution check", Directory: directory})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
-	state, err = work.SaveVersion(projectID, workspace.Version{Name: "v1"})
+	state, err = work.SaveVersion(projectID, workspacemodel.Version{Name: "v1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err = work.SaveFeature(projectID, state.SelectedID, workspace.Feature{Title: "Knowledge tool"})
+	state, err = work.SaveFeature(projectID, state.SelectedID, workspacemodel.Feature{Title: "Knowledge tool"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	featureID := state.SelectedID
-	state, err = work.SaveStep(projectID, featureID, workspace.Step{Title: "Read check word", Prompt: "Use read_knowledge to read the bound document. Reply with only the verification word from it."})
+	state, err = work.SaveStep(projectID, featureID, workspacemodel.Step{Title: "Read check word", Prompt: "Use read_knowledge to read the bound document. Reply with only the verification word from it."})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +90,7 @@ func TestNativeStepKnowledgeTool(t *testing.T) {
 	if _, err = work.ImportKnowledge(projectID, featureID, path); err != nil {
 		t.Fatal(err)
 	}
-	execution, err := executions.Dispatch(tasks.DispatchInput{StepID: stepID, Source: tasks.Source{Type: "desktop", MessageID: "native-smoke"}})
+	execution, err := executions.Dispatch(tasksmodel.DispatchInput{StepID: stepID, Source: tasksmodel.Source{Type: "desktop", MessageID: "native-smoke"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +138,7 @@ func TestNativeControllerDispatchAndReport(t *testing.T) {
 	router := &Router{tasks: executions, work: work}
 	executions.ConfigureTools(router.Specs)
 	var dispatches atomic.Int32
-	runtime.SetToolHandler(func(call codex.ToolCall) (any, error) {
+	runtime.SetToolHandler(func(call codexmodel.ToolCall) (any, error) {
 		value, err := router.Call(call)
 		if call.Tool == "dispatch_step" && err == nil {
 			dispatches.Add(1)
@@ -147,25 +150,25 @@ func TestNativeControllerDispatchAndReport(t *testing.T) {
 	if _, err = runtime.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	state, err := work.SaveProject(workspace.Project{Name: "Controller dispatch check", Directory: t.TempDir()})
+	state, err := work.SaveProject(workspacemodel.Project{Name: "Controller dispatch check", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
-	state, err = work.SaveVersion(projectID, workspace.Version{Name: "v1"})
+	state, err = work.SaveVersion(projectID, workspacemodel.Version{Name: "v1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err = work.SaveFeature(projectID, state.SelectedID, workspace.Feature{Title: "Controller workflow"})
+	state, err = work.SaveFeature(projectID, state.SelectedID, workspacemodel.Feature{Title: "Controller workflow"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err = work.SaveStep(projectID, state.SelectedID, workspace.Step{Title: "Return marker", Prompt: "Reply only CONTROLLER_STEP_DONE."})
+	state, err = work.SaveStep(projectID, state.SelectedID, workspacemodel.Step{Title: "Return marker", Prompt: "Reply only CONTROLLER_STEP_DONE."})
 	if err != nil {
 		t.Fatal(err)
 	}
 	stepID := state.SelectedID
-	request, err := executions.SubmitRequest(tasks.ControllerInput{ProjectID: projectID, StepID: stepID, Text: "Use dispatch_step exactly once to run the explicitly targeted step. Set instruction to 'Reply only CONTROLLER_STEP_DONE.' and completionCriteria to 'The reply contains CONTROLLER_STEP_DONE'. Then briefly acknowledge it was queued. Do not create definitions or run shell commands.", Source: tasks.Source{Type: "desktop", MessageID: "controller-native-smoke"}})
+	request, err := executions.SubmitRequest(tasksmodel.ControllerInput{ProjectID: projectID, StepID: stepID, Text: "Use dispatch_step exactly once to run the explicitly targeted step. Set instruction to 'Reply only CONTROLLER_STEP_DONE.' and completionCriteria to 'The reply contains CONTROLLER_STEP_DONE'. Then briefly acknowledge it was queued. Do not create definitions or run shell commands.", Source: tasksmodel.Source{Type: "desktop", MessageID: "controller-native-smoke"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,8 +178,8 @@ func TestNativeControllerDispatchAndReport(t *testing.T) {
 	defer ticker.Stop()
 	for {
 		snapshot := executions.GetState()
-		var result *tasks.Execution
-		var report *tasks.Request
+		var result *tasksmodel.Execution
+		var report *tasksmodel.Request
 		for i := range snapshot.Executions {
 			if snapshot.Executions[i].RequestID == request.ID {
 				result = &snapshot.Executions[i]
@@ -229,12 +232,12 @@ func TestNativeControllerCreateVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := work.SaveProject(workspace.Project{Name: "创建版本验证", Directory: t.TempDir()})
+	state, err := work.SaveProject(workspacemodel.Project{Name: "创建版本验证", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
-	state, err = work.SaveProject(workspace.Project{Name: "范围外项目", Directory: t.TempDir()})
+	state, err = work.SaveProject(workspacemodel.Project{Name: "范围外项目", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,11 +252,11 @@ func TestNativeControllerCreateVersion(t *testing.T) {
 	router := New(executions, work, nil, nil)
 	executions.ConfigureTools(router.Specs)
 	var creates, reads, lists atomic.Int32
-	runtime.SetToolHandler(func(call codex.ToolCall) (any, error) {
+	runtime.SetToolHandler(func(call codexmodel.ToolCall) (any, error) {
 		if call.Tool == "create_version" {
 			for _, target := range []string{otherID, "missing", ""} {
 				arguments, _ := json.Marshal(map[string]string{"projectId": target, "name": "禁止创建", "description": ""})
-				if _, err := router.Call(codex.ToolCall{ThreadID: call.ThreadID, Tool: "create_version", Arguments: arguments}); err == nil {
+				if _, err := router.Call(codexmodel.ToolCall{ThreadID: call.ThreadID, Tool: "create_version", Arguments: arguments}); err == nil {
 					return nil, fmt.Errorf("越界或缺失项目未被拒绝：%q", target)
 				}
 			}
@@ -264,7 +267,7 @@ func TestNativeControllerCreateVersion(t *testing.T) {
 			case "create_version":
 				creates.Add(1)
 			case "get_work_item":
-				if version, ok := value.(workspace.Version); ok && version.Name == "0.2.0" {
+				if version, ok := value.(workspacemodel.Version); ok && version.Name == "0.2.0" {
 					reads.Add(1)
 				}
 			case "list_workspaces":
@@ -280,10 +283,10 @@ func TestNativeControllerCreateVersion(t *testing.T) {
 	if _, err = runtime.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	request, err := executions.SubmitRequest(tasks.ControllerInput{
+	request, err := executions.SubmitRequest(tasksmodel.ControllerInput{
 		ProjectID: projectID,
 		Text:      fmt.Sprintf("请用 create_version 在项目 %s 下创建名称为 0.2.0、说明为宿主工具验证的版本，只创建一次。随后用 get_work_item 按返回的版本 ID 读取，再用 list_workspaces 确认版本存在。不要使用 shell 或派发步骤。", projectID),
-		Source:    tasks.Source{Type: "desktop", MessageID: "create-version-smoke"},
+		Source:    tasksmodel.Source{Type: "desktop", MessageID: "create-version-smoke"},
 	})
 	if err != nil {
 		t.Fatal(err)

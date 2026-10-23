@@ -2,8 +2,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowUp, ChevronRight, Folder, FolderOpen, LoaderCircle, LockKeyhole, Paperclip, Pencil, Pin, Plus, RefreshCw, Square, Terminal } from "lucide-react";
-import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
-import type { Status, Thread } from "../../../bindings/agentor/internal/codex/models";
+import type { Settings } from "../../../bindings/agentor/internal/appdata/model/models";
+import type { Status, Thread } from "../../../bindings/agentor/internal/codex/model/models";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
 import { Button } from "@/components/ui/button";

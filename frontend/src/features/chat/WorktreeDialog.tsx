@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { GitBranch } from "lucide-react";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
-import type { Settings } from "../../../bindings/agentor/internal/appdata/models";
+import type { Settings } from "../../../bindings/agentor/internal/appdata/model/models";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";

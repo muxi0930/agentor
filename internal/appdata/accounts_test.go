@@ -1,6 +1,8 @@
 package appdata
 
-import "testing"
+import (
+	"testing"
+)
 
 // TestAccountPreferencesStayWithIdentity 验证账号切换恢复各自的模型与默认权限
 func TestAccountPreferencesStayWithIdentity(t *testing.T) {

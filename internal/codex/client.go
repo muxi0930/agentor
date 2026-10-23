@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"agentor/internal/constant"
 )
 
 type packet struct {
@@ -85,7 +87,7 @@ func startClient(path, home string, env []string, onMessage func(packet), onExit
 		<-readDone
 		err := cmd.Wait()
 		if err == nil {
-			err = errors.New("Codex app-server 已关闭")
+			err = constant.ErrCodexServerClosed
 		}
 		c.finish(err)
 	}()
@@ -184,7 +186,7 @@ func (c *client) close() {
 	c.stdin.Close()
 	select {
 	case <-c.done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(constant.CodexShutdownTimeout):
 		c.cmd.Process.Kill()
 		<-c.done
 	}

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Events } from "@wailsio/runtime";
 import * as Codex from "../../../bindings/agentor/internal/codex/service";
-import type { Approval, Status } from "../../../bindings/agentor/internal/codex/models";
+import type { Approval, Status } from "../../../bindings/agentor/internal/codex/model/models";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";

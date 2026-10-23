@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { zhCN } from "react-day-picker/locale";
-import type { Schedule, Task } from "../../../bindings/agentor/internal/pipeline/models";
+import type { Schedule, Task } from "../../../bindings/agentor/internal/pipeline/model/models";
 import * as Pipeline from "../../../bindings/agentor/internal/pipeline/service";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";

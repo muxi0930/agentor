@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +13,10 @@ import (
 	"strings"
 
 	"agentor/internal/artifact"
-	"agentor/internal/tasks"
+	"agentor/internal/constant"
+	larkmodel "agentor/internal/lark/model"
+	tasksmodel "agentor/internal/tasks/model"
+
 	larksdk "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
@@ -28,14 +30,14 @@ func value(pointer *string) string {
 }
 
 // normalize 按原消息顺序解析文字与资源并保留引用
-func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, error) {
-	var result Message
+func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (larkmodel.Message, error) {
+	var result larkmodel.Message
 	if event == nil || event.Event == nil || event.Event.Message == nil || event.Event.Sender == nil || event.Event.Sender.SenderId == nil {
-		return result, errors.New("消息缺少来源")
+		return result, constant.ErrLarkMessageSourceMissing
 	}
 
 	message, sender := event.Event.Message, event.Event.Sender
-	result.Source = tasks.Source{Type: "lark", AppID: appID, ChatID: value(message.ChatId), SenderID: value(sender.SenderId.OpenId), MessageID: value(message.MessageId), ReplyToMessageID: value(message.ParentId)}
+	result.Source = tasksmodel.Source{Type: "lark", AppID: appID, ChatID: value(message.ChatId), SenderID: value(sender.SenderId.OpenId), MessageID: value(message.MessageId), ReplyToMessageID: value(message.ParentId)}
 	if result.Source.ReplyToMessageID == "" {
 		result.Source.ReplyToMessageID = value(message.RootId)
 	}
@@ -55,11 +57,11 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 	case "text":
 		result.Text = read("text")
 	case "image":
-		result.Resources = append(result.Resources, Resource{Key: read("image_key"), Name: "image.png", Kind: "image"})
-		result.Text = "[图片 image.png]"
+		result.Resources = append(result.Resources, larkmodel.Resource{Key: read("image_key"), Name: "image.png", Kind: "image"})
+		result.Text = constant.LarkImagePlaceholder
 	case "file":
-		result.Resources = append(result.Resources, Resource{Key: read("file_key"), Name: read("file_name"), Kind: "file"})
-		result.Text = "[文件 " + read("file_name") + "]"
+		result.Resources = append(result.Resources, larkmodel.Resource{Key: read("file_key"), Name: read("file_name"), Kind: "file"})
+		result.Text = constant.LarkFilePlaceholderPrefix + read("file_name") + "]"
 	case "post":
 		post := content
 		if post["content"] == nil {
@@ -93,7 +95,7 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 		for _, row := range rows {
 			var line strings.Builder
 			for _, node := range row {
-				tag, _ := node["tag"].(string)
+				tag, _ := node[constant.WorkspaceKindTag].(string)
 				text, _ := node["text"].(string)
 				switch tag {
 				case "text", "md":
@@ -109,15 +111,15 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 				case "img":
 					key, _ := node["image_key"].(string)
 					name := fmt.Sprintf("image-%d.png", len(result.Resources)+1)
-					result.Resources = append(result.Resources, Resource{Key: key, Name: name, Kind: "image"})
-					line.WriteString("[图片 " + name + "]")
+					result.Resources = append(result.Resources, larkmodel.Resource{Key: key, Name: name, Kind: "image"})
+					line.WriteString(constant.LarkImagePlaceholderPrefix + name + "]")
 				}
 			}
 			lines = append(lines, line.String())
 		}
 		result.Text = strings.Join(lines, "\n")
 	default:
-		return result, errors.New("当前支持文本、富文本、图片与文件消息")
+		return result, constant.ErrLarkMessageTypeUnsupported
 	}
 
 	for _, mention := range message.Mentions {
@@ -133,29 +135,29 @@ func normalize(event *larkim.P2MessageReceiveV1, appID, botID string) (Message, 
 
 	result.Text = strings.TrimSpace(result.Text)
 	if result.Source.SenderID == "" || result.Source.MessageID == "" || result.Source.ChatID == "" {
-		return result, errors.New("消息来源不完整")
+		return result, constant.ErrLarkMessageSourceIncomplete
 	}
 	return result, nil
 }
 
 // hasIdentity 检查身份是否在允许列表内
-func hasIdentity(values []Identity, id string) bool {
-	return slices.ContainsFunc(values, func(identity Identity) bool { return identity.ID == id })
+func hasIdentity(values []larkmodel.Identity, id string) bool {
+	return slices.ContainsFunc(values, func(identity larkmodel.Identity) bool { return identity.ID == id })
 }
 
 // authorized 核验单聊联系人或群内对当前机器人的提及
-func authorized(config Settings, botID string, message Message) bool {
+func authorized(config larkmodel.Settings, botID string, message larkmodel.Message) bool {
 	if message.SenderType != "user" {
 		return false
 	}
-	if message.ChatType == "p2p" {
+	if message.ChatType == constant.LarkChatTypePrivate {
 		return hasIdentity(config.AllowedUsers, message.Source.SenderID)
 	}
-	return message.ChatType == "group" && hasIdentity(config.AllowedChats, message.Source.ChatID) && botID != "" && slices.Contains(message.Mentions, botID)
+	return message.ChatType == constant.LarkChatTypeGroup && hasIdentity(config.AllowedChats, message.Source.ChatID) && botID != "" && slices.Contains(message.Mentions, botID)
 }
 
 // receive 先核验范围和去重再异步处理消息
-func (s *Service) receive(ctx context.Context, generation uint64, client *larksdk.Client, message Message) error {
+func (s *Service) receive(ctx context.Context, generation uint64, client *larksdk.Client, message larkmodel.Message) error {
 	if message.SenderType != "user" {
 		return nil
 	}
@@ -165,9 +167,9 @@ func (s *Service) receive(ctx context.Context, generation uint64, client *larksd
 		return nil
 	}
 	changed := false
-	candidates := []Candidate{{Kind: "user", ID: message.Source.SenderID, LastSeen: now()}}
-	if message.ChatType == "group" {
-		candidates = append(candidates, Candidate{Kind: "chat", ID: message.Source.ChatID, LastSeen: now()})
+	candidates := []larkmodel.Candidate{{Kind: "user", ID: message.Source.SenderID, LastSeen: now()}}
+	if message.ChatType == constant.LarkChatTypeGroup {
+		candidates = append(candidates, larkmodel.Candidate{Kind: "chat", ID: message.Source.ChatID, LastSeen: now()})
 	}
 	for _, candidate := range candidates {
 		if candidate.ID == "" {
@@ -203,7 +205,7 @@ func (s *Service) receive(ctx context.Context, generation uint64, client *larksd
 	}
 
 	requestID := rand.Text()
-	s.state.Incoming = append(s.state.Incoming, Incoming{Source: message.Source, RequestID: requestID, Status: "receiving", CreatedAt: now()})
+	s.state.Incoming = append(s.state.Incoming, larkmodel.Incoming{Source: message.Source, RequestID: requestID, Status: constant.LarkStatusReceiving, CreatedAt: now()})
 	err := s.persistLocked()
 	if err != nil {
 		s.state.Incoming = s.state.Incoming[:len(s.state.Incoming)-1]
@@ -219,7 +221,7 @@ func (s *Service) receive(ctx context.Context, generation uint64, client *larksd
 }
 
 // updateIncoming 更新原消息的接收记录
-func (s *Service) updateIncoming(source tasks.Source, status string, err error) {
+func (s *Service) updateIncoming(source tasksmodel.Source, status string, err error) {
 	s.mu.Lock()
 	if s.ctx.Err() != nil {
 		s.mu.Unlock()
@@ -241,14 +243,14 @@ func (s *Service) updateIncoming(source tasks.Source, status string, err error) 
 }
 
 // processMessage 下载请求附件并提交统一控制中心入口
-func (s *Service) processMessage(ctx context.Context, generation uint64, client *larksdk.Client, message Message, requestID, projectID string) {
+func (s *Service) processMessage(ctx context.Context, generation uint64, client *larksdk.Client, message larkmodel.Message, requestID, projectID string) {
 	if handled, err := s.textControl(message); handled {
 		s.updateIncoming(message.Source, "control", err)
-		body := "操作已处理"
+		body := constant.LarkControlHandledMessage
 		if err != nil {
 			body = err.Error()
 		}
-		s.tasks.RecordNotification(tasks.Notification{Title: "飞书控制响应", Body: body, Source: message.Source})
+		s.tasks.RecordNotification(tasksmodel.Notification{Title: constant.LarkControlReplyTitle, Body: body, Source: message.Source})
 		return
 	}
 
@@ -279,7 +281,7 @@ func (s *Service) processMessage(ctx context.Context, generation uint64, client 
 			if savedID == "" {
 				s.files.RecordFailedInput(requestID, name, err.Error())
 			}
-			message.Text += "\n附件 " + name + " 未能载入：" + err.Error()
+			message.Text += constant.LarkAttachmentFailurePrefix + name + constant.LarkAttachmentFailureSeparator + err.Error()
 		}
 	}
 
@@ -287,14 +289,14 @@ func (s *Service) processMessage(ctx context.Context, generation uint64, client 
 	current := s.status.Generation == generation
 	s.mu.Unlock()
 	if !current || ctx.Err() != nil {
-		s.updateIncoming(message.Source, "interrupted", errors.New("接收期间连接已关闭，未提交任务"))
+		s.updateIncoming(message.Source, constant.LarkStatusInterrupted, constant.ErrLarkConnectionClosed)
 		return
 	}
-	_, err := s.tasks.SubmitRemoteRequest(tasks.ControllerInput{Text: message.Text, ProjectID: projectID, Source: message.Source}, requestID)
+	_, err := s.tasks.SubmitRemoteRequest(tasksmodel.ControllerInput{Text: message.Text, ProjectID: projectID, Source: message.Source}, requestID)
 	if err != nil {
-		s.updateIncoming(message.Source, "error", err)
-		s.tasks.RecordNotification(tasks.Notification{Title: "飞书请求未提交", Body: err.Error(), Source: message.Source})
+		s.updateIncoming(message.Source, constant.LarkStatusError, err)
+		s.tasks.RecordNotification(tasksmodel.Notification{Title: constant.LarkRequestRejectedTitle, Body: err.Error(), Source: message.Source})
 		return
 	}
-	s.updateIncoming(message.Source, "submitted", nil)
+	s.updateIncoming(message.Source, constant.LarkStatusSubmitted, nil)
 }

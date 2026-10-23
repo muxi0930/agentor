@@ -1,6 +1,8 @@
 package appdata
 
-import "testing"
+import (
+	"testing"
+)
 
 // TestMaxConcurrentAgents 验证并发上限默认值、边界和持久化
 func TestMaxConcurrentAgents(t *testing.T) {

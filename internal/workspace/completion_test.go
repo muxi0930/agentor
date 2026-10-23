@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"agentor/internal/appdata"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestCompleteStep 验证手动完成持久化、功能汇总及重复操作保留完成时间
 func TestCompleteStep(t *testing.T) {
 	root := t.TempDir()
-	initial := State{SelectedID: "a", Projects: []Project{{ID: "p", Versions: []Version{{ID: "v", Features: []Feature{
-		{ID: "f", Steps: []Step{{ID: "a", Title: "步骤", Prompt: "执行指令", ThreadID: "thread", PermissionMode: "workspace-write"}, {ID: "b", Completed: true, CompletedAt: "2026-10-21T01:00:00Z"}}},
+	initial := workspacemodel.State{SelectedID: "a", Projects: []workspacemodel.Project{{ID: "p", Versions: []workspacemodel.Version{{ID: "v", Features: []workspacemodel.Feature{
+		{ID: "f", Steps: []workspacemodel.Step{{ID: "a", Title: "步骤", Prompt: "执行指令", ThreadID: "thread", PermissionMode: "workspace-write"}, {ID: "b", Completed: true, CompletedAt: "2026-10-21T01:00:00Z"}}},
 	}}}}}}
 	if err := appdata.WriteJSON(filepath.Join(root, "workspace.json"), initial); err != nil {
 		t.Fatal(err)
@@ -52,7 +53,7 @@ func TestCompleteStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, dispatchedAt := range []string{completedAt.Add(-time.Hour).Format(time.RFC3339Nano), completedAt.Add(time.Hour).Format(time.RFC3339Nano)} {
-		if err := s.SyncCompletion(map[string]StepCompletion{"a": {DispatchedAt: dispatchedAt}}); err != nil {
+		if err := s.SyncCompletion(map[string]workspacemodel.StepCompletion{"a": {DispatchedAt: dispatchedAt}}); err != nil {
 			t.Fatal(err)
 		}
 		current := s.GetState().Projects[0].Versions[0].Features[0]
@@ -65,8 +66,8 @@ func TestCompleteStep(t *testing.T) {
 // TestCompletionAggregation 验证完成状态持久化及新增、删除步骤后的功能汇总
 func TestCompletionAggregation(t *testing.T) {
 	root := t.TempDir()
-	initial := State{Projects: []Project{{ID: "p", Versions: []Version{{ID: "v", Features: []Feature{
-		{ID: "f", Steps: []Step{{ID: "a"}, {ID: "b"}}},
+	initial := workspacemodel.State{Projects: []workspacemodel.Project{{ID: "p", Versions: []workspacemodel.Version{{ID: "v", Features: []workspacemodel.Feature{
+		{ID: "f", Steps: []workspacemodel.Step{{ID: "a"}, {ID: "b"}}},
 		{ID: "empty"},
 	}}}}}}
 	if err := appdata.WriteJSON(filepath.Join(root, "workspace.json"), initial); err != nil {
@@ -77,7 +78,7 @@ func TestCompletionAggregation(t *testing.T) {
 		t.Fatal(err)
 	}
 	early, late := "2026-10-21T01:00:00Z", "2026-10-21T02:00:00Z"
-	if err := s.SyncCompletion(map[string]StepCompletion{
+	if err := s.SyncCompletion(map[string]workspacemodel.StepCompletion{
 		"a": {Completed: true, CompletedAt: late},
 		"b": {Completed: true, CompletedAt: early},
 	}); err != nil {
@@ -91,7 +92,7 @@ func TestCompletionAggregation(t *testing.T) {
 	if !features[0].Completed || features[0].CompletedAt != late || features[1].Completed {
 		t.Fatal("功能完成状态或最晚完成时间不正确", features)
 	}
-	state, err := s.SaveStep("p", "f", Step{Title: "新增步骤"})
+	state, err := s.SaveStep("p", "f", workspacemodel.Step{Title: "新增步骤"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func TestCompletionAggregation(t *testing.T) {
 	if err != nil || !state.Projects[0].Versions[0].Features[0].Completed {
 		t.Fatal("删除未完成步骤后应重新汇总", err)
 	}
-	if err := s.SyncCompletion(map[string]StepCompletion{"a": {}}); err != nil {
+	if err := s.SyncCompletion(map[string]workspacemodel.StepCompletion{"a": {}}); err != nil {
 		t.Fatal(err)
 	}
 	feature = s.GetState().Projects[0].Versions[0].Features[0]

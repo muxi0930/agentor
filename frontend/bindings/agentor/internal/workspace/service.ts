@@ -7,123 +7,123 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as $models from "./models.js";
+import * as model$0 from "./model/models.js";
 
 /**
  * BindKnowledge 调整知识文档与项目、版本或功能的绑定
  */
-export function BindKnowledge(projectID: string, nodeID: string, documentID: string, bound: boolean): $CancellablePromise<$models.State> {
+export function BindKnowledge(projectID: string, nodeID: string, documentID: string, bound: boolean): $CancellablePromise<model$0.State> {
     return $Call.ByID(1921166637, projectID, nodeID, documentID, bound);
 }
 
 /**
  * CompleteStep 手动完成步骤并汇总所属功能状态
  */
-export function CompleteStep(stepID: string): $CancellablePromise<$models.State> {
+export function CompleteStep(stepID: string): $CancellablePromise<model$0.State> {
     return $Call.ByID(195723229, stepID);
 }
 
 /**
  * DeleteKnowledge 删除知识文档并移除所有绑定
  */
-export function DeleteKnowledge(projectID: string, documentID: string): $CancellablePromise<$models.State> {
+export function DeleteKnowledge(projectID: string, documentID: string): $CancellablePromise<model$0.State> {
     return $Call.ByID(705125241, projectID, documentID);
 }
 
 /**
  * DeleteNode 删除节点前检查关联任务并移除节点
  */
-export function DeleteNode(kind: string, id: string): $CancellablePromise<$models.State> {
+export function DeleteNode(kind: string, id: string): $CancellablePromise<model$0.State> {
     return $Call.ByID(3191105987, kind, id);
 }
 
 /**
  * GetState 返回与内部状态隔离的工作区快照
  */
-export function GetState(): $CancellablePromise<$models.State> {
+export function GetState(): $CancellablePromise<model$0.State> {
     return $Call.ByID(975312937);
 }
 
 /**
  * GetStepContext 汇总步骤所属项目版本功能及知识上下文
  */
-export function GetStepContext(stepID: string): $CancellablePromise<$models.StepContext> {
+export function GetStepContext(stepID: string): $CancellablePromise<model$0.StepContext> {
     return $Call.ByID(3138882257, stepID);
 }
 
 /**
  * ImportMarkdown 通过原生对话框导入 Markdown 知识文档
  */
-export function ImportMarkdown(projectID: string, nodeID: string): $CancellablePromise<$models.State> {
+export function ImportMarkdown(projectID: string, nodeID: string): $CancellablePromise<model$0.State> {
     return $Call.ByID(3575395100, projectID, nodeID);
 }
 
 /**
  * MoveFeature 将功能移动到同一项目内的另一版本
  */
-export function MoveFeature(projectID: string, featureID: string, targetVersionID: string): $CancellablePromise<$models.State> {
+export function MoveFeature(projectID: string, featureID: string, targetVersionID: string): $CancellablePromise<model$0.State> {
     return $Call.ByID(1412449549, projectID, featureID, targetVersionID);
 }
 
 /**
  * MoveNode 调整项目标签版本功能或步骤的顺序
  */
-export function MoveNode(kind: string, id: string, offset: number): $CancellablePromise<$models.State> {
+export function MoveNode(kind: string, id: string, offset: number): $CancellablePromise<model$0.State> {
     return $Call.ByID(79227485, kind, id, offset);
 }
 
 /**
  * ReadKnowledge 读取当前项目、版本或功能可见的知识文档正文
  */
-export function ReadKnowledge(projectID: string, nodeID: string, documentID: string): $CancellablePromise<$models.KnowledgeContent> {
+export function ReadKnowledge(projectID: string, nodeID: string, documentID: string): $CancellablePromise<model$0.KnowledgeContent> {
     return $Call.ByID(3010315912, projectID, nodeID, documentID);
 }
 
 /**
  * SaveFeature 创建或更新版本内的功能
  */
-export function SaveFeature(projectID: string, versionID: string, input: $models.Feature): $CancellablePromise<$models.State> {
+export function SaveFeature(projectID: string, versionID: string, input: model$0.Feature): $CancellablePromise<model$0.State> {
     return $Call.ByID(662417405, projectID, versionID, input);
 }
 
 /**
  * SaveProject 创建或更新项目及其工作目录
  */
-export function SaveProject(input: $models.Project): $CancellablePromise<$models.State> {
+export function SaveProject(input: model$0.Project): $CancellablePromise<model$0.State> {
     return $Call.ByID(2756351870, input);
 }
 
 /**
  * SaveStep 创建或更新功能内的步骤
  */
-export function SaveStep(projectID: string, featureID: string, input: $models.Step): $CancellablePromise<$models.State> {
+export function SaveStep(projectID: string, featureID: string, input: model$0.Step): $CancellablePromise<model$0.State> {
     return $Call.ByID(1552424911, projectID, featureID, input);
 }
 
 /**
  * SaveTag 创建或更新项目标签
  */
-export function SaveTag(projectID: string, input: $models.Tag): $CancellablePromise<$models.State> {
+export function SaveTag(projectID: string, input: model$0.Tag): $CancellablePromise<model$0.State> {
     return $Call.ByID(1219339347, projectID, input);
 }
 
 /**
  * SaveVersion 创建或更新项目版本
  */
-export function SaveVersion(projectID: string, input: $models.Version): $CancellablePromise<$models.State> {
+export function SaveVersion(projectID: string, input: model$0.Version): $CancellablePromise<model$0.State> {
     return $Call.ByID(1471753559, projectID, input);
 }
 
 /**
  * SearchKnowledge 在当前项目、版本或功能范围内搜索知识文档
  */
-export function SearchKnowledge(projectID: string, nodeID: string, query: string): $CancellablePromise<$models.SearchMatch[] | null> {
+export function SearchKnowledge(projectID: string, nodeID: string, query: string): $CancellablePromise<model$0.SearchMatch[] | null> {
     return $Call.ByID(4135687216, projectID, nodeID, query);
 }
 
 /**
  * Select 保存当前选中的工作区节点
  */
-export function Select(id: string): $CancellablePromise<$models.State> {
+export function Select(id: string): $CancellablePromise<model$0.State> {
     return $Call.ByID(917949248, id);
 }

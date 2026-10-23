@@ -1,12 +1,9 @@
 package tasks
 
 import (
-	"errors"
-
-	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 )
-
-const stepInstructions = "你正在执行 agentor 的正式步骤。知识和产物工具的范围由宿主绑定至当前步骤。使用 read_knowledge 获取绑定文档，使用 prepare_knowledge_document / sync_knowledge_document 维护文档，使用 register_artifact 登记本次产物。遵守用户的步骤指令；不要伪造工具结果。"
 
 // RebuildStepContext 重建步骤专用会话并恢复队列处理
 func (s *Service) RebuildStepContext(stepID string) error {
@@ -18,12 +15,12 @@ func (s *Service) RebuildStepContext(stepID string) error {
 	s.mu.Lock()
 	if s.workers[featureID] {
 		s.mu.Unlock()
-		return errors.New("功能正在处理队列，请先停止后再重建")
+		return constant.ErrTasksFeatureBusy
 	}
 	for _, execution := range s.state.Executions {
-		if execution.StepID == stepID && execution.Status == "running" {
+		if execution.StepID == stepID && execution.Status == constant.TasksStatusRunning {
 			s.mu.Unlock()
-			return errors.New("请先停止当前步骤，再重建上下文")
+			return constant.ErrTasksStepBusy
 		}
 	}
 	s.workers[featureID] = true
@@ -43,11 +40,11 @@ func (s *Service) RebuildStepContext(stepID string) error {
 	if permission == "" {
 		permission = s.data.EffectivePermission(context.Step.ThreadID, context.Directory)
 	}
-	var tools []codex.DynamicToolSpec
+	var tools []codexmodel.DynamicToolSpec
 	if s.toolSpecs != nil {
-		tools = s.toolSpecs("step")
+		tools = s.toolSpecs(constant.ToolRouterRoleStep)
 	}
-	thread, err := s.runtime.CreateToolThread(context.Directory, model, permission, "step", stepInstructions, tools)
+	thread, err := s.runtime.CreateToolThread(context.Directory, model, permission, constant.WorkspaceKindStep, constant.TasksStepInstructions, tools)
 	if err != nil {
 		return err
 	}
@@ -63,7 +60,7 @@ func (s *Service) RebuildControllerContext() error {
 	s.mu.Lock()
 	if s.controllerWorker {
 		s.mu.Unlock()
-		return errors.New("请等待或停止控制中心请求，再重建上下文")
+		return constant.ErrTasksControllerBusy
 	}
 	s.controllerWorker = true
 	s.mu.Unlock()
@@ -79,11 +76,11 @@ func (s *Service) RebuildControllerContext() error {
 		return err
 	}
 	instructions := controllerPrompt(s.executorSettings(model, effort))
-	var tools []codex.DynamicToolSpec
+	var tools []codexmodel.DynamicToolSpec
 	if s.toolSpecs != nil {
-		tools = s.toolSpecs("controller")
+		tools = s.toolSpecs(constant.ToolRouterRoleController)
 	}
-	thread, err := s.runtime.CreateToolThread(s.data.GetInfo().CodexHome, model, "read-only", "controller", instructions, tools)
+	thread, err := s.runtime.CreateToolThread(s.data.GetInfo().CodexHome, model, constant.AppDataPermissionReadOnly, constant.ToolRouterRoleController, instructions, tools)
 	if err != nil {
 		return err
 	}

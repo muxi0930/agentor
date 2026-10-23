@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -16,9 +15,14 @@ import (
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
 	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	larkmodel "agentor/internal/lark/model"
 	"agentor/internal/pipeline"
 	"agentor/internal/tasks"
+	tasksmodel "agentor/internal/tasks/model"
 	"agentor/internal/workspace"
+
 	larksdk "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
@@ -28,12 +32,35 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
+// API 按职责列出服务的全部公开方法
+type API interface {
+	GetState() larkmodel.View                                                                   // 返回不包含密钥的状态快照
+	DeleteCandidate(kind, id string) error                                                      // 删除指定类型的已发现身份记录
+	SaveSettings(input larkmodel.SettingsInput) (larkmodel.View, error)                         // 保存配置成功后建立连接
+	Disconnect()                                                                                // 关闭当前长连接并取消等待
+	ServiceStartup(context.Context, application.ServiceOptions) error                           // 在应用启动时连接已配置的服务
+	ServiceShutdown() error                                                                     // 取消活动请求并关闭服务连接
+	StartPairing(senderID string) (larkmodel.Pairing, error)                                    // 为指定联系人生成一次性配对码
+	ClearBinding() error                                                                        // 解除桌面任务的远程接收者绑定
+	OnCodexEvent(event codexmodel.Event)                                                        // 处理上游事件并同步所属任务状态
+	OnNotification(notification tasksmodel.Notification)                                        // 将通知拆分为可独立跟踪的飞书发送项
+	RetryNotificationPart(id, partID string) error                                              // 仅重试明确失败的发送项
+	IgnoreNotificationPart(id, partID, reason string) error                                     // 保留用户说明并忽略失败或未知发送项
+	ConfirmNotDelivered(id, partID string) error                                                // 在用户确认未送达后允许重试未知发送项
+	ShareArtifact(artifactID string) error                                                      // 将产物发送给原任务来源或配对接收者
+	GetArtifactShareTarget(artifactID string) (tasksmodel.Source, error)                        // 查询产物将要发送的接收者
+	ShareArtifactFor(artifactID, projectID, executionID string, source tasksmodel.Source) error // 核验任务范围后登记产物分享
+	SendConnectionTest(openID string) error                                                     // 向已授权联系人登记一条连接测试消息
+}
+
+var _ API = (*Service)(nil)
+
 type Service struct {
 	mu               sync.Mutex         // 保护连接与业务状态
 	root             string             // 当前应用的飞书数据目录
 	config           credentials        // 含密钥的私有配置
 	state            records            // 接收与审批记录
-	status           Status             // 公开连接状态
+	status           larkmodel.Status   // 公开连接状态
 	ctx              context.Context    // 应用生命周期
 	cancel           context.CancelFunc // 结束应用生命周期
 	connectionCancel context.CancelFunc // 取消当前连接
@@ -44,14 +71,12 @@ type Service struct {
 	work             *workspace.Service // 工作区定义服务
 	files            *artifact.Service  // 托管附件服务
 	runtime          *codex.Service     // Codex 原生运行时
-	pairing          Pairing            // 仅内存保存的一次性配对
+	pairing          larkmodel.Pairing  // 仅内存保存的一次性配对
 	sending          map[string]bool    // 正在发送的通知
 	preparing        map[string]bool    // 正在准备分项的通知
 	approvalSession  string             // 当前进程的审批路由标识
 	pipelines        *pipeline.Service  // 流水线服务
 }
-
-type Changed struct{}
 
 type quietLogger struct{}
 
@@ -70,14 +95,14 @@ func NewService(root string, executions *tasks.Service, work *workspace.Service,
 		cancel:          cancel,
 		sending:         map[string]bool{},
 		preparing:       map[string]bool{},
-		config:          credentials{Settings: Settings{Region: "feishu"}},
-		status:          Status{Phase: "unconfigured", Message: "请配置 App ID 和 App Secret"},
+		config:          credentials{Settings: larkmodel.Settings{Region: constant.LarkRegionFeishu}},
+		status:          larkmodel.Status{Phase: constant.LarkStatusUnconfigured, Message: constant.LarkUnconfiguredMessage},
 	}
-	if err := appdata.ReadJSON(filepath.Join(s.root, "config.json"), &s.config); err != nil {
+	if err := appdata.ReadJSON(filepath.Join(s.root, constant.LarkConfigFilename), &s.config); err != nil {
 		cancel()
 		return nil, err
 	}
-	if err := appdata.ReadJSON(filepath.Join(s.root, "records.json"), &s.state); err != nil {
+	if err := appdata.ReadJSON(filepath.Join(s.root, constant.LarkRecordsFilename), &s.state); err != nil {
 		cancel()
 		return nil, err
 	}
@@ -85,14 +110,14 @@ func NewService(root string, executions *tasks.Service, work *workspace.Service,
 	changed := false
 	for i := range s.state.Incoming {
 		item := &s.state.Incoming[i]
-		if item.Status == "receiving" {
-			item.Status, item.Error = "interrupted", "应用退出时接收尚未完成，未自动重复提交"
+		if item.Status == constant.LarkStatusReceiving {
+			item.Status, item.Error = constant.LarkStatusInterrupted, constant.LarkReceiveInterruptedMessage
 			changed = true
 		}
 	}
 	for i := range s.state.Approvals {
-		if s.state.Approvals[i].Status == "pending" {
-			s.state.Approvals[i].Status = "expired"
+		if s.state.Approvals[i].Status == constant.LarkStatusPending {
+			s.state.Approvals[i].Status = constant.LarkStatusExpired
 			changed = true
 		}
 	}
@@ -103,17 +128,17 @@ func NewService(root string, executions *tasks.Service, work *workspace.Service,
 		}
 	}
 	if s.config.AppID != "" && s.config.AppSecret != "" {
-		s.status = Status{Phase: "unconfigured", Message: "等待建立连接"}
+		s.status = larkmodel.Status{Phase: constant.LarkStatusUnconfigured, Message: constant.LarkWaitingConnectionMessage}
 	}
 	return s, nil
 }
 
 // GetState 返回不包含密钥的状态快照
-func (s *Service) GetState() View {
+func (s *Service) GetState() larkmodel.View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return copyValue(View{
+	return copyValue(larkmodel.View{
 		Settings:         s.config.Settings,
 		SecretConfigured: s.config.AppSecret != "",
 		Status:           s.status,
@@ -128,10 +153,10 @@ func (s *Service) GetState() View {
 func (s *Service) DeleteCandidate(kind, id string) error {
 	s.mu.Lock()
 	next := copyValue(s.state)
-	next.Candidates = slices.DeleteFunc(next.Candidates, func(candidate Candidate) bool {
+	next.Candidates = slices.DeleteFunc(next.Candidates, func(candidate larkmodel.Candidate) bool {
 		return candidate.Kind == kind && candidate.ID == id
 	})
-	err := appdata.WriteJSON(filepath.Join(s.root, "records.json"), next)
+	err := appdata.WriteJSON(filepath.Join(s.root, constant.LarkRecordsFilename), next)
 	if err == nil {
 		s.state = next
 	}
@@ -145,9 +170,9 @@ func (s *Service) DeleteCandidate(kind, id string) error {
 }
 
 // SaveSettings 保存配置成功后建立连接
-func (s *Service) SaveSettings(input SettingsInput) (View, error) {
-	if input.Region != "feishu" && input.Region != "lark" {
-		return View{}, errors.New("区域请选择飞书或 Lark")
+func (s *Service) SaveSettings(input larkmodel.SettingsInput) (larkmodel.View, error) {
+	if input.Region != constant.LarkRegionFeishu && input.Region != "lark" {
+		return larkmodel.View{}, constant.ErrLarkRegionInvalid
 	}
 	if input.DefaultProjectID != "" {
 		found := false
@@ -157,14 +182,14 @@ func (s *Service) SaveSettings(input SettingsInput) (View, error) {
 			}
 		}
 		if !found {
-			return View{}, errors.New("默认项目不存在")
+			return larkmodel.View{}, constant.ErrLarkDefaultProjectNotFound
 		}
 	}
 	s.mu.Lock()
 	next := s.config
 	if next.AppID != input.AppID {
 		next.AppSecret = ""
-		next.Binding = tasks.Source{}
+		next.Binding = tasksmodel.Source{}
 	}
 	next.Settings = copyValue(input.Settings)
 	if input.ClearSecret {
@@ -172,13 +197,13 @@ func (s *Service) SaveSettings(input SettingsInput) (View, error) {
 	} else if input.AppSecret != "" {
 		next.AppSecret = input.AppSecret
 	}
-	err := appdata.WriteJSON(filepath.Join(s.root, "config.json"), next)
+	err := appdata.WriteJSON(filepath.Join(s.root, constant.LarkConfigFilename), next)
 	if err == nil {
 		s.config = next
 	}
 	s.mu.Unlock()
 	if err != nil {
-		return View{}, err
+		return larkmodel.View{}, err
 	}
 
 	s.connect()
@@ -193,7 +218,7 @@ func (s *Service) Disconnect() {
 	cancel, ws := s.connectionCancel, s.ws
 	s.connectionCancel, s.ws, s.client = nil, nil, nil
 	s.connectionCtx = nil
-	s.status.Phase, s.status.Message, s.status.BotOpenID = "disconnected", "连接已关闭", ""
+	s.status.Phase, s.status.Message, s.status.BotOpenID = constant.LarkStatusDisconnected, constant.LarkConnectionClosedMessage, ""
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -235,14 +260,14 @@ func (quietLogger) Warn(context.Context, ...interface{}) {}
 func (quietLogger) Error(context.Context, ...interface{}) {}
 
 // connect 启动官方 SDK 长连接
-func (s *Service) connect() Status {
+func (s *Service) connect() larkmodel.Status {
 	s.Disconnect()
 	s.mu.Lock()
 	cfg := copyValue(s.config)
 	s.status.Generation++
 	generation := s.status.Generation
 	if cfg.AppID == "" || cfg.AppSecret == "" {
-		s.status.Phase, s.status.Message = "unconfigured", "请配置 App ID 和 App Secret"
+		s.status.Phase, s.status.Message = constant.LarkStatusUnconfigured, constant.LarkUnconfiguredMessage
 		value := s.status
 		s.mu.Unlock()
 		s.changed()
@@ -251,7 +276,7 @@ func (s *Service) connect() Status {
 	ctx, cancel := context.WithCancel(s.ctx)
 	s.connectionCancel = cancel
 	s.connectionCtx = ctx
-	s.status.Phase, s.status.Message = "connecting", "正在读取机器人身份并建立长连接"
+	s.status.Phase, s.status.Message = constant.LarkStatusConnecting, constant.LarkConnectingMessage
 	value := s.status
 	s.mu.Unlock()
 	s.changed()
@@ -260,11 +285,11 @@ func (s *Service) connect() Status {
 		client := larksdk.NewClient(cfg.AppID, cfg.AppSecret,
 			larksdk.WithOpenBaseUrl(domain(cfg.Region)),
 			larksdk.WithLogger(quietLogger{}),
-			larksdk.WithHttpClient(&http.Client{Timeout: 20 * time.Second}),
+			larksdk.WithHttpClient(&http.Client{Timeout: constant.LarkHTTPTimeout}),
 		)
 		botID, err := botIdentity(ctx, client)
 		if err != nil {
-			s.setStatus(generation, "error", err.Error(), "")
+			s.setStatus(generation, constant.LarkStatusError, err.Error(), "")
 			return
 		}
 
@@ -280,24 +305,24 @@ func (s *Service) connect() Status {
 		ws := larkws.NewClient(cfg.AppID, cfg.AppSecret,
 			larkws.WithDomain(domain(cfg.Region)),
 			larkws.WithLogger(quietLogger{}),
-			larkws.WithHttpClient(&http.Client{Timeout: 20 * time.Second}),
+			larkws.WithHttpClient(&http.Client{Timeout: constant.LarkHTTPTimeout}),
 			larkws.WithEventHandler(handler),
 			larkws.WithOnReady(func() {
-				s.setStatus(generation, "ready", "长连接已建立", botID)
+				s.setStatus(generation, constant.CodexPhaseReady, constant.LarkConnectedMessage, botID)
 				go s.drain()
 			}),
 			larkws.WithOnReconnecting(func() {
-				s.setStatus(generation, "connecting", "SDK 正在重连", botID)
+				s.setStatus(generation, constant.LarkStatusConnecting, constant.LarkReconnectingMessage, botID)
 			}),
 			larkws.WithOnReconnected(func() {
-				s.setStatus(generation, "ready", "长连接已恢复", botID)
+				s.setStatus(generation, constant.CodexPhaseReady, constant.LarkReconnectedMessage, botID)
 				go s.drain()
 			}),
 			larkws.WithOnError(func(err error) {
-				s.setStatus(generation, "error", err.Error(), botID)
+				s.setStatus(generation, constant.LarkStatusError, err.Error(), botID)
 			}),
 			larkws.WithOnDisconnected(func() {
-				s.setStatus(generation, "disconnected", "长连接已断开", botID)
+				s.setStatus(generation, constant.LarkStatusDisconnected, constant.LarkDisconnectedMessage, botID)
 			}),
 		)
 		handler.Config.Logger = quietLogger{}
@@ -312,7 +337,7 @@ func (s *Service) connect() Status {
 		s.mu.Unlock()
 
 		if err := ws.Start(ctx); err != nil && ctx.Err() == nil {
-			s.setStatus(generation, "error", err.Error(), botID)
+			s.setStatus(generation, constant.LarkStatusError, err.Error(), botID)
 		}
 	}()
 	return value
@@ -320,7 +345,7 @@ func (s *Service) connect() Status {
 
 // init 注册业务变更事件
 func init() {
-	application.RegisterEvent[Changed]("lark:changed")
+	application.RegisterEvent[larkmodel.Changed](constant.LarkChangedEvent)
 }
 
 // now 返回当前 UTC 时间
@@ -338,7 +363,7 @@ func copyValue[T any](value T) T {
 
 // persistLocked 在持有状态锁时保存记录
 func (s *Service) persistLocked() error {
-	return appdata.WriteJSON(filepath.Join(s.root, "records.json"), s.state)
+	return appdata.WriteJSON(filepath.Join(s.root, constant.LarkRecordsFilename), s.state)
 }
 
 // changed 发布状态变更事件
@@ -347,7 +372,7 @@ func (s *Service) changed() {
 		return
 	}
 	if app := application.Get(); app != nil {
-		app.Event.Emit("lark:changed", Changed{})
+		app.Event.Emit(constant.LarkChangedEvent, larkmodel.Changed{})
 	}
 }
 

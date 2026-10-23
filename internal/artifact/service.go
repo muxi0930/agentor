@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,8 +15,37 @@ import (
 	"time"
 
 	"agentor/internal/appdata"
+	"agentor/internal/constant"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+// API 按职责列出服务的全部公开方法
+type API interface {
+	ImportFile(threadID, path string) (Attachment, error)                                     // 复制本地文件至应用附件目录
+	ChooseFiles(threadID string) ([]Attachment, error)                                        // 通过原生对话框选择会话输入文件
+	SavePastedImage(threadID, name, encoded string) (Attachment, error)                       // 解码并保存 WebView 粘贴的图片
+	GetAttachments(threadID string) []Attachment                                              // 按创建顺序读取当前会话附件
+	ResolveInputs(threadID string, ids []string) ([]Attachment, error)                        // 核验输入附件属于当前会话且已经可用
+	BindTurn(threadID, turnID, messageID string, ids []string) error                          // 将附件绑定到实际发送的用户消息
+	OpenAttachment(id string) error                                                           // 通过系统应用打开附件
+	LocateAttachment(id string) error                                                         // 在文件管理器定位附件
+	Middleware(next http.Handler) http.Handler                                                // 向 WebView 提供已登记的附件资源
+	DiscardDraftAttachment(id string) error                                                   // 只清理尚未发送的应用托管附件副本
+	CreateHTMLPreview(threadID, source string) (string, error)                                // 创建随消息视图挂载的临时预览，源码仍保留在 Codex 历史中
+	ReleaseHTMLPreview(url string)                                                            // 释放消息视图不再使用的临时预览
+	RegisterProduced(owner ProducedOwner, path, directory string) (Attachment, error)         // 将项目目录内的文件登记为指定任务的产物
+	GetExecutionArtifacts(executionID string) []Attachment                                    // 按创建顺序读取指定步骤执行的产物
+	SavePipelineReport(runID, projectID, requestID, name, content string) (Attachment, error) // 将 Markdown 报告保存为指定流水线运行的产物
+	GetPipelineArtifacts(runID string) []Attachment                                           // 读取指定流水线运行的产物
+	SaveRequestInput(requestID, name, mediaType string, input io.Reader) (Attachment, error)  // 保存远程请求的独立输入附件
+	RecordFailedInput(requestID, name, reason string) error                                   // 保留未下载成功的附件及原因
+	GetRequestAttachments(requestID string) []Attachment                                      // 按接收顺序读取请求原始附件
+	CopyRequestInputs(requestID, threadID, executionID, stepID string) ([]string, error)      // 为每次执行复制输入以保留独立归属
+	GetAttachment(id string) (Attachment, error)                                              // 按稳定标识读取附件记录
+}
+
+var _ API = (*Service)(nil)
 
 type Attachment struct {
 	PipelineRunID string `json:"pipelineRunId"` // 所属流水线运行
@@ -50,18 +78,18 @@ type Service struct {
 
 // NewService 初始化服务并读取本地记录
 func NewService(dataDirectory string) (*Service, error) {
-	s := &Service{root: filepath.Join(dataDirectory, "attachments"), items: make(map[string]Attachment), previews: make(map[string]string)}
+	s := &Service{root: filepath.Join(dataDirectory, constant.ArtifactDirectoryName), items: make(map[string]Attachment), previews: make(map[string]string)}
 	if err := os.MkdirAll(s.root, 0700); err != nil {
 		return nil, err
 	}
-	if err := appdata.ReadJSON(filepath.Join(s.root, "index.json"), &s.items); err != nil {
+	if err := appdata.ReadJSON(filepath.Join(s.root, constant.ArtifactIndexFilename), &s.items); err != nil {
 		return nil, err
 	}
 
 	changed := false
 	for id, item := range s.items {
-		if item.Status == "pending" {
-			item.Status, item.Error = "failed", "上次文件导入被中断"
+		if item.Status == constant.ArtifactStatusPending {
+			item.Status, item.Error = constant.ArtifactStatusFailed, constant.ArtifactImportInterruptedMessage
 			s.items[id] = item
 			changed = true
 		}
@@ -89,7 +117,7 @@ func (s *Service) ImportFile(threadID, path string) (Attachment, error) {
 		return Attachment{}, err
 	}
 	if !info.Mode().IsRegular() {
-		return Attachment{}, errors.New("请选择普通文件")
+		return Attachment{}, constant.ErrArtifactRegularFileRequired
 	}
 
 	header := make([]byte, 512)
@@ -126,12 +154,12 @@ func (s *Service) ChooseFiles(threadID string) ([]Attachment, error) {
 func (s *Service) SavePastedImage(threadID, name, encoded string) (Attachment, error) {
 	data, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return Attachment{}, errors.New("图片数据无法读取")
+		return Attachment{}, constant.ErrArtifactImageDataInvalid
 	}
 
 	mediaType := http.DetectContentType(data)
 	if !strings.HasPrefix(mediaType, "image/") {
-		return Attachment{}, errors.New("剪贴板内容不是支持的图片")
+		return Attachment{}, constant.ErrArtifactImageTypeUnsupported
 	}
 	return s.save(threadID, name, "clipboard", mediaType, bytes.NewReader(data))
 }
@@ -162,9 +190,9 @@ func (s *Service) ResolveInputs(threadID string, ids []string) ([]Attachment, er
 	for _, id := range ids {
 		item, found := s.items[id]
 		if !found || item.ThreadID != threadID {
-			return nil, errors.New("附件不属于当前会话")
+			return nil, constant.ErrArtifactAttachmentOutsideThread
 		}
-		if item.Status != "ready" {
+		if item.Status != constant.ArtifactStatusReady {
 			return nil, fmt.Errorf("附件 %s 尚未准备好: %s", item.Name, item.Error)
 		}
 		items = append(items, item)
@@ -185,7 +213,7 @@ func (s *Service) BindTurn(threadID, turnID, messageID string, ids []string) err
 	for _, id := range ids {
 		item, found := s.items[id]
 		if !found || item.ThreadID != threadID {
-			return errors.New("附件不属于当前会话")
+			return constant.ErrArtifactAttachmentOutsideThread
 		}
 		item.TurnID, item.MessageID = turnID, messageID
 		s.items[id] = item
@@ -198,8 +226,8 @@ func (s *Service) OpenAttachment(id string) error {
 	s.mu.Lock()
 	item, found := s.items[id]
 	s.mu.Unlock()
-	if !found || item.Status != "ready" {
-		return errors.New("附件不可用")
+	if !found || item.Status != constant.ArtifactStatusReady {
+		return constant.ErrArtifactAttachmentUnavailable
 	}
 	return application.Get().Browser.OpenFile(item.LocalPath)
 }
@@ -210,7 +238,7 @@ func (s *Service) LocateAttachment(id string) error {
 	item, found := s.items[id]
 	s.mu.Unlock()
 	if !found {
-		return errors.New("附件不存在")
+		return constant.ErrArtifactAttachmentNotFound
 	}
 	return application.Get().Env.OpenFileManager(item.LocalPath, true)
 }
@@ -235,7 +263,7 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		s.mu.Lock()
 		item, found := s.items[id]
 		s.mu.Unlock()
-		if !found || item.Status != "ready" {
+		if !found || item.Status != constant.ArtifactStatusReady {
 			http.NotFound(w, request)
 			return
 		}
@@ -264,7 +292,7 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 
 // persist 保存附件索引
 func (s *Service) persist() error {
-	return appdata.WriteJSON(filepath.Join(s.root, "index.json"), s.items)
+	return appdata.WriteJSON(filepath.Join(s.root, constant.ArtifactIndexFilename), s.items)
 }
 
 // save 保存会话输入附件
@@ -275,12 +303,12 @@ func (s *Service) save(threadID, name, source, mediaType string, input io.Reader
 // saveOwned 保存已有业务归属的托管附件
 func (s *Service) saveOwned(owner Attachment, name, mediaType string, input io.Reader) (Attachment, error) {
 	if owner.ThreadID == "" && owner.RequestID == "" {
-		return Attachment{}, errors.New("附件缺少会话或请求归属")
+		return Attachment{}, constant.ErrArtifactAttachmentOwnerRequired
 	}
 
 	name = filepath.Base(name)
 	if name == "" || name == "." {
-		return Attachment{}, errors.New("文件名不能为空")
+		return Attachment{}, constant.ErrArtifactFilenameRequired
 	}
 
 	id := rand.Text()
@@ -290,7 +318,7 @@ func (s *Service) saveOwned(owner Attachment, name, mediaType string, input io.R
 	}
 
 	item := owner
-	item.ID, item.Name, item.MediaType, item.Status = id, name, mediaType, "pending"
+	item.ID, item.Name, item.MediaType, item.Status = id, name, mediaType, constant.ArtifactStatusPending
 	item.LocalPath, item.URL, item.CreatedAt = filepath.Join(directory, name), "/agentor/attachments/"+id, time.Now().UTC().Format(time.RFC3339Nano)
 	s.mu.Lock()
 	s.items[id] = item
@@ -310,9 +338,9 @@ func (s *Service) saveOwned(owner Attachment, name, mediaType string, input io.R
 	}
 
 	if err != nil {
-		item.Status, item.Error = "failed", err.Error()
+		item.Status, item.Error = constant.ArtifactStatusFailed, err.Error()
 	} else {
-		item.Status = "ready"
+		item.Status = constant.ArtifactStatusReady
 	}
 	s.mu.Lock()
 	s.items[id] = item

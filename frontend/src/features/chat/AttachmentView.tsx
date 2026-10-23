@@ -2,7 +2,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { useEffect, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import * as Lark from "../../../bindings/agentor/internal/lark/service";
-import type { Source } from "../../../bindings/agentor/internal/tasks/models";
+import type { Source } from "../../../bindings/agentor/internal/tasks/model/models";
 import { ExternalLink, FileText, FolderOpen, X } from "lucide-react";
 import type { Attachment as AttachmentData } from "../../../bindings/agentor/internal/artifact/models";
 import * as Files from "../../../bindings/agentor/internal/artifact/service";

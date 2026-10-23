@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as Lark from "../../../bindings/agentor/internal/lark/service";
-import type { NotificationPart } from "../../../bindings/agentor/internal/tasks/models";
+import type { NotificationPart } from "../../../bindings/agentor/internal/tasks/model/models";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";

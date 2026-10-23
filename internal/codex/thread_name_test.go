@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	codexmodel "agentor/internal/codex/model"
 )
 
 // TestManagedThreadNames 验证业务会话创建后设置固定标题前缀且普通会话不改名
@@ -56,7 +58,7 @@ func TestManagedThreadNames(t *testing.T) {
 					response := packet{ID: request.ID}
 					switch request.Method {
 					case "thread/start":
-						response.Result, _ = json.Marshal(map[string]any{"thread": Thread{ID: "new-thread", Cwd: cwd, Name: test.title, Preview: test.preview}})
+						response.Result, _ = json.Marshal(map[string]any{"thread": codexmodel.Thread{ID: "new-thread", Cwd: cwd, Name: test.title, Preview: test.preview}})
 					case "thread/name/set":
 						var params map[string]string
 						json.Unmarshal(request.Params, &params)
@@ -100,7 +102,7 @@ func TestManagedThreadNameUpdates(t *testing.T) {
 		t.Run(role, func(t *testing.T) {
 			s := accountFixture(t)
 			var upstreamMu sync.Mutex
-			upstream := Thread{ID: "new-thread", Cwd: t.TempDir()}
+			upstream := codexmodel.Thread{ID: "new-thread", Cwd: t.TempDir()}
 			reader, writer := io.Pipe()
 			defer reader.Close()
 			defer writer.Close()

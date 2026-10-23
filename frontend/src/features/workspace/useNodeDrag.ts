@@ -1,5 +1,5 @@
 import { useRef, useState, type HTMLAttributes } from "react";
-import type { State } from "../../../bindings/agentor/internal/workspace/models";
+import type { State } from "../../../bindings/agentor/internal/workspace/model/models";
 import { locate, type NodeKind } from "./selection";
 import { nodeMove } from "./reorder";
 

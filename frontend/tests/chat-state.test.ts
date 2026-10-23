@@ -35,7 +35,7 @@ test("occupied history stays readable while sending is blocked until reopened", 
   assert.equal(inputStatus(false, updated), "已在另一个应用中打开");
   assert.equal(inputStatus(false, { ...updated, readOnly: false }), "");
 });
-import type { Item, Turn } from "../bindings/agentor/internal/codex/models.ts";
+import type { Item, Turn } from "../bindings/agentor/internal/codex/model/models.ts";
 
 const user = { id: "client-1", clientId: "client-1", type: "userMessage", content: [{ type: "text", text: "Color?" }] } as Item;
 const agent = { id: "agent-1", clientId: "", type: "agentMessage", text: "Blue" } as Item;

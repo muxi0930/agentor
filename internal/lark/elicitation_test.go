@@ -12,7 +12,10 @@ import (
 
 	"agentor/internal/appdata"
 	"agentor/internal/codex"
-	"agentor/internal/tasks"
+	codexmodel "agentor/internal/codex/model"
+	larkmodel "agentor/internal/lark/model"
+	tasksmodel "agentor/internal/tasks/model"
+
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 )
 
@@ -77,7 +80,7 @@ func TestElicitationCardQuickAccept(t *testing.T) {
 		{"unknown-mode", "unknown", `{"type":"object","properties":{}}`, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			approval := codex.Approval{ID: "4", Method: "mcpServer/elicitation/request", Mode: test.mode, Message: `Allow Computer Use to use "agentor"?`, SchemaJSON: test.schema}
+			approval := codexmodel.Approval{ID: "4", Method: "mcpServer/elicitation/request", Mode: test.mode, Message: `Allow Computer Use to use "agentor"?`, SchemaJSON: test.schema}
 			initial := approvalCard(approval, "route")
 			elements := initial["body"].(map[string]any)["elements"].([]any)
 			decisions := map[string]string{}
@@ -150,8 +153,8 @@ func TestElicitationCardCallback(t *testing.T) {
 			}
 			wait(t, func() bool { return len(s.runtime.GetApprovals()) == 1 })
 			approval := s.runtime.GetApprovals()[0]
-			source := tasks.Source{Type: "lark", AppID: "test-app", ChatID: "chat", SenderID: "test-user", ChatType: "p2p", MessageID: "original"}
-			s.state.Approvals = []ApprovalRoute{{Key: "route", ApprovalID: approval.ID, Generation: status.Generation, Source: source, Status: "pending"}}
+			source := tasksmodel.Source{Type: "lark", AppID: "test-app", ChatID: "chat", SenderID: "test-user", ChatType: "p2p", MessageID: "original"}
+			s.state.Approvals = []larkmodel.ApprovalRoute{{Key: "route", ApprovalID: approval.ID, Generation: status.Generation, Source: source, Status: "pending"}}
 			if _, err := os.Stat(output); !os.IsNotExist(err) || approval.Status != "pending" {
 				t.Fatal("用户点击前不应自动回复")
 			}

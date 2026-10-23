@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, FileUp, Search, Trash2 } from "lucide-react";
 import * as Work from "../../../bindings/agentor/internal/workspace/service";
-import type { Document, Feature, KnowledgeContent, Project, SearchMatch, State, Version } from "../../../bindings/agentor/internal/workspace/models";
+import type { Document, Feature, KnowledgeContent, Project, SearchMatch, State, Version } from "../../../bindings/agentor/internal/workspace/model/models";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

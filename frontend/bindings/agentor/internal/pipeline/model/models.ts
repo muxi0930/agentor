@@ -3,7 +3,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as tasks$0 from "../tasks/models.js";
+import * as model$0 from "../../tasks/model/models.js";
 
 export interface Action {
     /**
@@ -167,7 +167,7 @@ export interface Run {
     /**
      * 任务请求来源
      */
-    "source": tasks$0.Source;
+    "source": model$0.Source;
 
     /**
      * 关联的外部请求标识
@@ -239,7 +239,7 @@ export interface RunInput {
     /**
      * 任务请求来源
      */
-    "source": tasks$0.Source;
+    "source": model$0.Source;
 
     /**
      * 关联的外部请求标识
@@ -358,7 +358,7 @@ export interface SessionInput {
     /**
      * 会话请求来源
      */
-    "source": tasks$0.Source;
+    "source": model$0.Source;
 
     /**
      * 关联的外部请求标识

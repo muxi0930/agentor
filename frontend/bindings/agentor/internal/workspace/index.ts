@@ -5,16 +5,3 @@ import * as Service from "./service.js";
 export {
     Service
 };
-
-export type {
-    Document,
-    Feature,
-    KnowledgeContent,
-    Project,
-    SearchMatch,
-    State,
-    Step,
-    StepContext,
-    Tag,
-    Version
-} from "./models.js";

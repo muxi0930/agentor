@@ -3,7 +3,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as tasks$0 from "../tasks/models.js";
+import * as model$0 from "../../tasks/model/models.js";
 
 export interface ApprovalRoute {
     /**
@@ -29,7 +29,7 @@ export interface ApprovalRoute {
     /**
      * 原始消息来源
      */
-    "source": tasks$0.Source;
+    "source": model$0.Source;
 
     /**
      * 对应通知
@@ -83,7 +83,7 @@ export interface Incoming {
     /**
      * 原始消息来源
      */
-    "source": tasks$0.Source;
+    "source": model$0.Source;
 
     /**
      * 预留的统一请求标识
@@ -238,7 +238,7 @@ export interface View {
     /**
      * 桌面任务的配对接收者
      */
-    "binding": tasks$0.Source;
+    "binding": model$0.Source;
 
     /**
      * 仅身份信息的候选列表

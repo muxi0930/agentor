@@ -1,11 +1,10 @@
 package codex
 
 import (
-	"errors"
 	"slices"
-)
 
-const ThreadSubscriptionLimit = 50 // 普通会话订阅上限，与前端历史缓存保持一致
+	"agentor/internal/constant"
+)
 
 // EnsureOpen 在正式执行前恢复线程，已打开的新线程无需读取尚未落盘的历史
 //
@@ -34,7 +33,7 @@ func (s *Service) ensureOpen(threadID string) error {
 	if err != nil {
 		return err
 	}
-	if err := s.call("thread/resume", params, nil); err != nil {
+	if err := s.call(constant.CodexMethodThreadResume, params, nil); err != nil {
 		return err
 	}
 
@@ -54,7 +53,7 @@ func (s *Service) makeSubscriptionRoom(threadID string) error {
 	}
 
 	s.mu.Lock()
-	if len(s.subscriptions) < ThreadSubscriptionLimit {
+	if len(s.subscriptions) < constant.CodexThreadSubscriptionLimit {
 		s.mu.Unlock()
 		return nil
 	}
@@ -68,7 +67,7 @@ func (s *Service) makeSubscriptionRoom(threadID string) error {
 	}
 	s.mu.Unlock()
 	if oldest == "" {
-		return errors.New("普通会话订阅已达 50 条，且全部正在运行，请等待会话结束后重试")
+		return constant.ErrCodexSubscriptionLimit
 	}
 
 	return s.unsubscribeThread(oldest)
@@ -79,7 +78,7 @@ func (s *Service) unsubscribeThread(threadID string) error {
 	s.mu.Lock()
 	generation := s.status.Generation
 	s.mu.Unlock()
-	if err := s.call("thread/unsubscribe", map[string]string{"threadId": threadID}, nil); err != nil {
+	if err := s.call(constant.CodexMethodThreadUnsubscribe, map[string]string{"threadId": threadID}, nil); err != nil {
 		return err
 	}
 
@@ -111,7 +110,7 @@ func (s *Service) resumeParameters(threadID string) (map[string]any, error) {
 	}
 
 	params["modelProvider"] = "openai"
-	if stored.Profile.Type == "api" {
+	if stored.Profile.Type == constant.CodexAccountTypeAPI {
 		params["modelProvider"] = "agentor_api"
 	}
 	if settings.Model != "" {

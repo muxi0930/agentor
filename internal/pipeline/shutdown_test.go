@@ -3,13 +3,15 @@ package pipeline
 import (
 	"testing"
 	"time"
+
+	pipelinemodel "agentor/internal/pipeline/model"
 )
 
 // TestShutdownWaitsForWorkAndCancelsEveryQueue 验证流水线退出等待后台结束并取消所有排队项
 func TestShutdownWaitsForWorkAndCancelsEveryQueue(t *testing.T) {
 	s, _ := fixture(t)
-	s.state.Runs = []Run{{ID: "running", Status: "running", Actions: []ActionResult{{ID: "action", Status: "running"}}}, {ID: "queued", Status: "queued"}}
-	s.state.Requests = []SessionRequest{{ID: "request", Status: "queued"}}
+	s.state.Runs = []pipelinemodel.Run{{ID: "running", Status: "running", Actions: []pipelinemodel.ActionResult{{ID: "action", Status: "running"}}}, {ID: "queued", Status: "queued"}}
+	s.state.Requests = []pipelinemodel.SessionRequest{{ID: "request", Status: "queued"}}
 	s.workerGroup.Add(1)
 	release := make(chan struct{})
 	go func() {

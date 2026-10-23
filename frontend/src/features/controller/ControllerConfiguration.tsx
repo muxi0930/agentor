@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Data from "../../../bindings/agentor/internal/appdata/service";
-import type { ControllerSettings, Settings } from "../../../bindings/agentor/internal/appdata/models";
-import type { Model } from "../../../bindings/agentor/internal/codex/models";
+import type { ControllerSettings, Settings } from "../../../bindings/agentor/internal/appdata/model/models";
+import type { Model } from "../../../bindings/agentor/internal/codex/model/models";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";

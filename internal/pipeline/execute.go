@@ -2,19 +2,19 @@ package pipeline
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 
-	"agentor/internal/tasks"
+	"agentor/internal/constant"
+	pipelinemodel "agentor/internal/pipeline/model"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // execute 执行当前任务并保存动作或轮次结果
-func (s *Service) execute(ctx context.Context, run Run) {
+func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 	defer s.workerGroup.Done()
 
-	err := s.updateRun(run.ID, func(record *Run) { record.Status = "running" })
+	err := s.updateRun(run.ID, func(record *pipelinemodel.Run) { record.Status = constant.TasksStatusRunning })
 	s.changed()
 	results := map[string]any{}
 	for _, action := range run.Task.Actions {
@@ -32,8 +32,8 @@ func (s *Service) execute(ctx context.Context, run Run) {
 			break
 		}
 
-		record := ActionResult{ID: action.ID, Type: action.Type, Status: "running", Inputs: params, StartedAt: now()}
-		err = s.updateRun(run.ID, func(value *Run) { value.Actions = append(value.Actions, record) })
+		record := pipelinemodel.ActionResult{ID: action.ID, Type: action.Type, Status: constant.TasksStatusRunning, Inputs: params, StartedAt: now()}
+		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Actions = append(value.Actions, record) })
 		s.changed()
 		if err != nil {
 			break
@@ -42,18 +42,18 @@ func (s *Service) execute(ctx context.Context, run Run) {
 		var output any
 		output, err = s.perform(ctx, run, action.Type, params)
 		record.Output, record.CompletedAt = output, now()
-		record.Status = "completed"
+		record.Status = constant.TasksStatusCompleted
 		if err != nil {
-			record.Status = "error"
+			record.Status = constant.TasksStatusError
 			record.Error = err.Error()
 			if ctx.Err() != nil {
-				record.Status = "interrupted"
+				record.Status = constant.TasksStatusInterrupted
 			}
 		}
 
-		saveErr := s.updateRun(run.ID, func(value *Run) {
+		saveErr := s.updateRun(run.ID, func(value *pipelinemodel.Run) {
 			value.Actions[len(value.Actions)-1] = record
-			if action.Type == "report.write" && err == nil {
+			if action.Type == constant.PipelineActionWriteReport && err == nil {
 				value.ArtifactIDs = append(value.ArtifactIDs, output.(map[string]any)["artifactId"].(string))
 			}
 		})
@@ -65,15 +65,15 @@ func (s *Service) execute(ctx context.Context, run Run) {
 		results[action.ID] = output
 	}
 
-	status := "completed"
+	status := constant.TasksStatusCompleted
 	if err != nil {
-		status = "error"
+		status = constant.TasksStatusError
 		if ctx.Err() != nil {
-			status = "interrupted"
+			status = constant.TasksStatusInterrupted
 		}
 	}
 
-	s.updateRun(run.ID, func(value *Run) {
+	s.updateRun(run.ID, func(value *pipelinemodel.Run) {
 		value.Status, value.CompletedAt = status, now()
 		if err != nil {
 			value.Error = err.Error()
@@ -94,20 +94,20 @@ func (s *Service) execute(ctx context.Context, run Run) {
 
 	s.changed()
 	var summary strings.Builder
-	fmt.Fprintf(&summary, "流水线 **%s**：%s\n\n", run.Task.Name, status)
+	fmt.Fprintf(&summary, constant.PipelineReportHeaderTemplate, run.Task.Name, status)
 	for _, action := range run.Actions {
 		fmt.Fprintf(&summary, "- %s (%s)：%s\n", action.ID, action.Type, action.Status)
 	}
 
 	if err != nil {
-		fmt.Fprintf(&summary, "\n错误：%s\n", err)
+		fmt.Fprintf(&summary, constant.PipelineReportErrorTemplate, err)
 	}
 
 	for _, id := range run.ArtifactIDs {
-		fmt.Fprintf(&summary, "\n报告产物：%s\n", id)
+		fmt.Fprintf(&summary, constant.PipelineReportArtifactsTemplate, id)
 	}
 
-	s.tasks.RecordNotification(tasks.Notification{
+	s.tasks.RecordNotification(tasksmodel.Notification{
 		Title:         run.Task.Name + " · " + status,
 		Body:          summary.String(),
 		PipelineRunID: run.ID,
@@ -115,18 +115,18 @@ func (s *Service) execute(ctx context.Context, run Run) {
 		Source:        run.Source,
 		RequestID:     run.RequestID,
 	})
-	s.tasks.ReportExternalResult(run.RequestID, "pipeline_result", run.ID, run.ProjectID, summary.String())
+	s.tasks.ReportExternalResult(run.RequestID, constant.TasksRequestKindPipelineResult, run.ID, run.ProjectID, summary.String())
 	s.reportRun(run, summary.String())
 }
 
 // perform 调用当前固定动作并返回其结果
-func (s *Service) perform(ctx context.Context, run Run, kind string, params map[string]any) (any, error) {
+func (s *Service) perform(ctx context.Context, run pipelinemodel.Run, kind string, params map[string]any) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	switch kind {
-	case "workspace.snapshot":
+	case constant.PipelineActionSnapshot:
 		project, err := s.project(run.ProjectID)
 		if err != nil {
 			return nil, err
@@ -157,7 +157,7 @@ func (s *Service) perform(ctx context.Context, run Run, kind string, params map[
 
 		project.Versions = versions
 		if !matchedVersion || !matchedFeature {
-			return nil, errors.New("版本或功能不属于当前项目")
+			return nil, constant.ErrPipelineNodeOutsideProject
 		}
 
 		states := map[string]string{}
@@ -168,23 +168,23 @@ func (s *Service) perform(ctx context.Context, run Run, kind string, params map[
 		}
 
 		return map[string]any{"project": project, "stepStatuses": states}, nil
-	case "knowledge.read":
+	case constant.PipelineActionReadKnowledge:
 		return s.work.ReadKnowledge(run.ProjectID, stringParam(params, "featureId"), stringParam(params, "documentId"))
-	case "step.run":
+	case constant.PipelineActionRunStep:
 		stepContext, err := s.work.GetStepContext(stringParam(params, "stepId"))
 		if err != nil {
 			return nil, err
 		}
 
 		if stepContext.ProjectID != run.ProjectID {
-			return nil, errors.New("步骤不属于当前流水线项目")
+			return nil, constant.ErrPipelineStepOutsidePipelineProject
 		}
 
 		if err = ctx.Err(); err != nil {
 			return nil, err
 		}
 
-		execution, err := s.tasks.Dispatch(tasks.DispatchInput{
+		execution, err := s.tasks.Dispatch(tasksmodel.DispatchInput{
 			AttachmentRequestID: run.RequestID,
 			StepID:              stepContext.Step.ID,
 			Instruction:         stringParam(params, "instruction"),
@@ -201,7 +201,7 @@ func (s *Service) perform(ctx context.Context, run Run, kind string, params map[
 		result, err := s.tasks.WaitExecution(ctx, execution.ID)
 		if err != nil {
 			s.tasks.StopExecution(execution.ID)
-			cleanup, cancel := context.WithTimeout(s.ctx, 20*time.Second)
+			cleanup, cancel := context.WithTimeout(s.ctx, constant.PipelineActionCleanupTimeout)
 			defer cancel()
 			s.tasks.WaitExecution(cleanup, execution.ID)
 			return nil, err
@@ -213,12 +213,12 @@ func (s *Service) perform(ctx context.Context, run Run, kind string, params map[
 		}
 
 		output := map[string]any{"executionId": result.ID, "status": result.Status, "result": result.Result, "artifactIds": ids}
-		if result.Status != "completed" {
+		if result.Status != constant.TasksStatusCompleted {
 			return output, fmt.Errorf("步骤 %s：%s %s", result.Context.Step.Title, result.Status, result.Error)
 		}
 
 		return output, nil
-	case "report.write":
+	case constant.PipelineActionWriteReport:
 		name := stringParam(params, "fileName")
 		if err := reportName(name); err != nil {
 			return nil, err
@@ -232,5 +232,5 @@ func (s *Service) perform(ctx context.Context, run Run, kind string, params map[
 		return map[string]any{"artifactId": item.ID, "fileName": item.Name}, nil
 	}
 
-	return nil, errors.New("未知固定动作")
+	return nil, constant.ErrPipelineActionUnknown
 }

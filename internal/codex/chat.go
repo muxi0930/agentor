@@ -2,142 +2,18 @@ package codex
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
 )
-
-type ReasoningOption struct {
-	ReasoningEffort string `json:"reasoningEffort"` // 支持的思考强度
-	Description     string `json:"description"`     // 说明文字
-}
-
-type ModelServiceTier struct {
-	ID          string `json:"id"`          // 速度档位标识
-	Name        string `json:"name"`        // 速度档位名称
-	Description string `json:"description"` // 速度档位说明
-}
-
-type Model struct {
-	ID                        string             `json:"id"`                        // 模型目录标识
-	Model                     string             `json:"model"`                     // 模型标识
-	DisplayName               string             `json:"displayName"`               // 模型显示名称
-	Description               string             `json:"description"`               // 说明文字
-	IsDefault                 bool               `json:"isDefault"`                 // 是否为默认模型
-	Hidden                    bool               `json:"hidden"`                    // 是否在模型列表中隐藏
-	DefaultReasoningEffort    string             `json:"defaultReasoningEffort"`    // 模型默认思考强度
-	SupportedReasoningEfforts []ReasoningOption  `json:"supportedReasoningEfforts"` // 模型支持的思考强度
-	InputModalities           []string           `json:"inputModalities"`           // 模型支持的输入类型
-	ServiceTiers              []ModelServiceTier `json:"serviceTiers"`              // 模型支持的速度档位
-}
-
-type ThreadStatus struct {
-	Type string `json:"type"` // 会话状态类型
-}
-
-type Thread struct {
-	ID         string       `json:"id"`         // 会话标识
-	Name       string       `json:"name"`       // 会话标题
-	Preview    string       `json:"preview"`    // 会话预览文字
-	Cwd        string       `json:"cwd"`        // 执行目录
-	Model      string       `json:"model"`      // 模型标识
-	Originator string       `json:"originator"` // 会话创建来源标识
-	CreatedAt  int64        `json:"createdAt"`  // 创建时间
-	UpdatedAt  int64        `json:"updatedAt"`  // 最后更新时间
-	Status     ThreadStatus `json:"status"`     // 当前处理状态
-}
-
-type ThreadPage struct {
-	Data       []Thread `json:"data"`       // 当前分页数据
-	NextCursor *string  `json:"nextCursor"` // 下一页游标
-}
-
-type Input struct {
-	Type string `json:"type"`           // 输入类型
-	Text string `json:"text,omitempty"` // 文字内容
-	Path string `json:"path,omitempty"` // 本地资源路径
-}
-
-type Item struct {
-	ID               string       `json:"id"`                   // 消息或过程节点标识
-	ClientID         string       `json:"clientId"`             // 客户端消息标识
-	Type             string       `json:"type"`                 // 消息或过程节点类型
-	Text             string       `json:"text"`                 // 文字内容
-	Phase            string       `json:"phase"`                // 助手消息阶段
-	Content          []Input      `json:"content"`              // 用户输入内容
-	Command          string       `json:"command"`              // 待执行命令
-	AggregatedOutput string       `json:"aggregatedOutput"`     // 累计命令输出
-	Status           string       `json:"status"`               // 当前处理状态
-	ExitCode         *int         `json:"exitCode"`             // 命令退出码
-	Summary          []string     `json:"summary"`              // 思考摘要分段
-	ReasoningContent []string     `json:"reasoningContent"`     // 上游提供的思考内容分段
-	DurationMs       *int64       `json:"durationMs,omitempty"` // 执行耗时毫秒数
-	Changes          []FileChange `json:"changes,omitempty"`    // 文件变更明细
-	Path             string       `json:"path,omitempty"`       // 本地资源路径
-	Query            string       `json:"query,omitempty"`      // 搜索关键词
-	Server           string       `json:"server,omitempty"`     // MCP 服务名称
-	Tool             string       `json:"tool,omitempty"`       // 宿主工具名称
-	Details          string       `json:"details,omitempty"`    // 补充请求详情
-}
-
-type FileChangeKind struct {
-	Type     string `json:"type"`                // 文件变更类型
-	MovePath string `json:"move_path,omitempty"` // 移动后的文件路径
-}
-
-type FileChange struct {
-	Path string         `json:"path"` // 本地资源路径
-	Kind FileChangeKind `json:"kind"` // 文件变更类型
-	Diff string         `json:"diff"` // 文件变更补丁
-}
-
-type TurnError struct {
-	Message string `json:"message"` // 可读提示信息
-}
-
-type Turn struct {
-	ID          string     `json:"id"`                    // 轮次标识
-	Status      string     `json:"status"`                // 当前处理状态
-	Items       []Item     `json:"items"`                 // 本轮消息与过程节点
-	Error       *TurnError `json:"error"`                 // 失败原因
-	StartedAt   *int64     `json:"startedAt,omitempty"`   // 开始时间
-	CompletedAt *int64     `json:"completedAt,omitempty"` // 完成时间
-	DurationMs  *int64     `json:"durationMs,omitempty"`  // 执行耗时毫秒数
-}
-
-type TurnPage struct {
-	Data       []Turn  `json:"data"`       // 当前分页数据
-	NextCursor *string `json:"nextCursor"` // 下一页游标
-}
-
-type Conversation struct {
-	Thread       Thread      `json:"thread"`               // 原生会话元信息
-	Turns        TurnPage    `json:"turns"`                // 会话轮次分页
-	ActiveTurnID string      `json:"activeTurnId"`         // 当前活动轮次标识
-	ReadOnly     bool        `json:"readOnly"`             // 是否因其他应用占用而只读
-	TokenUsage   *TokenUsage `json:"tokenUsage,omitempty"` // 会话令牌用量
-}
-
-type TokenBreakdown struct {
-	InputTokens           int64 `json:"inputTokens"`           // 输入令牌数
-	OutputTokens          int64 `json:"outputTokens"`          // 输出令牌数
-	CachedInputTokens     int64 `json:"cachedInputTokens"`     // 缓存输入令牌数
-	CacheWriteInputTokens int64 `json:"cacheWriteInputTokens"` // 写入缓存的输入令牌数
-	ReasoningOutputTokens int64 `json:"reasoningOutputTokens"` // 思考输出令牌数
-	TotalTokens           int64 `json:"totalTokens"`           // 令牌总数
-}
-
-type TokenUsage struct {
-	Total              TokenBreakdown `json:"total"`              // 累计令牌用量
-	Last               TokenBreakdown `json:"last"`               // 最近一轮令牌用量
-	ModelContextWindow *int64         `json:"modelContextWindow"` // 模型上下文窗口大小
-}
 
 // GetTokenUsage 读取会话最近一次上报的令牌用量快照
 //
 //wails:ignore
-func (s *Service) GetTokenUsage(threadID string) *TokenUsage {
+func (s *Service) GetTokenUsage(threadID string) *codexmodel.TokenUsage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -154,19 +30,19 @@ func (s *Service) GetTokenUsage(threadID string) *TokenUsage {
 }
 
 // GetModels 读取原生模型目录并补充当前 API 配置的自定义模型
-func (s *Service) GetModels() ([]Model, error) {
-	models := []Model{}
+func (s *Service) GetModels() ([]codexmodel.Model, error) {
+	models := []codexmodel.Model{}
 	cursor := ""
 	for {
 		var result struct {
-			Data       []Model `json:"data"`       // 当前分页数据
-			NextCursor *string `json:"nextCursor"` // 下一页游标
+			Data       []codexmodel.Model `json:"data"`       // 当前分页数据
+			NextCursor *string            `json:"nextCursor"` // 下一页游标
 		}
 		params := map[string]any{"limit": 100}
 		if cursor != "" {
 			params["cursor"] = cursor
 		}
-		if err := s.call("model/list", params, &result); err != nil {
+		if err := s.call(constant.CodexMethodModelList, params, &result); err != nil {
 			return nil, err
 		}
 
@@ -185,14 +61,14 @@ func (s *Service) GetModels() ([]Model, error) {
 					found = found || model.Model == settings.Model
 				}
 
-				if err == nil && stored.Profile.Type == "api" && !found {
-					models = append(models, Model{
+				if err == nil && stored.Profile.Type == constant.CodexAccountTypeAPI && !found {
+					models = append(models, codexmodel.Model{
 						ID:                        settings.Model,
 						Model:                     settings.Model,
-						DisplayName:               settings.Model + "（自定义）",
-						Description:               "由当前 API 账号配置，实际可用性以请求结果为准",
+						DisplayName:               settings.Model + constant.CodexCustomModelSuffix,
+						Description:               constant.CodexCustomModelDescription,
 						InputModalities:           []string{"text"},
-						SupportedReasoningEfforts: []ReasoningOption{},
+						SupportedReasoningEfforts: []codexmodel.ReasoningOption{},
 					})
 				}
 			}
@@ -204,8 +80,8 @@ func (s *Service) GetModels() ([]Model, error) {
 }
 
 // ListThreads 读取本应用可见的会话列表
-func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
-	var result ThreadPage
+func (s *Service) ListThreads(cursor string) (codexmodel.ThreadPage, error) {
+	var result codexmodel.ThreadPage
 	params := map[string]any{"limit": 100, "sortKey": "updated_at"}
 	settings := s.data.GetSettings()
 	if !settings.ReadExternalThreads {
@@ -221,7 +97,7 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 			directories[settings.ProjectDirectory] = true
 		}
 		if len(directories) == 0 {
-			return ThreadPage{Data: []Thread{}}, nil
+			return codexmodel.ThreadPage{Data: []codexmodel.Thread{}}, nil
 		}
 
 		paths := make([]string, 0, len(directories))
@@ -234,9 +110,9 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 	if cursor != "" {
 		params["cursor"] = cursor
 	}
-	err := s.call("thread/list", params, &result)
+	err := s.call(constant.CodexMethodThreadList, params, &result)
 	if !settings.ReadExternalThreads {
-		owned := make([]Thread, 0, len(result.Data))
+		owned := make([]codexmodel.Thread, 0, len(result.Data))
 		for _, thread := range result.Data {
 			if _, ok := settings.ChatThreads[thread.ID]; !settings.ExternalThreads[thread.ID] && (ok || thread.ID == settings.LastThreadID) {
 				owned = append(owned, thread)
@@ -246,68 +122,39 @@ func (s *Service) ListThreads(cursor string) (ThreadPage, error) {
 		result.Data = owned
 	}
 	if result.Data == nil {
-		result.Data = []Thread{}
+		result.Data = []codexmodel.Thread{}
 	}
 	return result, err
 }
 
 // CreateThread 在当前项目创建普通对话
-func (s *Service) CreateThread(cwd, model string) (Thread, error) {
+func (s *Service) CreateThread(cwd, model string) (codexmodel.Thread, error) {
 	return s.createThread(cwd, model, s.data.EffectivePermission("", cwd), "", "", nil)
 }
 
 // CreateToolThread 创建带角色指令和宿主工具的业务线程
 //
 //wails:ignore
-func (s *Service) CreateToolThread(cwd, model, permission, role, instructions string, tools []DynamicToolSpec) (Thread, error) {
+func (s *Service) CreateToolThread(cwd, model, permission, role, instructions string, tools []codexmodel.DynamicToolSpec) (codexmodel.Thread, error) {
 	return s.createThread(cwd, model, permission, role, instructions, tools)
 }
 
-// UnmarshalJSON 按当前协议读取文字与思考消息的不同字段
-func (item *Item) UnmarshalJSON(data []byte) error {
-	type plain Item
-	payload := struct {
-		*plain                  // 待解码的消息公共字段
-		Content json.RawMessage `json:"content"` // MCP 问答提交内容
-	}{plain: (*plain)(item)}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return err
-	}
-
-	switch item.Type {
-	case "userMessage":
-		if len(payload.Content) > 0 {
-			return json.Unmarshal(payload.Content, &item.Content)
-		}
-	case "reasoning":
-		if len(payload.Content) > 0 {
-			return json.Unmarshal(payload.Content, &item.ReasoningContent)
-		}
-	default:
-		if item.Type != "agentMessage" && item.Type != "commandExecution" && item.Type != "fileChange" {
-			item.Details = string(data)
-		}
-	}
-
-	return nil
-}
-
 // OpenThread 检查占用后加载历史，只读会话在读取后取消本连接订阅
-func (s *Service) OpenThread(threadID string) (result Conversation, err error) {
+func (s *Service) OpenThread(threadID string) (result codexmodel.Conversation, err error) {
 	s.subscriptionMu.Lock()
 	defer s.subscriptionMu.Unlock()
 
 	s.mu.Lock()
 	opened := s.opened[threadID]
 	s.mu.Unlock()
-	method := "thread/read"
+	method := constant.CodexMethodThreadRead
 	params := map[string]any{"threadId": threadID}
 	if !opened {
 		if err := s.makeSubscriptionRoom(threadID); err != nil {
 			return result, err
 		}
 
-		method = "thread/resume"
+		method = constant.CodexMethodThreadResume
 		params, err = s.resumeParameters(threadID)
 		if err != nil {
 			return result, err
@@ -324,7 +171,7 @@ func (s *Service) OpenThread(threadID string) (result Conversation, err error) {
 				err = unsubscribeErr
 			}
 		}()
-		if err := s.call("thread/read", map[string]any{"threadId": threadID}, &result); err != nil {
+		if err := s.call(constant.CodexMethodThreadRead, map[string]any{"threadId": threadID}, &result); err != nil {
 			return result, err
 		}
 		result.ReadOnly = true
@@ -352,26 +199,26 @@ func (s *Service) OpenThread(threadID string) (result Conversation, err error) {
 }
 
 // ListTurns 分页读取当前线程的轮次
-func (s *Service) ListTurns(threadID, cursor string) (TurnPage, error) {
-	var result TurnPage
+func (s *Service) ListTurns(threadID, cursor string) (codexmodel.TurnPage, error) {
+	var result codexmodel.TurnPage
 	params := map[string]any{"threadId": threadID, "limit": 20, "itemsView": "full", "sortDirection": "desc"}
 	if cursor != "" {
 		params["cursor"] = cursor
 	}
-	err := s.call("thread/turns/list", params, &result)
+	err := s.call(constant.CodexMethodThreadTurnsList, params, &result)
 	if result.Data == nil {
-		result.Data = []Turn{}
+		result.Data = []codexmodel.Turn{}
 	}
 	return result, err
 }
 
 // StartTurn 按会话实际权限发起一轮普通对话
-func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (Turn, error) {
+func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string) (codexmodel.Turn, error) {
 	settings := s.data.GetSettings()
 	cwd := settings.ChatThreads[threadID]
-	tier := "default"
+	tier := constant.CodexServiceTierDefault
 	if settings.FastMode {
-		tier = "fast"
+		tier = constant.CodexServiceTierFast
 	}
 	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, s.data.EffectivePermission(threadID, cwd), cwd, tier)
 }
@@ -379,14 +226,14 @@ func (s *Service) StartTurn(threadID, text, model, effort, clientMessageID strin
 // StartManagedTurn 按正式任务冻结的权限发起一轮对话
 //
 //wails:ignore
-func (s *Service) StartManagedTurn(threadID, text, model, effort, permission, cwd, clientMessageID string, attachmentIDs []string, serviceTier string) (Turn, error) {
+func (s *Service) StartManagedTurn(threadID, text, model, effort, permission, cwd, clientMessageID string, attachmentIDs []string, serviceTier string) (codexmodel.Turn, error) {
 	return s.startTurn(threadID, text, model, effort, clientMessageID, attachmentIDs, permission, cwd, serviceTier)
 }
 
 // SteerTurn 向原活动轮次追加输入
 func (s *Service) SteerTurn(threadID, text, clientMessageID string, attachmentIDs []string) error {
 	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
-		return errors.New("请输入追加指令")
+		return constant.ErrCodexSteerTextRequired
 	}
 
 	input, additionalContext, err := s.buildInput(threadID, text, attachmentIDs)
@@ -397,15 +244,15 @@ func (s *Service) SteerTurn(threadID, text, clientMessageID string, attachmentID
 	s.mu.Lock()
 	turnID := s.active[threadID]
 	s.mu.Unlock()
-	if turnID == "" || turnID == "starting" {
-		return errors.New("当前会话没有可追加的活动轮次")
+	if turnID == "" || turnID == constant.CodexPhaseStarting {
+		return constant.ErrCodexNoSteerableTurn
 	}
 
 	params := map[string]any{"threadId": threadID, "expectedTurnId": turnID, "input": input, "clientUserMessageId": clientMessageID}
 	if len(additionalContext) > 0 {
 		params["additionalContext"] = additionalContext
 	}
-	if err := s.call("turn/steer", params, nil); err != nil {
+	if err := s.call(constant.CodexMethodTurnSteer, params, nil); err != nil {
 		return err
 	}
 	if len(attachmentIDs) > 0 {
@@ -420,11 +267,11 @@ func (s *Service) StopTurn(threadID string) error {
 	s.mu.Lock()
 	turnID := s.active[threadID]
 	s.mu.Unlock()
-	if turnID == "" || turnID == "starting" {
-		return errors.New("当前会话没有可停止的活动轮次")
+	if turnID == "" || turnID == constant.CodexPhaseStarting {
+		return constant.ErrCodexNoStoppableTurn
 	}
 
-	return s.call("turn/interrupt", map[string]string{"threadId": threadID, "turnId": turnID}, nil)
+	return s.call(constant.CodexMethodTurnInterrupt, map[string]string{"threadId": threadID, "turnId": turnID}, nil)
 }
 
 // IsThreadActive 检查指定线程是否有活动轮次
@@ -440,10 +287,10 @@ func (s *Service) IsThreadActive(threadID string) bool {
 // RenameThread 更新上游会话标题
 func (s *Service) RenameThread(threadID, name string) error {
 	if strings.TrimSpace(name) == "" {
-		return errors.New("请输入会话标题")
+		return constant.ErrCodexThreadNameRequired
 	}
 
-	return s.call("thread/name/set", map[string]string{"threadId": threadID, "name": strings.TrimSpace(name)}, nil)
+	return s.call(constant.CodexMethodThreadNameSet, map[string]string{"threadId": threadID, "name": strings.TrimSpace(name)}, nil)
 }
 
 // ArchiveThread 归档上游会话
@@ -452,15 +299,15 @@ func (s *Service) ArchiveThread(threadID string) error {
 	active := s.active[threadID] != ""
 	s.mu.Unlock()
 	if active {
-		return errors.New("请先停止运行中的会话")
+		return constant.ErrCodexThreadActive
 	}
 
-	return s.call("thread/archive", map[string]string{"threadId": threadID}, nil)
+	return s.call(constant.CodexMethodThreadArchive, map[string]string{"threadId": threadID}, nil)
 }
 
 // ArchiveProject 归档当前目录下本应用的普通对话
 func (s *Service) ArchiveProject(cwd string) (int, error) {
-	var threads []Thread
+	var threads []codexmodel.Thread
 	cursor := ""
 	for {
 		page, err := s.ListThreads(cursor)
@@ -484,7 +331,7 @@ func (s *Service) ArchiveProject(cwd string) (int, error) {
 	for _, thread := range threads {
 		if s.active[thread.ID] != "" {
 			s.mu.Unlock()
-			return 0, errors.New("项目中仍有活动任务，请先停止后再归档")
+			return 0, constant.ErrCodexProjectActive
 		}
 	}
 
@@ -499,34 +346,34 @@ func (s *Service) ArchiveProject(cwd string) (int, error) {
 }
 
 // createThread 创建原生线程并保存本应用归属
-func (s *Service) createThread(cwd, model, permission, role, instructions string, tools []DynamicToolSpec) (Thread, error) {
+func (s *Service) createThread(cwd, model, permission, role, instructions string, tools []codexmodel.DynamicToolSpec) (codexmodel.Thread, error) {
 	if cwd == "" {
-		return Thread{}, errors.New("请先选择项目目录")
+		return codexmodel.Thread{}, constant.ErrCodexProjectDirectoryRequired
 	}
 
 	info, err := os.Stat(cwd)
 	if err != nil {
-		return Thread{}, err
+		return codexmodel.Thread{}, err
 	}
 	if !info.IsDir() {
-		return Thread{}, errors.New("项目目录无效")
+		return codexmodel.Thread{}, constant.ErrCodexProjectDirectoryInvalid
 	}
 
 	cwd, err = filepath.Abs(cwd)
 	if err != nil {
-		return Thread{}, err
+		return codexmodel.Thread{}, err
 	}
 
 	s.subscriptionMu.Lock()
 	defer s.subscriptionMu.Unlock()
 	if role == "" {
 		if err := s.makeSubscriptionRoom(""); err != nil {
-			return Thread{}, err
+			return codexmodel.Thread{}, err
 		}
 	}
 
 	params := map[string]any{"cwd": cwd, "sandbox": permission, "approvalPolicy": "on-request", "approvalsReviewer": "user", "historyMode": "paginated"}
-	if role != "" && role != "step" {
+	if role != "" && role != constant.ToolRouterRoleStep {
 		params["approvalPolicy"] = "never"
 	}
 	if len(tools) > 0 {
@@ -539,9 +386,9 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 		params["model"] = model
 	}
 	var result struct {
-		Thread Thread `json:"thread"` // 原生会话元信息
+		Thread codexmodel.Thread `json:"thread"` // 原生会话元信息
 	}
-	err = s.call("thread/start", params, &result)
+	err = s.call(constant.CodexMethodThreadStart, params, &result)
 	if err == nil {
 		s.mu.Lock()
 		s.opened[result.Thread.ID] = true
@@ -560,11 +407,11 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 
 		prefix := ""
 		switch role {
-		case "step":
+		case constant.WorkspaceKindStep:
 			prefix = "[AgentorWoker]"
-		case "controller":
+		case constant.ToolRouterRoleController:
 			prefix = "[AgentorCtl]"
-		case "pipeline_manager", "pipeline_config":
+		case constant.ToolRouterRolePipelineManager, constant.ToolRouterRolePipelineConfig:
 			prefix = "[AgentorPipe]"
 		}
 		if prefix != "" {
@@ -585,33 +432,33 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 }
 
 // startTurn 登记活动状态并提交真实模型输入
-func (s *Service) startTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string, permission, cwd, serviceTier string) (Turn, error) {
+func (s *Service) startTurn(threadID, text, model, effort, clientMessageID string, attachmentIDs []string, permission, cwd, serviceTier string) (codexmodel.Turn, error) {
 	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
-		return Turn{}, errors.New("请输入消息")
+		return codexmodel.Turn{}, constant.ErrCodexMessageRequired
 	}
 
 	input, additionalContext, err := s.buildInput(threadID, text, attachmentIDs)
 	if err != nil {
-		return Turn{}, err
+		return codexmodel.Turn{}, err
 	}
 
 	s.subscriptionMu.Lock()
 	defer s.subscriptionMu.Unlock()
 
 	s.mu.Lock()
-	if s.closing || s.status.Phase != "ready" {
+	if s.closing || s.status.Phase != constant.CodexPhaseReady {
 		s.mu.Unlock()
-		return Turn{}, errors.New("Codex 尚未就绪")
+		return codexmodel.Turn{}, constant.ErrCodexNotReady
 	}
 	if s.active[threadID] != "" {
 		s.mu.Unlock()
-		return Turn{}, errors.New("当前会话正在运行，请追加指令或等待结束")
+		return codexmodel.Turn{}, constant.ErrCodexThreadBusy
 	}
 
 	s.turnRequests.Add(1)
 	defer s.turnRequests.Done()
 
-	s.active[threadID] = "starting"
+	s.active[threadID] = constant.CodexPhaseStarting
 	if s.activeText == nil {
 		s.activeText = make(map[string]string)
 	}
@@ -622,14 +469,14 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 		delete(s.active, threadID)
 		delete(s.activeText, threadID)
 		s.mu.Unlock()
-		return Turn{}, err
+		return codexmodel.Turn{}, err
 	}
 
 	params := map[string]any{"threadId": threadID, "input": input, "clientUserMessageId": clientMessageID}
 	params["sandboxPolicy"] = sandboxPolicy(permission, cwd)
 	params["cwd"] = cwd
 	params["approvalPolicy"], params["approvalsReviewer"] = "on-request", "user"
-	if role := s.data.GetSettings().ManagedThreads[threadID]; role != "" && role != "step" {
+	if role := s.data.GetSettings().ManagedThreads[threadID]; role != "" && role != constant.ToolRouterRoleStep {
 		params["approvalPolicy"] = "never"
 	}
 	if len(additionalContext) > 0 {
@@ -645,11 +492,11 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 		params["serviceTierForTurn"] = serviceTier
 	}
 	var result struct {
-		Turn Turn `json:"turn"` // 上游轮次内容
+		Turn codexmodel.Turn `json:"turn"` // 上游轮次内容
 	}
-	err = s.call("turn/start", params, &result)
+	err = s.call(constant.CodexMethodTurnStart, params, &result)
 	s.mu.Lock()
-	if s.active[threadID] == "starting" {
+	if s.active[threadID] == constant.CodexPhaseStarting {
 		if err == nil {
 			s.active[threadID] = result.Turn.ID
 		} else {
@@ -661,7 +508,7 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 	s.mu.Unlock()
 	if closing && err == nil {
 		s.StopTurn(threadID)
-		return Turn{}, errors.New("应用正在退出，轮次已中断")
+		return codexmodel.Turn{}, constant.ErrCodexTurnInterrupted
 	}
 	if err == nil && len(attachmentIDs) > 0 {
 		err = s.files.BindTurn(threadID, result.Turn.ID, clientMessageID, attachmentIDs)
@@ -670,17 +517,17 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 }
 
 // buildInput 将文字与所属附件转为当前原生输入协议
-func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]Input, map[string]map[string]string, error) {
-	input := []Input{}
+func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]codexmodel.Input, map[string]map[string]string, error) {
+	input := []codexmodel.Input{}
 	if strings.TrimSpace(text) != "" {
-		input = append(input, Input{Type: "text", Text: text})
+		input = append(input, codexmodel.Input{Type: "text", Text: text})
 	}
 	context := make(map[string]map[string]string)
 	if len(attachmentIDs) == 0 {
 		return input, context, nil
 	}
 	if s.files == nil {
-		return nil, nil, errors.New("附件服务不可用")
+		return nil, nil, constant.ErrCodexArtifactServiceUnavailable
 	}
 
 	files, err := s.files.ResolveInputs(threadID, attachmentIDs)
@@ -690,22 +537,22 @@ func (s *Service) buildInput(threadID, text string, attachmentIDs []string) ([]I
 
 	for _, file := range files {
 		if strings.HasPrefix(file.MediaType, "image/") {
-			input = append(input, Input{Type: "localImage", Path: file.LocalPath})
+			input = append(input, codexmodel.Input{Type: "localImage", Path: file.LocalPath})
 		} else {
 			info, _ := json.Marshal(map[string]any{"name": file.Name, "path": file.LocalPath, "mediaType": file.MediaType, "size": file.Size})
-			context["agentor/attachment/"+file.ID] = map[string]string{"kind": "untrusted", "value": "用户选定的本地附件，可按需读取：" + string(info)}
+			context["agentor/attachment/"+file.ID] = map[string]string{"kind": "untrusted", "value": constant.CodexAttachmentInstructions + string(info)}
 		}
 	}
 
 	if len(input) == 0 {
-		input = append(input, Input{Type: "text", Text: "请查看所附文件。"})
+		input = append(input, codexmodel.Input{Type: "text", Text: constant.CodexAttachmentFallbackPrompt})
 	}
 	return input, context, nil
 }
 
 // trackNotification 合并当前连接的线程状态与用量事件
 func (s *Service) trackNotification(generation uint64, message packet) {
-	if message.Method == "thread/closed" {
+	if message.Method == constant.CodexMethodThreadClosed {
 		var params struct {
 			ThreadID string `json:"threadId"` // 已卸载的会话标识
 		}
@@ -722,19 +569,19 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	}
 	s.trackManagedThreadName(generation, message)
 
-	if message.Method == "item/started" || message.Method == "item/completed" {
+	if message.Method == constant.CodexMethodItemStarted || message.Method == constant.CodexMethodItemCompleted {
 		var params struct {
-			ThreadID string `json:"threadId"` // 所属会话标识
-			Item     Item   `json:"item"`     // 上游过程节点
+			ThreadID string          `json:"threadId"` // 所属会话标识
+			Item     codexmodel.Item `json:"item"`     // 上游过程节点
 		}
-		if json.Unmarshal(message.Params, &params) != nil || params.Item.Type != "fileChange" {
+		if json.Unmarshal(message.Params, &params) != nil || params.Item.Type != constant.CodexItemFileChange {
 			return
 		}
 
 		s.mu.Lock()
 		if s.status.Generation == generation {
 			if s.pendingChanges[params.ThreadID] == nil {
-				s.pendingChanges[params.ThreadID] = make(map[string][]FileChange)
+				s.pendingChanges[params.ThreadID] = make(map[string][]codexmodel.FileChange)
 			}
 			s.pendingChanges[params.ThreadID][params.Item.ID] = params.Item.Changes
 			for id, approval := range s.approvals {
@@ -747,10 +594,10 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 		s.mu.Unlock()
 		return
 	}
-	if message.Method == "thread/tokenUsage/updated" {
+	if message.Method == constant.CodexMethodThreadTokenUsageUpdated {
 		var params struct {
-			ThreadID   string     `json:"threadId"`   // 所属会话标识
-			TokenUsage TokenUsage `json:"tokenUsage"` // 会话令牌用量
+			ThreadID   string                `json:"threadId"`   // 所属会话标识
+			TokenUsage codexmodel.TokenUsage `json:"tokenUsage"` // 会话令牌用量
 		}
 		if json.Unmarshal(message.Params, &params) != nil {
 			return
@@ -773,8 +620,8 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 		}
 
 		s.mu.Lock()
-		if approval, ok := s.approvals[string(params.RequestID)]; ok && approval.Generation == generation && approval.ThreadID == params.ThreadID && approval.Status == "pending" {
-			approval.Status = "expired"
+		if approval, ok := s.approvals[string(params.RequestID)]; ok && approval.Generation == generation && approval.ThreadID == params.ThreadID && approval.Status == constant.CodexStatusPending {
+			approval.Status = constant.CodexApprovalExpired
 			s.approvals[approval.ID] = approval
 		}
 		s.mu.Unlock()
@@ -782,10 +629,10 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	}
 
 	var params struct {
-		ThreadID string `json:"threadId"` // 所属会话标识
-		Turn     Turn   `json:"turn"`     // 上游轮次内容
+		ThreadID string          `json:"threadId"` // 所属会话标识
+		Turn     codexmodel.Turn `json:"turn"`     // 上游轮次内容
 	}
-	if message.Method != "turn/started" && message.Method != "turn/completed" {
+	if message.Method != constant.CodexMethodTurnStarted && message.Method != constant.CodexMethodTurnCompleted {
 		return
 	}
 	if json.Unmarshal(message.Params, &params) != nil {
@@ -798,14 +645,14 @@ func (s *Service) trackNotification(generation uint64, message packet) {
 	if s.status.Generation != generation {
 		return
 	}
-	if message.Method == "turn/started" {
+	if message.Method == constant.CodexMethodTurnStarted {
 		s.active[params.ThreadID] = params.Turn.ID
 	}
-	if message.Method == "turn/completed" && s.active[params.ThreadID] == params.Turn.ID {
+	if message.Method == constant.CodexMethodTurnCompleted && s.active[params.ThreadID] == params.Turn.ID {
 		delete(s.active, params.ThreadID)
 		delete(s.activeText, params.ThreadID)
 	}
-	if message.Method == "turn/completed" {
+	if message.Method == constant.CodexMethodTurnCompleted {
 		s.expireApprovalsLocked(params.ThreadID, params.Turn.ID)
 		delete(s.pendingChanges, params.ThreadID)
 	}

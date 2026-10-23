@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	codexmodel "agentor/internal/codex/model"
 )
 
 type bufferWriter struct {
@@ -23,10 +25,10 @@ func TestApprovalCanBeAnsweredOnlyOnce(t *testing.T) {
 	s := NewService(nil, nil)
 	defer s.cancel()
 
-	s.status = Status{Phase: "ready", Generation: 1}
+	s.status = codexmodel.Status{Phase: "ready", Generation: 1}
 	writer := &bufferWriter{}
 	s.client = &client{stdin: writer}
-	s.approvals["7"] = Approval{
+	s.approvals["7"] = codexmodel.Approval{
 		ID:                 "7",
 		Generation:         1,
 		Status:             "pending",
@@ -66,8 +68,8 @@ func TestCompletingOneTurnExpiresOnlyItsApproval(t *testing.T) {
 	defer s.cancel()
 
 	s.status.Generation = 3
-	s.approvals["1"] = Approval{ID: "1", Generation: 3, Status: "pending", ThreadID: "thread-a", TurnID: "turn-a"}
-	s.approvals["2"] = Approval{ID: "2", Generation: 3, Status: "pending", ThreadID: "thread-b", TurnID: "turn-b"}
+	s.approvals["1"] = codexmodel.Approval{ID: "1", Generation: 3, Status: "pending", ThreadID: "thread-a", TurnID: "turn-a"}
+	s.approvals["2"] = codexmodel.Approval{ID: "2", Generation: 3, Status: "pending", ThreadID: "thread-b", TurnID: "turn-b"}
 	s.trackNotification(3, packet{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread-a","turn":{"id":"turn-a","status":"completed","items":[]}}`)})
 	if s.approvals["1"].Status != "expired" || s.approvals["2"].Status != "pending" {
 		t.Fatal(s.approvals)
@@ -79,7 +81,7 @@ func TestCompletingOneTurnExpiresOnlyItsApproval(t *testing.T) {
 
 // TestReasoningHistoryDoesNotDecodeAsUserInput 验证思考历史使用独立内容字段解码
 func TestReasoningHistoryDoesNotDecodeAsUserInput(t *testing.T) {
-	var item Item
+	var item codexmodel.Item
 	if err := json.Unmarshal([]byte(`{"id":"r1","type":"reasoning","content":["detail"],"summary":["summary"]}`), &item); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +95,7 @@ func TestPermissionResponseCannotBroadenRequest(t *testing.T) {
 	s := NewService(nil, nil)
 	defer s.cancel()
 
-	s.status = Status{Phase: "ready", Generation: 1}
+	s.status = codexmodel.Status{Phase: "ready", Generation: 1}
 	writer := &bufferWriter{}
 	s.client = &client{stdin: writer}
 	s.handleServerRequest(1, packet{
@@ -127,7 +129,7 @@ func TestMcpElicitationPreservesAnswerTypesAndRejectsInvalidAnswer(t *testing.T)
 	s := NewService(nil, nil)
 	defer s.cancel()
 
-	s.status = Status{Phase: "ready", Generation: 1}
+	s.status = codexmodel.Status{Phase: "ready", Generation: 1}
 	writer := &bufferWriter{}
 	s.client = &client{stdin: writer}
 	s.handleServerRequest(1, packet{
@@ -163,7 +165,7 @@ func TestCommandRuleDecisionUsesOriginalObject(t *testing.T) {
 	s := NewService(nil, nil)
 	defer s.cancel()
 
-	s.status = Status{Phase: "ready", Generation: 1}
+	s.status = codexmodel.Status{Phase: "ready", Generation: 1}
 	writer := &bufferWriter{}
 	s.client = &client{stdin: writer}
 	s.handleServerRequest(1, packet{

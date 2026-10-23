@@ -3,17 +3,18 @@ package pipeline
 import (
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"strings"
 
-	"agentor/internal/codex"
-	"agentor/internal/tasks"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	pipelinemodel "agentor/internal/pipeline/model"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // SubmitSession 向专用会话提交用户请求
-func (s *Service) SubmitSession(input SessionInput) (SessionRequest, error) {
-	return s.submitSession(input, "instruction", "")
+func (s *Service) SubmitSession(input pipelinemodel.SessionInput) (pipelinemodel.SessionRequest, error) {
+	return s.submitSession(input, constant.TasksRequestKindInstruction, "")
 }
 
 // StopSession 停止指定会话请求
@@ -24,8 +25,8 @@ func (s *Service) StopSession(id string) error {
 	for i := range s.state.Requests {
 		request := &s.state.Requests[i]
 		if request.ID == id {
-			if request.Status == "queued" {
-				request.Status, request.Error, request.CompletedAt = "interrupted", "用户取消排队", now()
+			if request.Status == constant.TasksStatusQueued {
+				request.Status, request.Error, request.CompletedAt = constant.TasksStatusInterrupted, constant.PipelineQueueCancelledMessage, now()
 				err := s.persistLocked()
 				s.changed()
 				return err
@@ -39,26 +40,26 @@ func (s *Service) StopSession(id string) error {
 		}
 	}
 
-	return errors.New("会话请求不存在")
+	return constant.ErrPipelineSessionNotFound
 }
 
 // ResumeSessions 由用户恢复重启后保留的会话队列
 func (s *Service) ResumeSessions() error {
-	if s.runtime.GetStatus().Phase != "ready" {
-		return errors.New("请先连接 Codex")
+	if s.runtime.GetStatus().Phase != constant.CodexPhaseReady {
+		return constant.ErrPipelineConnectionRequired
 	}
 
 	s.mu.Lock()
 	s.state.Paused = false
 	err := s.persistLocked()
-	pending := append([]SessionRequest{}, s.state.Requests...)
+	pending := append([]pipelinemodel.SessionRequest{}, s.state.Requests...)
 	s.mu.Unlock()
 	if err != nil {
 		return err
 	}
 
 	for _, request := range pending {
-		if request.Status == "queued" {
+		if request.Status == constant.TasksStatusQueued {
 			s.kickSession(request.Input.ProjectID, request.Input.Role)
 		}
 	}
@@ -70,17 +71,17 @@ func (s *Service) ResumeSessions() error {
 // ActiveSession 查找线程当前处理的专用会话请求
 //
 //wails:ignore
-func (s *Service) ActiveSession(threadID string) (SessionRequest, error) {
+func (s *Service) ActiveSession(threadID string) (pipelinemodel.SessionRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for _, request := range s.state.Requests {
-		if request.ThreadID == threadID && request.Status == "running" {
+		if request.ThreadID == threadID && request.Status == constant.TasksStatusRunning {
 			return clone(request), nil
 		}
 	}
 
-	return SessionRequest{}, errors.New("此线程没有活动流水线会话")
+	return pipelinemodel.SessionRequest{}, constant.ErrPipelineActiveSessionNotFound
 }
 
 // sessionKey 区分同项目的管理与配置会话
@@ -89,37 +90,37 @@ func sessionKey(projectID, role string) string {
 }
 
 // submitSession 冻结参数并登记会话请求
-func (s *Service) submitSession(input SessionInput, kind, runID string) (SessionRequest, error) {
-	if input.Role != "pipeline_manager" && input.Role != "pipeline_config" {
-		return SessionRequest{}, errors.New("请选择管理会话或配置会话")
+func (s *Service) submitSession(input pipelinemodel.SessionInput, kind, runID string) (pipelinemodel.SessionRequest, error) {
+	if input.Role != constant.ToolRouterRolePipelineManager && input.Role != constant.ToolRouterRolePipelineConfig {
+		return pipelinemodel.SessionRequest{}, constant.ErrPipelineSessionRoleInvalid
 	}
 
 	if strings.TrimSpace(input.Text) == "" {
-		return SessionRequest{}, errors.New("请输入会话请求")
+		return pipelinemodel.SessionRequest{}, constant.ErrPipelineSessionTextRequired
 	}
 
-	if kind == "instruction" && s.runtime.GetStatus().Phase != "ready" {
-		return SessionRequest{}, errors.New("请先连接 Codex")
+	if kind == constant.TasksRequestKindInstruction && s.runtime.GetStatus().Phase != constant.CodexPhaseReady {
+		return pipelinemodel.SessionRequest{}, constant.ErrPipelineConnectionRequired
 	}
 
 	if _, err := s.project(input.ProjectID); err != nil {
-		return SessionRequest{}, err
+		return pipelinemodel.SessionRequest{}, err
 	}
 
 	model, effort, err := s.tasks.SelectModel(input.Model, input.Effort)
 	if err != nil {
-		return SessionRequest{}, err
+		return pipelinemodel.SessionRequest{}, err
 	}
 
 	input.Model, input.Effort = model, effort
 	if input.Source.Type == "" {
-		input.Source.Type = "desktop"
+		input.Source.Type = constant.TasksSourceDesktop
 	}
 
-	request := SessionRequest{
+	request := pipelinemodel.SessionRequest{
 		ID:              rand.Text(),
 		Input:           input,
-		Status:          "queued",
+		Status:          constant.TasksStatusQueued,
 		CreatedAt:       now(),
 		Kind:            kind,
 		CompletionRunID: runID,
@@ -128,11 +129,11 @@ func (s *Service) submitSession(input SessionInput, kind, runID string) (Session
 	s.mu.Lock()
 	if err = s.ctx.Err(); err != nil {
 		s.mu.Unlock()
-		return SessionRequest{}, err
+		return pipelinemodel.SessionRequest{}, err
 	}
 
 	s.state.Requests = append(s.state.Requests, request)
-	if s.runtime.GetStatus().Phase != "ready" {
+	if s.runtime.GetStatus().Phase != constant.CodexPhaseReady {
 		s.state.Paused = true
 	}
 
@@ -143,7 +144,7 @@ func (s *Service) submitSession(input SessionInput, kind, runID string) (Session
 
 	s.mu.Unlock()
 	if err != nil {
-		return SessionRequest{}, err
+		return pipelinemodel.SessionRequest{}, err
 	}
 
 	s.changed()
@@ -173,7 +174,7 @@ func (s *Service) sessionQueue(projectID, role string) {
 	key := sessionKey(projectID, role)
 	for {
 		s.mu.Lock()
-		if s.ctx.Err() != nil || s.state.Paused || s.runtime.GetStatus().Phase != "ready" {
+		if s.ctx.Err() != nil || s.state.Paused || s.runtime.GetStatus().Phase != constant.CodexPhaseReady {
 			delete(s.workers, key)
 			s.mu.Unlock()
 			return
@@ -181,7 +182,7 @@ func (s *Service) sessionQueue(projectID, role string) {
 
 		index := -1
 		for i, request := range s.state.Requests {
-			if request.Input.ProjectID == projectID && request.Input.Role == role && request.Status == "queued" {
+			if request.Input.ProjectID == projectID && request.Input.Role == role && request.Status == constant.TasksStatusQueued {
 				index = i
 				break
 			}
@@ -193,14 +194,14 @@ func (s *Service) sessionQueue(projectID, role string) {
 			return
 		}
 
-		s.state.Requests[index].Status = "running"
+		s.state.Requests[index].Status = constant.TasksStatusRunning
 		request := clone(s.state.Requests[index])
 		ctx, cancel := context.WithCancel(s.ctx)
 		s.cancellations[request.ID] = cancel
 		err := s.persistLocked()
 		s.mu.Unlock()
 		s.changed()
-		status, result := "error", ""
+		status, result := constant.TasksStatusError, ""
 		if err == nil {
 			status, result, err = s.runSession(ctx, request)
 		}
@@ -237,24 +238,24 @@ func (s *Service) sessionQueue(projectID, role string) {
 			body = err.Error()
 		}
 
-		s.tasks.RecordNotification(tasks.Notification{
+		s.tasks.RecordNotification(tasksmodel.Notification{
 			PipelineSessionID: request.ID,
-			Title:             "流水线会话 · " + status,
+			Title:             constant.PipelineSessionTitlePrefix + status,
 			Body:              body,
 			ProjectID:         projectID,
 			Source:            request.Input.Source,
 			RequestID:         request.Input.RequestID,
 		})
-		s.tasks.ReportExternalResult(request.Input.RequestID, "pipeline_session_result", request.ID, projectID, body)
+		s.tasks.ReportExternalResult(request.Input.RequestID, constant.PipelineRequestKindSessionResult, request.ID, projectID, body)
 	}
 }
 
 // runSession 恢复专用线程并等待实际运行结果
-func (s *Service) runSession(ctx context.Context, request SessionRequest) (string, string, error) {
+func (s *Service) runSession(ctx context.Context, request pipelinemodel.SessionRequest) (string, string, error) {
 	input := request.Input
 	project, err := s.project(input.ProjectID)
 	if err != nil {
-		return "error", "", err
+		return constant.TasksStatusError, "", err
 	}
 
 	key := sessionKey(input.ProjectID, input.Role)
@@ -262,36 +263,36 @@ func (s *Service) runSession(ctx context.Context, request SessionRequest) (strin
 	threadID := s.state.Threads[key]
 	s.mu.Unlock()
 	if threadID == "" {
-		var specs []codex.DynamicToolSpec
+		var specs []codexmodel.DynamicToolSpec
 		if s.toolSpecs != nil {
 			specs = s.toolSpecs(input.Role)
 		}
 
-		instructions := "你是 agentor 流水线管理助手。只用宿主工具查询固定动作、任务与记录，运行已有任务；不写脚本、不修改项目文件。输入引用仅为整个参数值的 {input:字段名}，结果引用仅为 {result:已完成动作ID}。"
-		if input.Role == "pipeline_config" {
-			instructions = "你是 agentor 流水线配置助手。通过宿主工具保存/删除任务和调度、验证 JSON 配置；不执行任务，不写脚本或修改项目文件。先读取固定动作目录。任务由 inputs 与顺序 actions 组成，只支持整个参数值的 {input:字段名}、{result:已完成动作ID} 引用。所有对象归当前项目。"
+		instructions := constant.PipelineManagerInstructions
+		if input.Role == constant.ToolRouterRolePipelineConfig {
+			instructions = constant.PipelineConfigInstructions
 		}
 
-		thread, err := s.runtime.CreateToolThread(project.Directory, input.Model, "read-only", input.Role, instructions, specs)
+		thread, err := s.runtime.CreateToolThread(project.Directory, input.Model, constant.AppDataPermissionReadOnly, input.Role, instructions, specs)
 		if err != nil {
-			return "error", "", err
+			return constant.TasksStatusError, "", err
 		}
 
 		threadID = thread.ID
 	} else {
 		if err = s.runtime.EnsureOpen(threadID); err != nil {
-			return "error", "", err
+			return constant.TasksStatusError, "", err
 		}
 	}
 
 	if err = ctx.Err(); err != nil {
-		return "interrupted", "", err
+		return constant.TasksStatusInterrupted, "", err
 	}
 
 	s.mu.Lock()
 	if err = s.ctx.Err(); err != nil {
 		s.mu.Unlock()
-		return "interrupted", "", err
+		return constant.TasksStatusInterrupted, "", err
 	}
 
 	s.state.Threads[key] = threadID
@@ -305,11 +306,11 @@ func (s *Service) runSession(ctx context.Context, request SessionRequest) (strin
 	err = s.persistLocked()
 	s.mu.Unlock()
 	if err != nil {
-		return "error", "", err
+		return constant.TasksStatusError, "", err
 	}
 
 	s.changed()
-	return s.tasks.RunReadOnlyTurn(ctx, threadID, fmt.Sprintf("项目 ID：%s\n项目名称：%s\n请求类型：%s（非 instruction 时只汇报完成结果，不重新执行）\n\n用户请求或完成事件：\n%s", project.ID, project.Name, request.Kind, input.Text), input.Model, input.Effort, project.Directory, request.ID, func(turnID string) {
+	return s.tasks.RunReadOnlyTurn(ctx, threadID, fmt.Sprintf(constant.PipelineSessionPromptTemplate, project.ID, project.Name, request.Kind, input.Text), input.Model, input.Effort, project.Directory, request.ID, func(turnID string) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -330,13 +331,13 @@ func (s *Service) runSession(ctx context.Context, request SessionRequest) (strin
 }
 
 // reportRun 将流水线结果交还原始请求来源
-func (s *Service) reportRun(run Run, text string) {
+func (s *Service) reportRun(run pipelinemodel.Run, text string) {
 	if run.SessionRequestID == "" || s.ctx.Err() != nil {
 		return
 	}
 
 	s.mu.Lock()
-	var original SessionRequest
+	var original pipelinemodel.SessionRequest
 	for _, request := range s.state.Requests {
 		if request.ID == run.SessionRequestID {
 			original = clone(request)
@@ -352,5 +353,5 @@ func (s *Service) reportRun(run Run, text string) {
 	input := original.Input
 	input.Text = text
 	input.RequestID = ""
-	s.submitSession(input, "run_result", run.ID)
+	s.submitSession(input, constant.PipelineRequestKindRunResult, run.ID)
 }

@@ -5,8 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"agentor/internal/appdata"
+	appdatamodel "agentor/internal/appdata/model"
 	"agentor/internal/codex"
+	codexmodel "agentor/internal/codex/model"
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestControllerDefaultSecurityPrompt 验证未保存配置时也发送设置页展示的默认安全提示词
@@ -23,7 +26,7 @@ func TestControllerDefaultSecurityPrompt(t *testing.T) {
 func TestExecutorSnapshotAndPrompt(t *testing.T) {
 	data := testData(t)
 	securityPrompt := "仅允许约定范围内的任务"
-	config := appdata.ControllerSettings{SecurityPrompt: &securityPrompt, Models: []string{"", "executor"}, Efforts: []string{"", "high"}, Prompt: "只做调度", DecisionPrompt: "复杂任务用 executor"}
+	config := appdatamodel.ControllerSettings{SecurityPrompt: &securityPrompt, Models: []string{"", "executor"}, Efforts: []string{"", "high"}, Prompt: "只做调度", DecisionPrompt: "复杂任务用 executor"}
 	if _, err := data.SetControllerSettings(config); err != nil {
 		t.Fatal(err)
 	}
@@ -51,10 +54,10 @@ func TestExecutorSnapshotAndPrompt(t *testing.T) {
 
 // TestExecutorChoicesRespectScopeAndCompatibility 验证每次派发可选不同组合并拒绝越界或不兼容配置
 func TestExecutorChoicesRespectScopeAndCompatibility(t *testing.T) {
-	request := Request{Model: "controller", Effort: "medium", Executor: appdata.ControllerSettings{Models: []string{"controller", "executor", "unavailable"}, Efforts: []string{"medium", "high"}}}
-	models := []codex.Model{
-		{Model: "controller", SupportedReasoningEfforts: []codex.ReasoningOption{{ReasoningEffort: "medium"}}},
-		{Model: "executor", SupportedReasoningEfforts: []codex.ReasoningOption{{ReasoningEffort: "high"}}},
+	request := tasksmodel.Request{Model: "controller", Effort: "medium", Executor: appdatamodel.ControllerSettings{Models: []string{"controller", "executor", "unavailable"}, Efforts: []string{"medium", "high"}}}
+	models := []codexmodel.Model{
+		{Model: "controller", SupportedReasoningEfforts: []codexmodel.ReasoningOption{{ReasoningEffort: "medium"}}},
+		{Model: "executor", SupportedReasoningEfforts: []codexmodel.ReasoningOption{{ReasoningEffort: "high"}}},
 	}
 	for _, choice := range []struct {
 		model, effort, wantModel, wantEffort string
@@ -91,11 +94,11 @@ func TestQueuedExecutorConfigurationPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.ServiceShutdown()
-	request, err := service.submitRequest(ControllerInput{Text: "完成汇报", Model: "controller", Effort: "medium", FastMode: true}, "execution_result", "execution")
+	request, err := service.submitRequest(tasksmodel.ControllerInput{Text: "完成汇报", Model: "controller", Effort: "medium", FastMode: true}, "execution_result", "execution")
 	if err != nil {
 		t.Fatal(err)
 	}
-	changed := appdata.ControllerSettings{Models: []string{"other"}, Efforts: []string{"high"}, Prompt: "新提示词"}
+	changed := appdatamodel.ControllerSettings{Models: []string{"other"}, Efforts: []string{"high"}, Prompt: "新提示词"}
 	if _, err = data.SetControllerSettings(changed); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +111,7 @@ func TestQueuedExecutorConfigurationPersists(t *testing.T) {
 	if !persisted.FastMode {
 		t.Fatal("排队请求未保留提交时的快速模式")
 	}
-	if !reflect.DeepEqual(persisted.Executor, request.Executor) || persisted.Executor.Models[0] != "controller" || persisted.Executor.Efforts[0] != "medium" || persisted.Executor.Prompt != appdata.DefaultControllerPrompt {
+	if !reflect.DeepEqual(persisted.Executor, request.Executor) || persisted.Executor.Models[0] != "controller" || persisted.Executor.Efforts[0] != "medium" || persisted.Executor.Prompt != constant.AppDataDefaultControllerPrompt {
 		t.Fatal(persisted)
 	}
 }

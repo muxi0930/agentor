@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"agentor/internal/workspace"
+	workspacemodel "agentor/internal/workspace/model"
 )
 
 // TestCreateVersionPreservesSelectionAndPersists 验证宿主创建版本保留选择且持久化后可读取
@@ -15,17 +16,17 @@ func TestCreateVersionPreservesSelectionAndPersists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := work.SaveProject(workspace.Project{Name: "项目", Directory: t.TempDir()})
+	state, err := work.SaveProject(workspacemodel.Project{Name: "项目", Directory: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectID := state.SelectedID
-	state, err = work.SaveVersion(projectID, workspace.Version{Name: "已有版本"})
+	state, err = work.SaveVersion(projectID, workspacemodel.Version{Name: "已有版本"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	selectedID := state.SelectedID
-	created, err := work.CreateVersion(projectID, workspace.Version{ID: selectedID, Name: " 0.2.0 ", Description: "版本说明"})
+	created, err := work.CreateVersion(projectID, workspacemodel.Version{ID: selectedID, Name: " 0.2.0 ", Description: "版本说明"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,12 +46,12 @@ func TestCreateVersionPreservesSelectionAndPersists(t *testing.T) {
 	}
 	before := work.GetState()
 	for _, input := range []struct {
-		projectID string            // 目标项目
-		version   workspace.Version // 创建参数
+		projectID string                 // 目标项目
+		version   workspacemodel.Version // 创建参数
 	}{
-		{projectID, workspace.Version{Name: "  "}},
-		{"missing", workspace.Version{Name: "版本"}},
-		{projectID, workspace.Version{Name: "版本", TagIDs: []string{"missing"}}},
+		{projectID, workspacemodel.Version{Name: "  "}},
+		{"missing", workspacemodel.Version{Name: "版本"}},
+		{projectID, workspacemodel.Version{Name: "版本", TagIDs: []string{"missing"}}},
 	} {
 		if _, err := work.CreateVersion(input.projectID, input.version); err == nil {
 			t.Fatal("无效创建应失败", input)

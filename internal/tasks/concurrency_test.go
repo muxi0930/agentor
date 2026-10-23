@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestConcurrencyLimitChanges 验证满额排队、动态增减上限及完成后释放名额
@@ -19,7 +21,7 @@ func TestConcurrencyLimitChanges(t *testing.T) {
 	t.Cleanup(func() { s.ServiceShutdown() })
 	started := make(chan string, 3)
 	release := map[string]chan struct{}{"a": make(chan struct{}), "b": make(chan struct{}), "c": make(chan struct{})}
-	s.runExecution = func(ctx context.Context, execution Execution) (string, string, error) {
+	s.runExecution = func(ctx context.Context, execution tasksmodel.Execution) (string, string, error) {
 		started <- execution.ID
 		select {
 		case <-release[execution.ID]:
@@ -29,7 +31,7 @@ func TestConcurrencyLimitChanges(t *testing.T) {
 		}
 	}
 	for _, id := range []string{"a", "b", "c"} {
-		s.state.Executions = append(s.state.Executions, Execution{ID: id, FeatureID: id, Status: "queued"})
+		s.state.Executions = append(s.state.Executions, tasksmodel.Execution{ID: id, FeatureID: id, Status: "queued"})
 	}
 	s.kick("a")
 	select {

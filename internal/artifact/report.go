@@ -1,6 +1,8 @@
 package artifact
 
-import "strings"
+import (
+	"strings"
+)
 
 // SavePipelineReport 将 Markdown 报告保存为指定流水线运行的产物
 //

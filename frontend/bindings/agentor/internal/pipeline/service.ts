@@ -7,7 +7,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as $models from "./models.js";
+import * as model$0 from "./model/models.js";
 
 /**
  * DeleteSchedule 移除当前项目的指定调度
@@ -26,14 +26,14 @@ export function DeleteTask(projectID: string, id: string): $CancellablePromise<v
 /**
  * GetActions 读取流水线支持的固定动作目录
  */
-export function GetActions(): $CancellablePromise<$models.ActionSpec[] | null> {
+export function GetActions(): $CancellablePromise<model$0.ActionSpec[] | null> {
     return $Call.ByID(1288283818);
 }
 
 /**
  * GetState 读取流水线状态副本
  */
-export function GetState(): $CancellablePromise<$models.State> {
+export function GetState(): $CancellablePromise<model$0.State> {
     return $Call.ByID(922627848);
 }
 
@@ -54,21 +54,21 @@ export function ResumeSessions(): $CancellablePromise<void> {
 /**
  * RunTask 启动指定流水线任务
  */
-export function RunTask(input: $models.RunInput): $CancellablePromise<$models.Run> {
+export function RunTask(input: model$0.RunInput): $CancellablePromise<model$0.Run> {
     return $Call.ByID(2143386199, input);
 }
 
 /**
  * SaveSchedule 校验并保存任务调度
  */
-export function SaveSchedule(input: $models.Schedule): $CancellablePromise<$models.Schedule> {
+export function SaveSchedule(input: model$0.Schedule): $CancellablePromise<model$0.Schedule> {
     return $Call.ByID(3433996389, input);
 }
 
 /**
  * SaveTask 校验并保存当前项目的流水线任务
  */
-export function SaveTask(projectID: string, text: string): $CancellablePromise<$models.Task> {
+export function SaveTask(projectID: string, text: string): $CancellablePromise<model$0.Task> {
     return $Call.ByID(3261606461, projectID, text);
 }
 
@@ -96,20 +96,20 @@ export function StopSession(id: string): $CancellablePromise<void> {
 /**
  * SubmitSession 向专用会话提交用户请求
  */
-export function SubmitSession(input: $models.SessionInput): $CancellablePromise<$models.SessionRequest> {
+export function SubmitSession(input: model$0.SessionInput): $CancellablePromise<model$0.SessionRequest> {
     return $Call.ByID(4193303399, input);
 }
 
 /**
  * TriggerSchedule 手动触发调度并记录调度来源
  */
-export function TriggerSchedule(projectID: string, id: string): $CancellablePromise<$models.Run> {
+export function TriggerSchedule(projectID: string, id: string): $CancellablePromise<model$0.Run> {
     return $Call.ByID(266186586, projectID, id);
 }
 
 /**
  * ValidateTask 解析并校验当前项目的任务配置
  */
-export function ValidateTask(projectID: string, text: string): $CancellablePromise<$models.Task> {
+export function ValidateTask(projectID: string, text: string): $CancellablePromise<model$0.Task> {
     return $Call.ByID(1212362154, projectID, text);
 }

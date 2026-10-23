@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import * as Work from "../../../bindings/agentor/internal/workspace/service";
-import type { Project, State, Tag } from "../../../bindings/agentor/internal/workspace/models";
+import type { Project, State, Tag } from "../../../bindings/agentor/internal/workspace/model/models";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";

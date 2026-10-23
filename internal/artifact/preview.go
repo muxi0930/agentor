@@ -2,21 +2,22 @@ package artifact
 
 import (
 	"crypto/rand"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
+
+	"agentor/internal/constant"
 )
 
 // CreateHTMLPreview 创建随消息视图挂载的临时预览，源码仍保留在 Codex 历史中
 func (s *Service) CreateHTMLPreview(threadID, source string) (string, error) {
 	if threadID == "" || strings.TrimSpace(source) == "" {
-		return "", errors.New("预览需要会话和 HTML 内容")
+		return "", constant.ErrArtifactPreviewInputRequired
 	}
 
 	id := rand.Text()
 	s.mu.Lock()
-	s.previews[id] = previewBridge + source
+	s.previews[id] = constant.ArtifactPreviewBridge + source
 	s.mu.Unlock()
 	return "/agentor/previews/" + id, nil
 }
@@ -45,15 +46,3 @@ func (s *Service) servePreview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "sandbox allow-scripts")
 	io.WriteString(w, source)
 }
-
-const previewBridge = `<!doctype html><meta charset="utf-8"><script>
-(() => {
-  const send = value => parent.postMessage({channel:"agentor-preview", ...value}, "*");
-  window.agentor = {followup: text => { if (typeof text === "string") send({type:"followup", text}); }};
-  addEventListener("DOMContentLoaded", () => {
-    const resize = () => send({type:"resize", height:document.documentElement.scrollHeight});
-    new ResizeObserver(resize).observe(document.body); resize();
-  });
-  addEventListener("error", event => send({type:"error", text:event.message}));
-})();
-</script>`

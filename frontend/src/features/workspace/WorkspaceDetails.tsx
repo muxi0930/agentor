@@ -1,7 +1,7 @@
 import { PageContent, PageHeader } from "@/components/ui/page";
 import type { ReactNode } from "react";
 import { Plus } from "lucide-react";
-import type { Feature, Project, State, Version } from "../../../bindings/agentor/internal/workspace/models";
+import type { Feature, Project, State, Version } from "../../../bindings/agentor/internal/workspace/model/models";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
