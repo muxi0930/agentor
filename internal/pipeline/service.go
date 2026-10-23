@@ -29,6 +29,7 @@ type API interface {
 	SaveTask(projectID, text string) (pipelinemodel.Task, error)                                      // 校验并保存当前项目的流水线任务
 	DeleteTask(projectID, id string) error                                                            // 移除没有调度或活动运行的任务
 	RunTask(input pipelinemodel.RunInput) (pipelinemodel.Run, error)                                  // 启动指定流水线任务
+	ControlRun(projectID, id, operation string) (pipelinemodel.Run, error)                            // 执行受控运行命令
 	StopRun(id string) error                                                                          // 取消指定流水线运行
 	ConfigureTools(specs func(string) []codexmodel.DynamicToolSpec)                                   // 设置专用会话使用的宿主工具目录
 	ServiceStartup(context.Context, application.ServiceOptions) error                                 // 启动调度检查与定时轮询
@@ -191,7 +192,7 @@ func (s *Service) DeleteTask(projectID, id string) error {
 	}
 
 	for _, run := range s.state.Runs {
-		if run.TaskID == id && (run.Status == constant.TasksStatusRunning || run.Status == constant.TasksStatusQueued) {
+		if run.TaskID == id && activeRun(run.Status) {
 			return constant.ErrPipelineRunActive
 		}
 	}
@@ -220,19 +221,12 @@ func (s *Service) RunTask(input pipelinemodel.RunInput) (pipelinemodel.Run, erro
 
 // StopRun 取消指定流水线运行
 func (s *Service) StopRun(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, run := range s.state.Runs {
+	for _, run := range s.GetState().Runs {
 		if run.ID == id {
-			if cancel := s.cancellations[id]; cancel != nil {
-				cancel()
-			}
-
-			return nil
+			_, err := s.ControlRun(run.ProjectID, id, constant.PipelineControlStop)
+			return err
 		}
 	}
-
 	return constant.ErrPipelineRunNotFound
 }
 
@@ -427,7 +421,7 @@ func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pip
 	}
 
 	for _, existing := range s.state.Runs {
-		if existing.TaskID == task.ID && (existing.Status == constant.TasksStatusQueued || existing.Status == constant.TasksStatusRunning) {
+		if existing.TaskID == task.ID && activeRun(existing.Status) {
 			s.mu.Unlock()
 			return pipelinemodel.Run{}, constant.ErrPipelineTaskAlreadyRunning
 		}
@@ -482,8 +476,13 @@ func (s *Service) updateRun(id string, change func(*pipelinemodel.Run)) error {
 
 	for i := range s.state.Runs {
 		if s.state.Runs[i].ID == id {
-			change(&s.state.Runs[i])
-			return s.persistLocked()
+			next := clone(s.state)
+			change(&next.Runs[i])
+			if err := appdata.WriteJSON(filepath.Join(s.root, constant.PipelineStateFilename), next); err != nil {
+				return err
+			}
+			s.state = next
+			return nil
 		}
 	}
 

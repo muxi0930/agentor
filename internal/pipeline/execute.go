@@ -13,11 +13,33 @@ import (
 // execute 执行当前任务并保存动作或轮次结果
 func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 	defer s.workerGroup.Done()
+	defer func() {
+		s.mu.Lock()
+		if cancel := s.cancellations[run.ID]; cancel != nil {
+			cancel()
+			delete(s.cancellations, run.ID)
+		}
+		s.mu.Unlock()
+		s.changed()
+	}()
 
 	err := s.updateRun(run.ID, func(record *pipelinemodel.Run) { record.Status = constant.TasksStatusRunning })
 	s.changed()
 	results := map[string]any{}
 	for _, action := range run.Task.Actions {
+		attempt := 1
+		completed := false
+		for _, previous := range run.Actions {
+			if previous.ID == action.ID {
+				attempt++
+				if previous.Status == constant.TasksStatusCompleted {
+					results[action.ID], completed = previous.Output, true
+				}
+			}
+		}
+		if completed {
+			continue
+		}
 		if err != nil {
 			break
 		}
@@ -26,13 +48,20 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 			break
 		}
 
-		var params map[string]any
-		params, err = resolveParams(action.Params, run.Inputs, results)
+		var paused bool
+		paused, err = s.pauseAtBoundary(run.ID)
 		if err != nil {
 			break
 		}
+		if paused {
+			return
+		}
 
-		record := pipelinemodel.ActionResult{ID: action.ID, Type: action.Type, Status: constant.TasksStatusRunning, Inputs: params, StartedAt: now()}
+		var params map[string]any
+		params, err = resolveParams(action.Params, run.Inputs, results)
+		resolveErr := err
+
+		record := pipelinemodel.ActionResult{Attempt: attempt, ID: action.ID, Type: action.Type, Status: constant.TasksStatusRunning, Inputs: params, StartedAt: now()}
 		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Actions = append(value.Actions, record) })
 		s.changed()
 		if err != nil {
@@ -40,7 +69,10 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 		}
 
 		var output any
-		output, err = s.perform(ctx, run, action.Type, params)
+		err = resolveErr
+		if err == nil {
+			output, err = s.perform(ctx, run, action.Type, params)
+		}
 		record.Output, record.CompletedAt = output, now()
 		record.Status = constant.TasksStatusCompleted
 		if err != nil {
@@ -65,6 +97,9 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 		results[action.ID] = output
 	}
 
+	if err == nil {
+		err = ctx.Err()
+	}
 	status := constant.TasksStatusCompleted
 	if err != nil {
 		status = constant.TasksStatusError
@@ -73,7 +108,8 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 		}
 	}
 
-	s.updateRun(run.ID, func(value *pipelinemodel.Run) {
+	finishErr := s.updateRun(run.ID, func(value *pipelinemodel.Run) {
+		value.PauseRequested = false
 		value.Status, value.CompletedAt = status, now()
 		if err != nil {
 			value.Error = err.Error()
@@ -81,14 +117,7 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 
 		run = clone(*value)
 	})
-	s.mu.Lock()
-	if cancel := s.cancellations[run.ID]; cancel != nil {
-		cancel()
-		delete(s.cancellations, run.ID)
-	}
-
-	s.mu.Unlock()
-	if s.ctx.Err() != nil {
+	if finishErr != nil || s.ctx.Err() != nil {
 		return
 	}
 
@@ -126,6 +155,8 @@ func (s *Service) perform(ctx context.Context, run pipelinemodel.Run, kind strin
 	}
 
 	switch kind {
+	case constant.PipelineActionCreateWorktree, constant.PipelineActionMergeWorktree, constant.PipelineActionRemoveWorktree:
+		return s.performWorktree(ctx, run, kind)
 	case constant.PipelineActionSnapshot:
 		project, err := s.project(run.ProjectID)
 		if err != nil {
@@ -184,7 +215,14 @@ func (s *Service) perform(ctx context.Context, run pipelinemodel.Run, kind strin
 			return nil, err
 		}
 
+		directory := ""
+		for _, current := range s.GetState().Runs {
+			if current.ID == run.ID && current.Worktree != nil {
+				directory = current.Worktree.Directory
+			}
+		}
 		execution, err := s.tasks.Dispatch(tasksmodel.DispatchInput{
+			ExecutionDirectory:  directory,
 			AttachmentRequestID: run.RequestID,
 			StepID:              stepContext.Step.ID,
 			Instruction:         stringParam(params, "instruction"),
@@ -212,11 +250,14 @@ func (s *Service) perform(ctx context.Context, run pipelinemodel.Run, kind strin
 			ids = append(ids, file.ID)
 		}
 
-		output := map[string]any{"executionId": result.ID, "status": result.Status, "result": result.Result, "artifactIds": ids}
+		output := map[string]any{"outcome": result.Outcome, "outcomeSummary": result.OutcomeSummary, "executionId": result.ID, "status": result.Status, "result": result.Result, "artifactIds": ids}
 		if result.Status != constant.TasksStatusCompleted {
 			return output, fmt.Errorf("步骤 %s：%s %s", result.Context.Step.Title, result.Status, result.Error)
 		}
 
+		if result.Outcome != constant.TasksStatusCompleted {
+			return output, constant.ErrPipelineStepOutcomeMissing
+		}
 		return output, nil
 	case constant.PipelineActionWriteReport:
 		name := stringParam(params, "fileName")

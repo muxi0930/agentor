@@ -1,6 +1,6 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useState } from "react";
-import { Slider } from "@base-ui/react/slider";
+import { Slider } from "@animate-ui/react/primitives/base-ui/slider";
 import { ArrowLeft, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import type { Settings } from "../../../bindings/agentor/internal/appdata/model/models";
 import type { Model } from "../../../bindings/agentor/internal/codex/model/models";

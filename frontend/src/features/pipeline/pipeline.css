@@ -1,0 +1,25 @@
+/* 根据面板宽度调整布局，不依赖窗口宽度 */
+.pipeline-form {
+  container: pipeline-form / inline-size;
+  min-width: 0;
+}
+.pipeline-form fieldset,
+.pipeline-form [data-slot="field"],
+.pipeline-form [data-slot="field"] > *,
+.pipeline-form [data-slot="select-trigger"] {
+  min-width: 0;
+  max-width: 100%;
+}
+.pipeline-form [data-slot="field"] { gap: 0.375rem; }
+.pipeline-form [data-slot="input"],
+.pipeline-form [data-slot="select-trigger"] { min-height: 2rem; height: 2rem; }
+.pipeline-form [data-slot="select-value"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipeline-form [data-slot="textarea"] { min-height: 4rem; }
+.pipeline-form legend { max-width: 100%; overflow-wrap: anywhere; }
+.pipeline-flow { container: pipeline-flow / inline-size; }
+.pipeline-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.75rem;
+}
+.pipeline-flow button { overflow-wrap: anywhere; }

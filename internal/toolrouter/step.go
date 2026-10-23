@@ -11,6 +11,8 @@ import (
 // stepCall 处理宿主绑定的当前步骤工具
 func (r *Router) stepCall(scope tasksmodel.Scope, call codexmodel.ToolCall) (any, error) {
 	var args struct {
+		Success    *bool  `json:"success"`    // 明确汇报是否成功
+		Summary    string `json:"summary"`    // 结果与验证说明
 		Query      string `json:"query"`      // 知识检索内容
 		DocumentID string `json:"documentId"` // 知识文档标识
 		Title      string `json:"title"`      // 新建文档标题
@@ -23,8 +25,19 @@ func (r *Router) stepCall(scope tasksmodel.Scope, call codexmodel.ToolCall) (any
 	}
 
 	switch call.Tool {
+	case constant.ToolRouterToolReportStepOutcome:
+		if args.Success == nil {
+			return nil, constant.ErrTasksOutcomeRequired
+		}
+		err := r.tasks.ReportOutcome(scope.ExecutionID, *args.Success, args.Summary)
+		return map[string]bool{"recorded": err == nil}, err
 	case constant.ToolRouterToolGetStepContext:
-		return r.work.GetStepContext(scope.StepID)
+		for _, execution := range r.tasks.GetState().Executions {
+			if execution.ID == scope.ExecutionID {
+				return execution.Context, nil
+			}
+		}
+		return nil, constant.ErrToolRouterActiveExecutionNotFound
 	case constant.ToolRouterToolSearchKnowledge:
 		return r.work.SearchKnowledge(scope.ProjectID, scope.FeatureID, args.Query)
 	case constant.ToolRouterToolReadKnowledge:

@@ -25,6 +25,7 @@ import (
 
 // API 按职责列出服务的全部公开方法
 type API interface {
+	ReportOutcome(id string, success bool, summary string) error                                                                      // 汇报当前步骤的结构化结果
 	GetState() tasksmodel.State                                                                                                       // 返回不包含密钥的状态快照
 	ConfigureTools(specs func(string) []codexmodel.DynamicToolSpec)                                                                   // 配置各业务角色可用的宿主工具
 	SelectModel(model, effort string) (string, string, error)                                                                         // 核验模型与推理强度并返回有效选择
@@ -204,6 +205,9 @@ func (s *Service) Dispatch(input tasksmodel.DispatchInput) (tasksmodel.Execution
 	}
 	if strings.TrimSpace(input.Instruction) == "" && strings.TrimSpace(context.Step.Prompt) == "" {
 		return tasksmodel.Execution{}, constant.ErrTasksInstructionRequired
+	}
+	if input.ExecutionDirectory != "" && input.PipelineRunID != "" {
+		context.Directory, context.Step.ThreadID = input.ExecutionDirectory, ""
 	}
 	if input.TimeoutSeconds < 0 {
 		return tasksmodel.Execution{}, constant.ErrTasksTimeoutInvalid

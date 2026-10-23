@@ -526,6 +526,74 @@
     },
     {
       "type": "function",
+      "name": "set_schedule_enabled",
+      "description": "启用或停用当前项目的调度。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "scheduleId": {
+            "description": "调度 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleId",
+          "enabled"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "trigger_schedule",
+      "description": "手动触发已有调度，同任务不重入。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "scheduleId": {
+            "description": "调度 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "control_pipeline_run",
+      "description": "通过 Go 状态机暂停、继续、重试或停止本项目运行。暂停等待当前节点结束；重试使用原冻结定义并保留成功节点和尝试历史。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "description": "流水线运行标识"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "pause",
+              "resume",
+              "retry",
+              "stop"
+            ]
+          }
+        },
+        "required": [
+          "runId",
+          "operation"
+        ],
+        "additionalProperties": false
+      },
+      "type": "function"
+    },
+    {
+      "type": "function",
       "name": "run_pipeline",
       "description": "运行当前项目已有任务；模型和来源沿用此会话请求。",
       "inputSchema": {
@@ -566,6 +634,27 @@
     }
   ],
   "step": [
+    {
+      "type": "function",
+      "name": "report_step_outcome",
+      "description": "汇报当前步骤的业务结果与验证说明；不会直接改变流水线状态。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "summary"
+        ],
+        "additionalProperties": false
+      }
+    },
     {
       "type": "function",
       "name": "get_step_context",

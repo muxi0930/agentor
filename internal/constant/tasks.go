@@ -59,3 +59,5 @@ const (
 	TasksSourceDesktop   = "desktop"
 	TasksStateFilename   = "tasks.json"
 )
+
+const TasksPipelineOutcomeInstructions = "这是流水线步骤。完成工作与验证后，必须调用 report_step_outcome 汇报 success 和 summary；失败时明确汇报 false。只有轮次正常结束且结构化汇报成功，Go 才会推进后续节点。若在独立 worktree 中执行，请将所有需要合并的变更提交到当前分支，保持工作区干净，不得自行合并、切换来源分支或删除 worktree。"

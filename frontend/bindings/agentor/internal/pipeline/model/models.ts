@@ -24,6 +24,11 @@ export interface Action {
 
 export interface ActionResult {
     /**
+     * 当前动作的尝试次数，历史记录持续保留
+     */
+    "attempt": number;
+
+    /**
      * 对应动作标识
      */
     "id": string;
@@ -124,6 +129,16 @@ export interface Parameter {
 }
 
 export interface Run {
+    /**
+     * 本次运行专属的工作区记录
+     */
+    "worktree"?: Worktree | null;
+
+    /**
+     * 当前节点结束后暂停推进
+     */
+    "pauseRequested": boolean;
+
     /**
      * 发起运行的专用会话请求标识
      */
@@ -480,4 +495,36 @@ export interface Task {
      * 按顺序执行的固定动作
      */
     "actions": Action[] | null;
+}
+
+export interface Worktree {
+    /**
+     * 宿主分配的独立工作区目录
+     */
+    "directory": string;
+
+    /**
+     * 来源工作区目录
+     */
+    "repository": string;
+
+    /**
+     * 创建时的来源分支
+     */
+    "sourceBranch": string;
+
+    /**
+     * 创建时的来源提交
+     */
+    "sourceCommit": string;
+
+    /**
+     * 本次运行专属分支
+     */
+    "branch": string;
+
+    /**
+     * 合并成功的提交
+     */
+    "mergedCommit": string;
 }

@@ -285,3 +285,24 @@ var (
 	ErrWorkspaceTagOutsideProject             = errors.New("标签不属于当前项目")
 	ErrWorkspaceVersionNotFound               = errors.New("版本不存在")
 )
+
+var (
+	ErrPipelineTransitionInvalid = errors.New("当前流水线状态不允许此操作")
+	ErrPipelineWorkerActive      = errors.New("流水线执行器尚未退出，请稍后重试")
+)
+
+var (
+	ErrTasksOutcomeRequired       = errors.New("步骤结果必须包含验证说明")
+	ErrTasksOutcomeInactive       = errors.New("只能汇报当前正在执行的步骤结果")
+	ErrPipelineStepOutcomeMissing = errors.New("步骤未明确汇报业务成功，流水线已停止推进")
+)
+
+var ErrPipelineWorktreeOrder = errors.New("工作区节点顺序必须为：创建工作区、执行步骤、合并分支、清理工作区，且工作区动作不可重复")
+
+var (
+	ErrPipelineWorktreeMissing        = errors.New("本次运行尚未创建工作区")
+	ErrPipelineWorktreeBranchChanged  = errors.New("运行工作区已切换分支")
+	ErrPipelineWorktreeNotMerged      = errors.New("工作区未确认合并，不能清理")
+	ErrPipelineWorktreeAdvanced       = errors.New("工作区在合并后出现新提交，不能清理")
+	ErrPipelineWorktreeBranchAdvanced = errors.New("分支在合并后出现新提交，不能删除")
+)

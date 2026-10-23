@@ -112,3 +112,14 @@ const (
 	ToolRouterSessionRoleDescription       = "pipeline_manager / pipeline_config"
 	ToolRouterRoleStep                     = "step"
 )
+
+const (
+	ToolRouterToolControlPipelineRun     = "control_pipeline_run"
+	ToolRouterControlPipelineDescription = "通过 Go 状态机暂停、继续、重试或停止本项目运行。暂停等待当前节点结束；重试使用原冻结定义并保留成功节点和尝试历史。"
+	ToolRouterRunIDDescription           = "流水线运行标识"
+)
+
+const (
+	ToolRouterToolReportStepOutcome        = "report_step_outcome"
+	ToolRouterReportStepOutcomeDescription = "汇报当前步骤的业务结果与验证说明；不会直接改变流水线状态。"
+)

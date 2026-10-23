@@ -1,8 +1,9 @@
+import { Fade } from "@animate-ui/react/primitives/effects/fade";
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "cn";
 
 export function Page({ className, ...props }: ComponentProps<"div">) {
-  return <div data-slot="page" className={cn("mx-auto w-full min-w-0 max-w-3xl space-y-6 p-6 lg:p-10", className)} {...props} />;
+  return <Fade asChild transition={{ duration: 0.18 }}><div data-slot="page" className={cn("mx-auto w-full min-w-0 max-w-3xl space-y-6 p-6 lg:p-10", className)} {...props} /></Fade>;
 }
 
 export function PageHeader({ type, typeIcon, title, description, actions, children }: { type?: string; typeIcon?: ReactNode; title: ReactNode; description?: ReactNode; actions?: ReactNode; children?: ReactNode }) {

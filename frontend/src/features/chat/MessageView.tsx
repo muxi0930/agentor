@@ -1,6 +1,8 @@
+import { Fade } from "@animate-ui/react/primitives/effects/fade";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useState } from "react";
-import { Brain, Copy, Eye, FileText, SquareTerminal } from "lucide-react";
+import { Brain, Eye, FileText, SquareTerminal } from "lucide-react";
 import type { Item } from "../../../bindings/agentor/internal/codex/model/models";
 import type { Attachment } from "../../../bindings/agentor/internal/artifact/models";
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
@@ -19,11 +21,11 @@ export function MessageView({ item, files = [], streaming = false, onError }: { 
     const user = item.type === "userMessage";
     const text = user ? (item.content || []).map(input => input.text || "").filter(Boolean).join("\n") : item.text;
     const display = !expanded && text.length > 16000 ? text.slice(0, 16000) : text;
-    return <Message align={user ? "end" : "start"}>
+    return <Fade asChild initial={streaming ? "hidden" : false} transition={{ duration: 0.16 }}><Message align={user ? "end" : "start"}>
       <MessageHeader className={`w-20 shrink-0 flex-col gap-1 px-0 pt-1 sm:in-data-[side-gutters]:absolute sm:in-data-[side-gutters]:top-0 ${user ? "sm:in-data-[side-gutters]:-right-22" : "sm:in-data-[side-gutters]:-left-22"}`}>
         <span className={user ? "w-6 self-start text-center" : "self-end text-right"}>{user ? "Me" : item.phase === "commentary" ? "进展 · Codex" : "Codex"}</span>
         <div className={`flex flex-col gap-0 opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 ${user ? "items-start self-start" : "items-end self-end"}`}>
-          <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-xs" aria-label="复制消息" onClick={() => void navigator.clipboard.writeText(text).catch(error => onError(String(error)))}><Copy aria-hidden="true" /></Button>} /><TooltipContent>复制消息</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger render={<CopyButton value={text} aria-label="复制消息" onCopyError={error => onError(String(error))} />} /><TooltipContent>复制消息</TooltipContent></Tooltip>
           <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-xs" aria-label={source ? "预览" : "原文"} aria-pressed={source} onClick={() => setSource(!source)}>{source ? <FileText aria-hidden="true" /> : <Eye aria-hidden="true" />}</Button>} /><TooltipContent>{source ? "预览" : "原文"}</TooltipContent></Tooltip>
         </div>
       </MessageHeader>
@@ -33,7 +35,7 @@ export function MessageView({ item, files = [], streaming = false, onError }: { 
         {!expanded && text.length > 16000 && <Button variant="outline" size="sm" className="mt-3" onClick={() => setExpanded(true)}>展开完整消息（{text.length.toLocaleString()} 字符）</Button>}
       </BubbleContent></Bubble>
       {user && files.length > 0 && <AttachmentView files={files} onError={onError} />}
-    </MessageContent></Message>;
+    </MessageContent></Message></Fade>;
   }
   if (item.type === "reasoning" || item.type === "commandExecution") {
     const command = item.type === "commandExecution";

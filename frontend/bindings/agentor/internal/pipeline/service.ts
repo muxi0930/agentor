@@ -10,6 +10,13 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as model$0 from "./model/models.js";
 
 /**
+ * ControlRun 校验项目和状态后执行暂停、继续、重试或停止命令
+ */
+export function ControlRun(projectID: string, id: string, operation: string): $CancellablePromise<model$0.Run> {
+    return $Call.ByID(2601412071, projectID, id, operation);
+}
+
+/**
  * DeleteSchedule 移除当前项目的指定调度
  */
 export function DeleteSchedule(projectID: string, id: string): $CancellablePromise<void> {

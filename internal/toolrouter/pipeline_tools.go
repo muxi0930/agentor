@@ -41,6 +41,9 @@ func (r *Router) pipelineCall(request pipelinemodel.SessionRequest, call codexmo
 	}
 
 	var args struct {
+		Enabled    bool           `json:"enabled"`    // 调度是否启用
+		RunID      string         `json:"runId"`      // 运行标识
+		Operation  string         `json:"operation"`  // 受控运行命令
 		JSON       string         `json:"json"`       // 任务或调度定义
 		TaskID     string         `json:"taskId"`     // 流水线任务标识
 		ScheduleID string         `json:"scheduleId"` // 调度标识
@@ -53,6 +56,13 @@ func (r *Router) pipelineCall(request pipelinemodel.SessionRequest, call codexmo
 
 	projectID := request.Input.ProjectID
 	switch call.Tool {
+	case constant.ToolRouterToolSetScheduleEnabled:
+		err := r.pipeline.SetScheduleEnabled(projectID, args.ScheduleID, args.Enabled)
+		return map[string]bool{"updated": err == nil}, err
+	case constant.ToolRouterToolTriggerSchedule:
+		return r.pipeline.TriggerScheduleFor(projectID, args.ScheduleID, pipelinemodel.RunInput{SessionRequestID: request.ID, Model: request.Input.Model, Effort: request.Input.Effort, Source: request.Input.Source, RequestID: request.Input.RequestID})
+	case constant.ToolRouterToolControlPipelineRun:
+		return r.pipeline.ControlRun(projectID, args.RunID, args.Operation)
 	case constant.ToolRouterToolListActions:
 		return r.pipeline.GetActions(), nil
 	case constant.ToolRouterToolShareArtifact:

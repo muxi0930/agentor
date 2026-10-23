@@ -1,3 +1,4 @@
+import { Fade } from "@animate-ui/react/primitives/effects/fade"
 import * as React from "react"
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
@@ -35,14 +36,16 @@ function Attachment({
     state?: "idle" | "uploading" | "processing" | "error" | "done"
   }) {
   return (
-    <div
-      data-slot="attachment"
-      data-state={state}
-      data-size={size}
-      data-orientation={orientation}
-      className={cn(attachmentVariants({ size, orientation }), className)}
-      {...props}
-    />
+    <Fade asChild transition={{ duration: 0.16 }}>
+      <div
+        data-slot="attachment"
+        data-state={state}
+        data-size={size}
+        data-orientation={orientation}
+        className={cn(attachmentVariants({ size, orientation }), className)}
+        {...props}
+      />
+    </Fade>
   )
 }
 

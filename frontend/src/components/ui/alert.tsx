@@ -1,3 +1,4 @@
+import { Fade } from "@animate-ui/react/primitives/effects/fade"
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
@@ -24,12 +25,14 @@ function Alert({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
   return (
-    <div
-      data-slot="alert"
-      role="alert"
-      className={cn(alertVariants({ variant }), className)}
-      {...props}
-    />
+    <Fade asChild transition={{ duration: 0.16 }}>
+      <div
+        data-slot="alert"
+        role="alert"
+        className={cn(alertVariants({ variant }), className)}
+        {...props}
+      />
+    </Fade>
   )
 }
 

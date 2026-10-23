@@ -14,5 +14,6 @@ export type {
     SessionInput,
     SessionRequest,
     State,
-    Task
+    Task,
+    Worktree
 } from "./models.js";

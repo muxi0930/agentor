@@ -14,6 +14,9 @@ import (
 // GetActions 读取流水线支持的固定动作目录
 func (s *Service) GetActions() []pipelinemodel.ActionSpec {
 	return []pipelinemodel.ActionSpec{
+		{constant.PipelineActionCreateWorktree, constant.PipelineCreateWorktreeDescription, []pipelinemodel.Parameter{}, constant.PipelineWorktreeResult},
+		{constant.PipelineActionMergeWorktree, constant.PipelineMergeWorktreeDescription, []pipelinemodel.Parameter{}, constant.PipelineWorktreeResult},
+		{constant.PipelineActionRemoveWorktree, constant.PipelineRemoveWorktreeDescription, []pipelinemodel.Parameter{}, constant.PipelineWorktreeResult},
 		{
 			constant.PipelineActionSnapshot,
 			constant.PipelineInspectActionDescription,
@@ -129,7 +132,30 @@ func (s *Service) validateTask(task pipelinemodel.Task) error {
 	}
 
 	previous := map[string]bool{}
+	created, stepped, merged, removed := false, false, false, false
 	for _, action := range task.Actions {
+		switch action.Type {
+		case constant.PipelineActionCreateWorktree:
+			if created || stepped {
+				return constant.ErrPipelineWorktreeOrder
+			}
+			created = true
+		case constant.PipelineActionRunStep:
+			if merged || removed {
+				return constant.ErrPipelineWorktreeOrder
+			}
+			stepped = true
+		case constant.PipelineActionMergeWorktree:
+			if !created || !stepped || merged {
+				return constant.ErrPipelineWorktreeOrder
+			}
+			merged = true
+		case constant.PipelineActionRemoveWorktree:
+			if !merged || removed {
+				return constant.ErrPipelineWorktreeOrder
+			}
+			removed = true
+		}
 		if action.ID == "" || previous[action.ID] {
 			return constant.ErrPipelineActionIDInvalid
 		}

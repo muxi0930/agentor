@@ -157,6 +157,9 @@ func executionPrompt(execution tasksmodel.Execution) string {
 		constant.TasksInstructionHeading,
 		execution.Instruction,
 	}
+	if execution.PipelineRunID != "" {
+		parts = append(parts, constant.TasksPipelineOutcomeInstructions)
+	}
 	if execution.CompletionCriteria != "" {
 		parts = append(parts, constant.TasksCompletionCriteriaHeading, execution.CompletionCriteria)
 	}
@@ -176,6 +179,10 @@ func (s *Service) execute(ctx context.Context, execution tasksmodel.Execution) (
 		return constant.TasksStatusError, "", err
 	}
 	threadID := current.Step.ThreadID
+	isolated := execution.Context.Directory != current.Directory
+	if isolated {
+		threadID = ""
+	}
 	if threadID == "" {
 		var tools []codexmodel.DynamicToolSpec
 		if s.toolSpecs != nil {
@@ -189,8 +196,10 @@ func (s *Service) execute(ctx context.Context, execution tasksmodel.Execution) (
 		if err = ctx.Err(); err != nil {
 			return constant.TasksStatusInterrupted, "", err
 		}
-		if err = s.work.BindStepThread(execution.StepID, threadID); err != nil {
-			return constant.TasksStatusError, "", err
+		if !isolated {
+			if err = s.work.BindStepThread(execution.StepID, threadID); err != nil {
+				return constant.TasksStatusError, "", err
+			}
 		}
 	} else {
 		if err = s.runtime.EnsureOpen(threadID); err != nil {

@@ -208,14 +208,6 @@
 
 html, body, #root { height: 100%; }
 body { overflow: hidden; }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
 .markdown { overflow-wrap: anywhere; line-height: 1.75; }
 .markdown > * + * { margin-top: 0.8rem; }
 .markdown h1, .markdown h2, .markdown h3 { font-weight: 600; line-height: 1.4; }

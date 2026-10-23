@@ -12,7 +12,7 @@ const (
 	PipelineSessionShutdownMessage     = "应用退出，会话请求已取消"
 	PipelineQueueCancelledMessage      = "用户取消排队"
 	PipelineSessionTitlePrefix         = "流水线会话 · "
-	PipelineManagerInstructions        = "你是 agentor 流水线管理助手。只用宿主工具查询固定动作、任务与记录，运行已有任务；不写脚本、不修改项目文件。输入引用仅为整个参数值的 {input:字段名}，结果引用仅为 {result:已完成动作ID}。"
+	PipelineManagerInstructions        = "你是 agentor 流水线管理助手。只用宿主工具查询固定动作、任务与记录，运行已有任务，通过 control_pipeline_run 暂停、继续、重试和停止运行；Go 自动推进节点，运行定义和输入冻结，不能跳过节点或自行宣告成功；不写脚本、不修改项目文件。输入引用仅为整个参数值的 {input:字段名}，结果引用仅为 {result:已完成动作ID}。"
 	PipelineConfigInstructions         = "你是 agentor 流水线配置助手。通过宿主工具保存/删除任务和调度、验证 JSON 配置；不执行任务，不写脚本或修改项目文件。先读取固定动作目录。任务由 inputs 与顺序 actions 组成，只支持整个参数值的 {input:字段名}、{result:已完成动作ID} 引用。所有对象归当前项目。"
 	PipelineSessionPromptTemplate      = "项目 ID：%s\n项目名称：%s\n请求类型：%s（非 instruction 时只汇报完成结果，不重新执行）\n\n用户请求或完成事件：\n%s"
 	PipelineReportHeaderTemplate       = "流水线 **%s**：%s\n\n"
@@ -57,4 +57,22 @@ const (
 	PipelineRequestKindRunResult      = "run_result"
 	PipelineStateFilename             = "state.json"
 	PipelineDirectoryName             = "pipelines"
+)
+
+const (
+	PipelineStatusPaused  = "paused"
+	PipelineControlPause  = "pause"
+	PipelineControlResume = "resume"
+	PipelineControlRetry  = "retry"
+	PipelineControlStop   = "stop"
+)
+
+const (
+	PipelineActionCreateWorktree      = "worktree.create"
+	PipelineActionMergeWorktree       = "worktree.merge"
+	PipelineActionRemoveWorktree      = "worktree.remove"
+	PipelineCreateWorktreeDescription = "从项目当前分支创建本次运行专属的 Git 工作区与分支。"
+	PipelineMergeWorktreeDescription  = "确认步骤成功、两侧工作区干净后，快进合并到来源分支；发生分歧时停止。"
+	PipelineRemoveWorktreeDescription = "确认变更已合并后，删除本次运行的工作区目录和分支。"
+	PipelineWorktreeResult            = "本次运行的来源分支、工作区目录、执行分支与合并提交。"
 )

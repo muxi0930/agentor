@@ -45,6 +45,13 @@ export function RebuildStepContext(stepID: string): $CancellablePromise<void> {
 }
 
 /**
+ * ReportOutcome 保存当前执行的结构化业务结果，不直接改变执行状态
+ */
+export function ReportOutcome(id: string, success: boolean, summary: string): $CancellablePromise<void> {
+    return $Call.ByID(856278241, id, success, summary);
+}
+
+/**
  * ResumeQueue 由用户恢复重启后保留的任务队列
  */
 export function ResumeQueue(): $CancellablePromise<void> {

@@ -102,6 +102,16 @@ export interface DispatchInput {
 
 export interface Execution {
     /**
+     * 结构化业务结果，独立于轮次状态
+     */
+    "outcome": string;
+
+    /**
+     * 业务结果验证说明
+     */
+    "outcomeSummary": string;
+
+    /**
      * 附件原始请求，独立于完成汇报请求
      */
     "attachmentRequestId": string;

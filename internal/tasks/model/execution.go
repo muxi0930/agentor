@@ -16,6 +16,7 @@ type Source struct {
 }
 
 type DispatchInput struct {
+	ExecutionDirectory  string `json:"-"`                   // 仅宿主可指定的流水线执行目录
 	AttachmentRequestID string `json:"attachmentRequestId"` // 附件原始请求，独立于完成汇报请求
 	PipelineRunID       string `json:"pipelineRunId"`       // 所属流水线运行
 	StepID              string `json:"stepId"`              // 目标工作区步骤
@@ -29,6 +30,8 @@ type DispatchInput struct {
 }
 
 type Execution struct {
+	Outcome             string                     `json:"outcome"`             // 结构化业务结果，独立于轮次状态
+	OutcomeSummary      string                     `json:"outcomeSummary"`      // 业务结果验证说明
 	AttachmentRequestID string                     `json:"attachmentRequestId"` // 附件原始请求，独立于完成汇报请求
 	PipelineRunID       string                     `json:"pipelineRunId"`       // 所属流水线运行
 	ID                  string                     `json:"id"`                  // 稳定标识
