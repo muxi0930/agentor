@@ -373,7 +373,7 @@ func (s *Service) createThread(cwd, model, permission, role, instructions string
 	}
 
 	params := map[string]any{"cwd": cwd, "sandbox": permission, "approvalPolicy": "on-request", "approvalsReviewer": "user", "historyMode": "paginated"}
-	if role != "" && role != constant.ToolRouterRoleStep {
+	if role != "" && role != constant.ToolRouterRoleStep && role != constant.ToolRouterRolePipelineNode {
 		params["approvalPolicy"] = "never"
 	}
 	if len(tools) > 0 {
@@ -476,7 +476,7 @@ func (s *Service) startTurn(threadID, text, model, effort, clientMessageID strin
 	params["sandboxPolicy"] = sandboxPolicy(permission, cwd)
 	params["cwd"] = cwd
 	params["approvalPolicy"], params["approvalsReviewer"] = "on-request", "user"
-	if role := s.data.GetSettings().ManagedThreads[threadID]; role != "" && role != constant.ToolRouterRoleStep {
+	if role := s.data.GetSettings().ManagedThreads[threadID]; role != "" && role != constant.ToolRouterRoleStep && role != constant.ToolRouterRolePipelineNode {
 		params["approvalPolicy"] = "never"
 	}
 	if len(additionalContext) > 0 {

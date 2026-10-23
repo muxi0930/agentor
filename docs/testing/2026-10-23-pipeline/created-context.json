@@ -1,0 +1,35 @@
+{
+  "projectID": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "version": {
+    "createdAt": "2026-10-23T15:32:45.007728Z",
+    "documentIds": null,
+    "id": "5Y5BVPO36V5TH3RNW7EWJKYFIH",
+    "name": "流水线验收 2026-10-23",
+    "description": "保留完整验收模板、需求、步骤与运行记录",
+    "tagIds": null,
+    "features": []
+  },
+  "feature": {
+    "completed": false,
+    "completedAt": "",
+    "createdAt": "2026-10-23T15:32:45.012902Z",
+    "id": "3QITUIIFP6CPSW56BJCKQBZP5H",
+    "title": "模板、静态分支和 Agent 多分支验收",
+    "description": "成功、业务分支、失败重试、Git 合并及输入引用验证",
+    "context": "",
+    "prompt": "只执行本轮验收定义，保留测试现场。",
+    "documentIds": [],
+    "steps": []
+  },
+  "step": {
+    "completed": false,
+    "completedAt": "",
+    "createdAt": "2026-10-23T15:32:45.014778Z",
+    "id": "M65INSLXTVPXETBMVXZ72RAY2A",
+    "title": "验收 Agent 分支路由和输入",
+    "description": "",
+    "prompt": "根据节点明确指定的分支进行真实工具汇报，不修改项目文件。",
+    "threadId": "",
+    "permissionMode": ""
+  }
+}

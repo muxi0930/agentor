@@ -25,37 +25,38 @@ import (
 
 // API 按职责列出服务的全部公开方法
 type API interface {
-	ReportOutcome(id string, success bool, summary string) error                                                                      // 汇报当前步骤的结构化结果
-	GetState() tasksmodel.State                                                                                                       // 返回不包含密钥的状态快照
-	ConfigureTools(specs func(string) []codexmodel.DynamicToolSpec)                                                                   // 配置各业务角色可用的宿主工具
-	SelectModel(model, effort string) (string, string, error)                                                                         // 核验模型与推理强度并返回有效选择
-	Dispatch(input tasksmodel.DispatchInput) (tasksmodel.Execution, error)                                                            // 冻结步骤参数并加入正式执行队列
-	StopExecution(id string) error                                                                                                    // 取消排队或正在运行的执行
-	SteerExecution(id, text string) error                                                                                             // 向当前执行追加指令
-	ResumeQueue() error                                                                                                               // 由用户恢复重启后保留的任务队列
-	WaitExecution(ctx context.Context, id string) (tasksmodel.Execution, error)                                                       // 等待指定执行达到终态
-	MarkNotificationRead(id string) error                                                                                             // 保存通知已读状态
-	RegisterArtifact(executionID, path string) (artifact.Attachment, error)                                                           // 将当前执行生成的文件登记为产物
-	PrepareShutdown() error                                                                                                           // 停止接收任务并取消运行与排队请求
-	ServiceShutdown() error                                                                                                           // 取消所有任务并等待队列工作线程结束
-	SubmitRequest(input tasksmodel.ControllerInput) (tasksmodel.Request, error)                                                       // 将用户指令加入控制中心队列
-	StopRequest(id string) error                                                                                                      // 取消排队或正在处理的控制中心请求
-	CurrentRequest(threadID string) (tasksmodel.Request, error)                                                                       // 查找线程当前处理的控制中心请求
-	DispatchFromController(threadID, stepID, instruction, criteria, model, effort string) (tasksmodel.Execution, error)               // 从当前控制中心范围派发正式步骤
-	PrepareDelete(stepIDs []string) (func(), error)                                                                                   // 停止关联执行后允许删除步骤并返回保护解除入口
-	OnCodexEvent(event codexmodel.Event)                                                                                              // 处理上游事件并同步所属任务状态
-	ScopeForThread(threadID string) (tasksmodel.Scope, error)                                                                         // 由活动线程确定宿主工具的任务范围
-	SelectExecutor(request tasksmodel.Request, model, effort string) (string, string, error)                                          // 检查控制中心所选执行配置是否在请求范围内且被模型支持
-	SetNotificationHandler(handler func(tasksmodel.Notification))                                                                     // 设置通知持久化后的发送入口
-	GetNotification(id string) (tasksmodel.Notification, error)                                                                       // 读取独立的通知快照
-	AddNotificationParts(id string, parts []tasksmodel.NotificationPart) error                                                        // 为既有通知添加发送记录
-	UpdateNotificationPart(id string, part tasksmodel.NotificationPart) error                                                         // 保存单个发送项的最终状态
-	SubmitRemoteRequest(input tasksmodel.ControllerInput, requestID string) (tasksmodel.Request, error)                               // 使用预留请求标识提交远程任务
-	RebuildStepContext(stepID string) error                                                                                           // 重建步骤专用会话并恢复队列处理
-	RebuildControllerContext() error                                                                                                  // 重建控制中心专用会话并恢复队列处理
-	RunReadOnlyTurn(ctx context.Context, threadID, text, model, effort, cwd, id string, started func(string)) (string, string, error) // 复用正式执行的事件归属和中断逻辑运行只读轮次
-	RecordNotification(notification tasksmodel.Notification) error                                                                    // 持久化业务结果后通知发送入口
-	ReportExternalResult(requestID, kind, resultID, projectID, text string) error                                                     // 将外部业务结果交还原始控制中心请求
+	ReportOutcome(id string, success bool, summary string) error                                                                                 // 汇报当前步骤的结构化结果
+	GetState() tasksmodel.State                                                                                                                  // 返回不包含密钥的状态快照
+	ConfigureTools(specs func(string) []codexmodel.DynamicToolSpec)                                                                              // 配置各业务角色可用的宿主工具
+	SelectModel(model, effort string) (string, string, error)                                                                                    // 核验模型与推理强度并返回有效选择
+	Dispatch(input tasksmodel.DispatchInput) (tasksmodel.Execution, error)                                                                       // 冻结步骤参数并加入正式执行队列
+	StopExecution(id string) error                                                                                                               // 取消排队或正在运行的执行
+	SteerExecution(id, text string) error                                                                                                        // 向当前执行追加指令
+	ResumeQueue() error                                                                                                                          // 由用户恢复重启后保留的任务队列
+	WaitExecution(ctx context.Context, id string) (tasksmodel.Execution, error)                                                                  // 等待指定执行达到终态
+	MarkNotificationRead(id string) error                                                                                                        // 保存通知已读状态
+	RegisterArtifact(executionID, path string) (artifact.Attachment, error)                                                                      // 将当前执行生成的文件登记为产物
+	PrepareShutdown() error                                                                                                                      // 停止接收任务并取消运行与排队请求
+	ServiceShutdown() error                                                                                                                      // 取消所有任务并等待队列工作线程结束
+	SubmitRequest(input tasksmodel.ControllerInput) (tasksmodel.Request, error)                                                                  // 将用户指令加入控制中心队列
+	StopRequest(id string) error                                                                                                                 // 取消排队或正在处理的控制中心请求
+	CurrentRequest(threadID string) (tasksmodel.Request, error)                                                                                  // 查找线程当前处理的控制中心请求
+	DispatchFromController(threadID, stepID, instruction, criteria, model, effort string) (tasksmodel.Execution, error)                          // 从当前控制中心范围派发正式步骤
+	PrepareDelete(stepIDs []string) (func(), error)                                                                                              // 停止关联执行后允许删除步骤并返回保护解除入口
+	OnCodexEvent(event codexmodel.Event)                                                                                                         // 处理上游事件并同步所属任务状态
+	ScopeForThread(threadID string) (tasksmodel.Scope, error)                                                                                    // 由活动线程确定宿主工具的任务范围
+	SelectExecutor(request tasksmodel.Request, model, effort string) (string, string, error)                                                     // 检查控制中心所选执行配置是否在请求范围内且被模型支持
+	SetNotificationHandler(handler func(tasksmodel.Notification))                                                                                // 设置通知持久化后的发送入口
+	GetNotification(id string) (tasksmodel.Notification, error)                                                                                  // 读取独立的通知快照
+	AddNotificationParts(id string, parts []tasksmodel.NotificationPart) error                                                                   // 为既有通知添加发送记录
+	UpdateNotificationPart(id string, part tasksmodel.NotificationPart) error                                                                    // 保存单个发送项的最终状态
+	SubmitRemoteRequest(input tasksmodel.ControllerInput, requestID string) (tasksmodel.Request, error)                                          // 使用预留请求标识提交远程任务
+	RebuildStepContext(stepID string) error                                                                                                      // 重建步骤专用会话并恢复队列处理
+	RebuildControllerContext() error                                                                                                             // 重建控制中心专用会话并恢复队列处理
+	RunManagedTurn(ctx context.Context, threadID, text, model, effort, permission, cwd, id string, started func(string)) (string, string, error) // 复用正式执行的事件归属和中断逻辑运行指定权限的轮次
+	RecordNotification(notification tasksmodel.Notification) error                                                                               // 持久化业务结果后通知发送入口
+	ReportExternalResult(requestID, kind, resultID, projectID, text string) error                                                                // 将外部业务结果交还原始控制中心请求
+	RecordPipelineExecution(execution tasksmodel.Execution, cancel context.CancelFunc) error                                                     // 记录流水线绑定步骤的尝试并同步完成状态
 }
 
 var _ API = (*Service)(nil)
@@ -562,6 +563,23 @@ func (s *Service) runFeatureQueue(featureID string) {
 			delete(s.workers, featureID)
 			s.mu.Unlock()
 			return
+		}
+
+		// 流水线绑定步骤由外部执行器驱动，同一功能的普通队列等待其结束
+		boundRunning := false
+		for _, execution := range s.state.Executions {
+			if execution.FeatureID == featureID && execution.Status == constant.TasksStatusRunning && execution.PipelineRunID != "" {
+				boundRunning = true
+				break
+			}
+		}
+		if boundRunning {
+			s.mu.Unlock()
+			select {
+			case <-s.ctx.Done():
+			case <-time.After(constant.TasksQueuePollInterval):
+			}
+			continue
 		}
 
 		active := s.activeExecutions.Load()

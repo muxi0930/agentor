@@ -1,0 +1,345 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {
+    "choose": {
+      "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+      "projectName": "Feat",
+      "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+      "sharedContext": "",
+      "projectPrompt": "",
+      "structure": "",
+      "versionId": "5Y5BVPO36V5TH3RNW7EWJKYFIH",
+      "versionName": "流水线验收 2026-10-23",
+      "featureId": "3QITUIIFP6CPSW56BJCKQBZP5H",
+      "featureTitle": "模板、静态分支和 Agent 多分支验收",
+      "featureDescription": "成功、业务分支、失败重试、Git 合并及输入引用验证",
+      "featureContext": "",
+      "featurePrompt": "只执行本轮验收定义，保留测试现场。",
+      "step": {
+        "completed": true,
+        "completedAt": "2026-10-23T15:42:15.880421Z",
+        "createdAt": "2026-10-23T15:32:45.014778Z",
+        "id": "M65INSLXTVPXETBMVXZ72RAY2A",
+        "title": "验收 Agent 分支路由和输入",
+        "description": "",
+        "prompt": "根据节点明确指定的分支进行真实工具汇报，不修改项目文件。",
+        "threadId": "",
+        "permissionMode": ""
+      },
+      "documents": [
+        {
+          "id": "PI5RILNON3RFEODH4LEL3354VA",
+          "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+          "title": "验收1023 流水线输入知识",
+          "sourcePath": "",
+          "managedPath": "/Users/zhui/Library/Application Support/agentor/knowledge/PI5RILNON3RFEODH4LEL3354VA.md",
+          "updatedAt": "2026-10-23T15:41:36.667189Z"
+        }
+      ]
+    }
+  },
+  "pauseRequested": false,
+  "id": "QTEG6XCHLLJ5PTBAH4BCKQOM4F",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "IDHT5YVT5SF3XGQQWHDJ3KJD4W",
+  "task": {
+    "id": "IDHT5YVT5SF3XGQQWHDJ3KJD4W",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "TMQHLTFLPJTBUSWGH3ITOE6SFR",
+    "directory": "",
+    "name": "验收1023 A06 延长时限真实分支",
+    "entry": "choose",
+    "inputs": [
+      {
+        "name": "route",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "payload",
+        "type": "any",
+        "required": true
+      }
+    ],
+    "actions": [
+      {
+        "id": "choose",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "choose",
+        "params": {
+          "payload": {
+            "input": "payload"
+          },
+          "route": {
+            "input": "route"
+          }
+        },
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "ready",
+            "description": "ready",
+            "target": "ready-report"
+          },
+          {
+            "name": "review",
+            "description": "review",
+            "target": "review-report"
+          },
+          {
+            "name": "reject",
+            "description": "reject",
+            "target": "reject-report"
+          }
+        ],
+        "prompt": "这是分支路由验收。禁止执行命令或改文件。读取已解析输入 route 与 payload，立即调用 pipeline_complete_node，outcome=success，branch 精确等于 route，summary 说明输入，output={route:实际route,payload:实际payload}。汇报后正常结束。 用户已授权执行本次验收，立即执行工具汇报。",
+        "criteria": "按要求调用 pipeline_complete_node 汇报可验证的结果，且正常结束本轮。",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 300,
+        "failureTarget": "",
+        "stepSlot": "choose",
+        "stepId": "M65INSLXTVPXETBMVXZ72RAY2A"
+      },
+      {
+        "id": "ready-report",
+        "kind": "static",
+        "type": "report.write",
+        "name": "ready-report",
+        "params": {
+          "content": {
+            "result": "choose"
+          },
+          "fileName": "ready-report.md"
+        },
+        "position": {
+          "x": 300,
+          "y": 130
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "review-report",
+        "kind": "static",
+        "type": "report.write",
+        "name": "review-report",
+        "params": {
+          "content": {
+            "result": "choose"
+          },
+          "fileName": "review-report.md"
+        },
+        "position": {
+          "x": 600,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "reject-report",
+        "kind": "static",
+        "type": "report.write",
+        "name": "reject-report",
+        "params": {
+          "content": {
+            "result": "choose"
+          },
+          "fileName": "reject-report.md"
+        },
+        "position": {
+          "x": 900,
+          "y": 130
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "failed"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "done",
+        "params": {},
+        "position": {
+          "x": 1200,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "failed",
+        "kind": "end",
+        "type": "end.failure",
+        "name": "failed",
+        "params": {},
+        "position": {
+          "x": 1500,
+          "y": 130
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": {
+    "payload": {
+      "count": 3,
+      "enabled": true,
+      "message": "真实输入-review"
+    },
+    "route": "review"
+  },
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:43:58.468396Z",
+  "completedAt": "2026-10-23T15:44:21.53898Z",
+  "actions": [
+    {
+      "kind": "agent",
+      "branch": "review",
+      "threadId": "01a1696e-e812-70f2-8e5a-ed30fd21eeae",
+      "turnId": "01a1696e-eeb8-7750-bdfd-30437d28d729",
+      "report": {
+        "outcome": "success",
+        "branch": "review",
+        "summary": "已解析输入 route 为 review；payload 为 count=3、enabled=true、message=真实输入-review。",
+        "output": {
+          "payload": {
+            "count": 3,
+            "enabled": true,
+            "message": "真实输入-review"
+          },
+          "route": "review"
+        }
+      },
+      "executionId": "QTEG6XCHLLJ5PTBAH4BCKQOM4F:choose:1",
+      "attempt": 1,
+      "id": "choose",
+      "type": "agent.run",
+      "status": "completed",
+      "inputs": {
+        "payload": {
+          "count": 3,
+          "enabled": true,
+          "message": "真实输入-review"
+        },
+        "route": "review"
+      },
+      "output": {
+        "payload": {
+          "count": 3,
+          "enabled": true,
+          "message": "真实输入-review"
+        },
+        "route": "review"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:43:58.475411Z",
+      "completedAt": "2026-10-23T15:44:21.51977Z"
+    },
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "review-report",
+      "type": "report.write",
+      "status": "completed",
+      "inputs": {
+        "content": {
+          "payload": {
+            "count": 3,
+            "enabled": true,
+            "message": "真实输入-review"
+          },
+          "route": "review"
+        },
+        "fileName": "review-report.md"
+      },
+      "output": {
+        "artifactId": "JSA6JXFFH3GK2KWMEA37LH2COG",
+        "fileName": "review-report.md"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:44:21.52631Z",
+      "completedAt": "2026-10-23T15:44:21.531507Z"
+    }
+  ],
+  "artifactIds": [
+    "JSA6JXFFH3GK2KWMEA37LH2COG"
+  ]
+}

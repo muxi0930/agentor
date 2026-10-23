@@ -234,11 +234,6 @@ export interface Execution {
 
 export interface Notification {
     /**
-     * 所属流水线专用会话请求
-     */
-    "pipelineSessionId": string;
-
-    /**
      * 所属流水线运行
      */
     "pipelineRunId": string;

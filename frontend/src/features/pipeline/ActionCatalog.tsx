@@ -46,6 +46,7 @@ export function ActionCatalog({ actions }: { actions: ActionSpec[] }) {
             </div>)}
           </section>
           <section className="space-y-2"><h3 className="font-semibold">输出</h3><p className="whitespace-pre-wrap break-words">{selected.result}</p></section>
+ <section className="space-y-2"><h3 className="font-semibold">固定结果分支</h3>{selected.branches?.map(branch=><p key={branch.name}>{branch.name} · {branch.description}</p>)}<p className="text-muted-foreground">静态动作不重试；未处理的结果与非预期异常终止流水线。</p></section>
         </div>}
       </SheetContent>
     </Sheet>

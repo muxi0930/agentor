@@ -1,0 +1,134 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {},
+  "pauseRequested": false,
+  "id": "OIFTVS3Z3LYY6MU5KXARM3WNG5",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "FL57SWQGWW5PANXN42VXRZQH64",
+  "task": {
+    "id": "FL57SWQGWW5PANXN42VXRZQH64",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 A02 重试后成功",
+    "entry": "retry",
+    "inputs": [],
+    "actions": [
+      {
+        "id": "retry",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "retry",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "这是重试验收。禁止运行命令。若“上一次失败”为空，调用 pipeline_complete_node，outcome=failure，branch=\"\"，summary=\"ACCEPTANCE_EXPECTED_FIRST_FAILURE\"。若上一次失败包含该标记，则 outcome=success, branch=success, summary=\"第二次尝试通过\", output={attemptRecovered:true}。正常结束。",
+        "criteria": "按要求调用 pipeline_complete_node 汇报可验证的结果，且正常结束本轮。",
+        "permission": "workspace-write",
+        "maxRetries": 1,
+        "timeoutSeconds": 300,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "done",
+        "params": {},
+        "position": {
+          "x": 300,
+          "y": 130
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 300,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": {},
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:45:24.818415Z",
+  "completedAt": "2026-10-23T15:46:08.949633Z",
+  "actions": [
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a16970-3965-7e92-8967-dfdc44231e0c",
+      "turnId": "01a16970-3fb7-7c52-85de-05873da0c4b7",
+      "report": {
+        "outcome": "failure",
+        "branch": "",
+        "summary": "ACCEPTANCE_EXPECTED_FIRST_FAILURE",
+        "output": {}
+      },
+      "executionId": "",
+      "attempt": 1,
+      "id": "retry",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": {},
+      "error": "ACCEPTANCE_EXPECTED_FIRST_FAILURE",
+      "startedAt": "2026-10-23T15:45:24.828899Z",
+      "completedAt": "2026-10-23T15:45:48.04525Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "success",
+      "threadId": "01a16970-9422-7613-8b0d-b614de5cbdb3",
+      "turnId": "01a16970-948c-7702-819a-bf3146ea075e",
+      "report": {
+        "outcome": "success",
+        "branch": "success",
+        "summary": "第二次尝试通过",
+        "output": {
+          "attemptRecovered": true
+        }
+      },
+      "executionId": "",
+      "attempt": 2,
+      "id": "retry",
+      "type": "agent.run",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "attemptRecovered": true
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:45:48.056956Z",
+      "completedAt": "2026-10-23T15:46:08.936732Z"
+    }
+  ],
+  "artifactIds": []
+}

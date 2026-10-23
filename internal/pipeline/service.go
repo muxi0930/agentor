@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -25,13 +26,18 @@ import (
 
 // API 按职责列出服务的全部公开方法
 type API interface {
-	GetState() pipelinemodel.State                                                                    // 读取流水线状态副本
+	GetState() pipelinemodel.State                                                // 读取流水线状态副本
+	SaveTemplate(text string) (pipelinemodel.Task, error)                         // 保存独立模板
+	DeleteTemplate(id string) error                                               // 删除模板，实例不受影响
+	Instantiate(input pipelinemodel.InstantiateInput) (pipelinemodel.Task, error) // 复制模板并绑定项目步骤
+	CompleteNode(call codexmodel.ToolCall) (any, error)                           // 接收当前节点的结构化验收汇报
+
 	SaveTask(projectID, text string) (pipelinemodel.Task, error)                                      // 校验并保存当前项目的流水线任务
 	DeleteTask(projectID, id string) error                                                            // 移除没有调度或活动运行的任务
 	RunTask(input pipelinemodel.RunInput) (pipelinemodel.Run, error)                                  // 启动指定流水线任务
 	ControlRun(projectID, id, operation string) (pipelinemodel.Run, error)                            // 执行受控运行命令
 	StopRun(id string) error                                                                          // 取消指定流水线运行
-	ConfigureTools(specs func(string) []codexmodel.DynamicToolSpec)                                   // 设置专用会话使用的宿主工具目录
+	ConfigureTools(specs func(string) []codexmodel.DynamicToolSpec)                                   // 设置节点 Agent 使用的宿主工具目录
 	ServiceStartup(context.Context, application.ServiceOptions) error                                 // 启动调度检查与定时轮询
 	PrepareShutdown() error                                                                           // 停止调度并取消运行与排队请求
 	ServiceShutdown() error                                                                           // 取消所有任务并等待后台工作结束
@@ -41,31 +47,29 @@ type API interface {
 	DeleteSchedule(projectID, id string) error                                                        // 移除当前项目的指定调度
 	TriggerSchedule(projectID, id string) (pipelinemodel.Run, error)                                  // 手动触发调度并记录调度来源
 	TriggerScheduleFor(projectID, id string, input pipelinemodel.RunInput) (pipelinemodel.Run, error) // 按指定来源触发调度对应的任务
-	SubmitSession(input pipelinemodel.SessionInput) (pipelinemodel.SessionRequest, error)             // 向专用会话提交用户请求
-	StopSession(id string) error                                                                      // 停止指定会话请求
-	ResumeSessions() error                                                                            // 由用户恢复重启后保留的会话队列
-	ActiveSession(threadID string) (pipelinemodel.SessionRequest, error)                              // 查找线程当前处理的专用会话请求
 	GetActions() []pipelinemodel.ActionSpec                                                           // 读取流水线支持的固定动作目录
 	ValidateTask(projectID, text string) (pipelinemodel.Task, error)                                  // 解析并校验当前项目的任务配置
+	ValidateTemplate(text string) (pipelinemodel.Task, error)                                         // 校验模板节点图
 }
 
 var _ API = (*Service)(nil)
 
 type Service struct {
-	mu            sync.Mutex                                // 保护流水线状态与工作记录的互斥锁
-	workerGroup   sync.WaitGroup                            // 退出时等待运行、会话与调度结束
-	data          *appdata.Service                          // 应用配置服务
-	work          *workspace.Service                        // 工作区项目与知识服务
-	tasks         *tasks.Service                            // 步骤执行与通知服务
-	files         *artifact.Service                         // 流水线产物服务
-	runtime       *codex.Service                            // 原生 Codex 会话服务
-	root          string                                    // 流水线状态保存目录
-	state         pipelinemodel.State                       // 当前流水线状态
-	ctx           context.Context                           // 服务生命周期上下文
-	cancel        context.CancelFunc                        // 取消服务生命周期
-	cancellations map[string]context.CancelFunc             // 按运行或请求标识保存的取消入口
-	workers       map[string]bool                           // 按专用会话记录的队列运行状态
-	toolSpecs     func(string) []codexmodel.DynamicToolSpec // 按会话角色提供的宿主工具目录
+	nodeContexts  map[string]context.Context                                                                                       // 活动尝试的取消与超时范围
+	mu            sync.Mutex                                                                                                       // 保护流水线状态与工作记录的互斥锁
+	workerGroup   sync.WaitGroup                                                                                                   // 退出时等待运行与调度结束
+	data          *appdata.Service                                                                                                 // 应用配置服务
+	work          *workspace.Service                                                                                               // 工作区项目与知识服务
+	tasks         *tasks.Service                                                                                                   // 步骤执行与通知服务
+	files         *artifact.Service                                                                                                // 流水线产物服务
+	runtime       *codex.Service                                                                                                   // 原生 Codex 会话服务
+	root          string                                                                                                           // 流水线状态保存目录
+	state         pipelinemodel.State                                                                                              // 当前流水线状态
+	ctx           context.Context                                                                                                  // 服务生命周期上下文
+	cancel        context.CancelFunc                                                                                               // 取消服务生命周期
+	cancellations map[string]context.CancelFunc                                                                                    // 按运行标识保存的取消入口
+	runAgent      func(context.Context, pipelinemodel.Run, pipelinemodel.Action, map[string]any) (pipelinemodel.NodeReport, error) // Agent 执行入口
+	toolSpecs     func(string) []codexmodel.DynamicToolSpec                                                                        // 按会话角色提供的宿主工具目录
 }
 
 // NewService 初始化流水线服务并恢复已保存状态
@@ -81,16 +85,13 @@ func NewService(data *appdata.Service, work *workspace.Service, executions *task
 		ctx:           ctx,
 		cancel:        cancel,
 		cancellations: map[string]context.CancelFunc{},
-		workers:       map[string]bool{},
+		nodeContexts:  map[string]context.Context{},
 	}
 
+	s.runAgent = s.performAgent
 	if err := appdata.ReadJSON(filepath.Join(s.root, constant.PipelineStateFilename), &s.state); err != nil {
 		cancel()
 		return nil, err
-	}
-
-	if s.state.Threads == nil {
-		s.state.Threads = map[string]string{}
 	}
 
 	changed := false
@@ -104,19 +105,6 @@ func NewService(data *appdata.Service, work *workspace.Service, executions *task
 				}
 			}
 
-			changed = true
-		}
-	}
-
-	for i := range s.state.Requests {
-		request := &s.state.Requests[i]
-		if request.Status == constant.TasksStatusRunning {
-			request.Status, request.Error, request.CompletedAt = constant.TasksStatusInterrupted, constant.PipelineSessionInterruptedMessage, now()
-			changed = true
-		}
-
-		if request.Status == constant.TasksStatusQueued {
-			s.state.Paused = true
 			changed = true
 		}
 	}
@@ -230,7 +218,7 @@ func (s *Service) StopRun(id string) error {
 	return constant.ErrPipelineRunNotFound
 }
 
-// ConfigureTools 设置专用会话使用的宿主工具目录
+// ConfigureTools 设置节点 Agent 使用的宿主工具目录
 //
 //wails:ignore
 func (s *Service) ConfigureTools(specs func(string) []codexmodel.DynamicToolSpec) {
@@ -293,18 +281,6 @@ func (s *Service) PrepareShutdown() error {
 					run.Actions[j].Status, run.Actions[j].Error, run.Actions[j].CompletedAt = constant.TasksStatusInterrupted, run.Error, run.CompletedAt
 				}
 			}
-		}
-	}
-
-	for i := range s.state.Requests {
-		request := &s.state.Requests[i]
-		if request.Status == constant.TasksStatusRunning || request.Status == constant.TasksStatusQueued {
-			status := constant.TasksStatusInterrupted
-			if request.Status == constant.TasksStatusQueued {
-				status = constant.TasksStatusCancelled
-			}
-
-			request.Status, request.Error, request.CompletedAt = status, constant.PipelineSessionShutdownMessage, now()
 		}
 	}
 
@@ -387,9 +363,22 @@ func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pip
 		return pipelinemodel.Run{}, err
 	}
 
-	model, effort, err := s.tasks.SelectModel(input.Model, input.Effort)
-	if err != nil {
-		return pipelinemodel.Run{}, err
+	model, effort := input.Model, input.Effort
+	var err error
+	contexts := map[string]workspacemodel.StepContext{}
+	for _, node := range task.Actions {
+		if node.Kind == constant.PipelineKindAgent {
+			model, effort, err = s.tasks.SelectModel(input.Model, input.Effort)
+			if err != nil {
+				return pipelinemodel.Run{}, err
+			}
+			if node.StepID != "" {
+				contexts[node.ID], err = s.work.GetStepContext(node.StepID)
+				if err != nil {
+					return pipelinemodel.Run{}, err
+				}
+			}
+		}
 	}
 
 	if input.Source.Type == "" {
@@ -397,21 +386,39 @@ func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pip
 	}
 
 	run := pipelinemodel.Run{
-		SessionRequestID: input.SessionRequestID,
-		ID:               rand.Text(),
-		ProjectID:        task.ProjectID,
-		TaskID:           task.ID,
-		Task:             task,
-		Inputs:           clone(input.Inputs),
-		Model:            model,
-		Effort:           effort,
-		Source:           input.Source,
-		RequestID:        input.RequestID,
-		ScheduleID:       scheduleID,
-		Status:           constant.TasksStatusQueued,
-		CreatedAt:        now(),
-		Actions:          []pipelinemodel.ActionResult{},
-		ArtifactIDs:      []string{},
+		ID:          rand.Text(),
+		CurrentNode: task.Entry, StepContexts: contexts,
+		ProjectID:   task.ProjectID,
+		TaskID:      task.ID,
+		Task:        task,
+		Inputs:      clone(input.Inputs),
+		Model:       model,
+		Effort:      effort,
+		Source:      input.Source,
+		RequestID:   input.RequestID,
+		ScheduleID:  scheduleID,
+		Status:      constant.TasksStatusQueued,
+		CreatedAt:   now(),
+		Actions:     []pipelinemodel.ActionResult{},
+		ArtifactIDs: []string{},
+	}
+
+	run.Directory = task.Directory
+	if task.ProjectID != "" {
+		project, err := s.project(task.ProjectID)
+		if err != nil {
+			return pipelinemodel.Run{}, err
+		}
+		run.Directory = project.Directory
+	}
+	if run.Directory == "" {
+		run.Directory = filepath.Join(s.root, "runs", run.ID)
+	}
+	if !filepath.IsAbs(run.Directory) {
+		return pipelinemodel.Run{}, constant.ErrPipelineDirectoryInvalid
+	}
+	if err = os.MkdirAll(run.Directory, 0700); err != nil {
+		return pipelinemodel.Run{}, err
 	}
 
 	s.mu.Lock()
@@ -503,4 +510,13 @@ func markdown(value any) string {
 func stringParam(params map[string]any, key string) string {
 	value, _ := params[key].(string)
 	return strings.TrimSpace(value)
+}
+
+// saveState 在持锁时原子替换流水线状态
+func (s *Service) saveState(next pipelinemodel.State) error {
+	if err := appdata.WriteJSON(filepath.Join(s.root, constant.PipelineStateFilename), next); err != nil {
+		return err
+	}
+	s.state = next
+	return nil
 }

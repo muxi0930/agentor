@@ -165,6 +165,16 @@ var (
 
 // pipeline 模块错误
 var (
+	ErrPipelineUnreachableNode        = errors.New("存在入口无法到达的节点，请连接或移除")
+	ErrPipelineReportInvalid          = errors.New("必须汇报 success/failure 与验收说明")
+	ErrPipelineFailureBranchForbidden = errors.New("尝试失败时不选择业务分支，重试耗尽后的去向由 Go 决定")
+	ErrPipelineAttemptInactive        = errors.New("节点尝试已结束或取消")
+	ErrPipelineReportAlreadySubmitted = errors.New("本次尝试已经提交最终汇报，不能覆盖")
+	ErrPipelineReportOutsideAttempt   = errors.New("调用不属于当前活动的 Agent 节点轮次")
+	ErrPipelineToolsUnavailable       = errors.New("流水线节点工具尚未配置")
+	ErrPipelineReportMissing          = errors.New("Agent 轮次已结束，但没有调用 pipeline_complete_node 汇报验收结果")
+	ErrPipelineDirectoryInvalid       = errors.New("执行目录必须是绝对路径")
+
 	ErrPipelineNodeOutsideProject         = errors.New("版本或功能不属于当前项目")
 	ErrPipelineStepOutsidePipelineProject = errors.New("步骤不属于当前流水线项目")
 	ErrPipelineActionUnknown              = errors.New("未知固定动作")
@@ -191,7 +201,7 @@ var (
 	ErrPipelineSessionTextRequired        = errors.New("请输入会话请求")
 	ErrPipelineMultipleTaskDefinitions    = errors.New("配置只能包含一个 JSON 任务")
 	ErrPipelineTaskProjectChanged         = errors.New("任务不能改变所属项目")
-	ErrPipelineTaskDefinitionRequired     = errors.New("请填写名称和至少一个固定动作")
+	ErrPipelineTaskDefinitionRequired     = errors.New("请填写名称和至少一个节点")
 	ErrPipelineInputNameInvalid           = errors.New("输入字段名称为空或重复")
 	ErrPipelineActionIDInvalid            = errors.New("动作 ID 为空或重复")
 	ErrPipelineParameterReferenceInvalid  = errors.New("参数对象只支持整个值的 input/result 引用")

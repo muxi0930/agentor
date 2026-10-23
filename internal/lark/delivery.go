@@ -49,7 +49,7 @@ func (s *Service) OnNotification(notification tasksmodel.Notification) {
 	}
 	if !hasParts {
 		// 原控制中心统一汇报结果，辅助步骤和流水线记录仅保留桌面通知
-		if notification.RequestID != "" && (notification.ExecutionID != "" || notification.PipelineRunID != "" || notification.PipelineSessionID != "") {
+		if notification.RequestID != "" && (notification.ExecutionID != "" || notification.PipelineRunID != "") {
 			return
 		}
 		parts := []tasksmodel.NotificationPart{}

@@ -1,0 +1,63 @@
+[
+  {
+    "id": "S03",
+    "pass": true,
+    "runID": "4W6WUOE3N7CQNR2KTATSG3BEK7",
+    "status": "completed",
+    "documentID": "PI5RILNON3RFEODH4LEL3354VA"
+  },
+  {
+    "id": "A05",
+    "pass": true,
+    "runID": "F274NPTIMAVOCDB5KWXN7HM4OK",
+    "status": "completed",
+    "errors": [
+      "context deadline exceeded",
+      "context deadline exceeded",
+      ""
+    ],
+    "path": [
+      "timeout",
+      "timeout",
+      "handled"
+    ]
+  },
+  {
+    "id": "L01-pause",
+    "pass": true,
+    "runID": "NYI7QRTHPQNMYLD5NBM2K6GWHI",
+    "status": "paused"
+  },
+  {
+    "id": "L01-resume",
+    "pass": true,
+    "runID": "NYI7QRTHPQNMYLD5NBM2K6GWHI",
+    "status": "completed"
+  },
+  {
+    "id": "L02-stop",
+    "pass": true,
+    "runID": "Q6T6UGZBVA7DUGM2FYVSFJTDJU",
+    "status": "cancelled"
+  },
+  {
+    "id": "A06",
+    "pass": true,
+    "runID": "4ZZZPDATZQSNUDETFLMH64IUOA",
+    "status": "completed",
+    "error": "",
+    "report": {
+      "outcome": "success",
+      "branch": "ready",
+      "summary": "已解析输入 route=ready；payload 包含 count=3、enabled=true、message=延长时限验证。",
+      "output": {
+        "payload": {
+          "count": 3,
+          "enabled": true,
+          "message": "延长时限验证"
+        },
+        "route": "ready"
+      }
+    }
+  }
+]

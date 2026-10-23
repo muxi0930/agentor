@@ -1,0 +1,312 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/conflict-resolve",
+  "stepContexts": {},
+  "worktree": {
+    "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/TSVIIP2WH3ULLQKYTV6QACFDRA",
+    "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/conflict-resolve",
+    "sourceBranch": "main",
+    "sourceCommit": "0d1b3783ffe018f045161509d6c364fd3e71c325",
+    "branch": "codex/pipeline-TSVIIP2WH3ULLQKYTV6QACFDRA",
+    "mergedCommit": "75dee43c6b041ad87b90c1e5ca2c171cb56ad612"
+  },
+  "pauseRequested": false,
+  "id": "TSVIIP2WH3ULLQKYTV6QACFDRA",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "RRJORXCPDMED2UJ2M35E4HCR2I",
+  "task": {
+    "id": "RRJORXCPDMED2UJ2M35E4HCR2I",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 S-Git-resolve",
+    "entry": "create",
+    "inputs": null,
+    "actions": [
+      {
+        "id": "create",
+        "kind": "static",
+        "type": "worktree.create",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "gate"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "gate",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 280,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "merge"
+          }
+        ],
+        "prompt": "验收暂停点，不修改任何文件。等待30秒后汇报 success。执行。",
+        "criteria": "等待验收",
+        "permission": "read-only",
+        "maxRetries": 0,
+        "timeoutSeconds": 3,
+        "failureTarget": "merge",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "merge",
+        "kind": "static",
+        "type": "worktree.merge",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 560,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          },
+          {
+            "name": "dirty",
+            "description": "",
+            "target": "dirty"
+          },
+          {
+            "name": "diverged",
+            "description": "",
+            "target": "resolve"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "dirty",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "dirty branch",
+          "fileName": "dirty.md"
+        },
+        "position": {
+          "x": 840,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 1120,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "resolve",
+        "kind": "agent",
+        "type": "agent.resolve-conflicts",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 1400,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "执行：在当前独立工作区将输入 worktree.sourceBranch 合入当前分支；fixture.txt 冲突解决后精确保留 SOURCE 和 WORKTREE 两行。完成合并提交，标题 fix: Resolve acceptance conflict，追加 Co-authored-by: Codex <codex@openai.com>。不要修改来源工作区。确认无未合并文件，工作区干净，sourceBranch 为 HEAD 祖先。通过 pipeline_complete_node 汇报 outcome=success, branch=success, summary=验收依据, output={mergeCommit, resolvedFiles, unresolvedFiles}。",
+        "criteria": "真实冲突已解决并提交，保留双方内容",
+        "permission": "danger-full-access",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": null,
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:43:12.086312Z",
+  "completedAt": "2026-10-23T15:44:08.089748Z",
+  "actions": [
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "create",
+      "type": "worktree.create",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-TSVIIP2WH3ULLQKYTV6QACFDRA",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/TSVIIP2WH3ULLQKYTV6QACFDRA",
+        "mergedCommit": "",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/conflict-resolve",
+        "sourceBranch": "main",
+        "sourceCommit": "0d1b3783ffe018f045161509d6c364fd3e71c325"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:43:12.092704Z",
+      "completedAt": "2026-10-23T15:43:12.147034Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a1696e-331e-72a3-a4ce-bdff25c0a971",
+      "turnId": "01a1696e-3a70-7162-a1a0-94eed57c3440",
+      "executionId": "",
+      "attempt": 1,
+      "id": "gate",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": null,
+      "error": "context deadline exceeded",
+      "startedAt": "2026-10-23T15:43:12.151692Z",
+      "completedAt": "2026-10-23T15:43:15.269549Z"
+    },
+    {
+      "kind": "static",
+      "branch": "diverged",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "merge",
+      "type": "worktree.merge",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-TSVIIP2WH3ULLQKYTV6QACFDRA",
+        "sourceBranch": "main"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:43:15.27942Z",
+      "completedAt": "2026-10-23T15:43:15.358411Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "success",
+      "threadId": "01a1696e-3fab-7c02-92b7-6401674c88b5",
+      "turnId": "01a1696e-4005-7aa0-ab77-6ca990435a5a",
+      "report": {
+        "outcome": "success",
+        "branch": "success",
+        "summary": "main 合并产生的 fixture.txt 真实内容冲突已解决并完成双亲合并提交；文件逐字节确认为 SOURCE\\nWORKTREE\\n。提交标题及 Co-authored-by 符合要求；无未合并文件，工作区干净，main 为 HEAD 祖先。仅操作当前独立工作区。",
+        "output": {
+          "mergeCommit": "75dee43c6b041ad87b90c1e5ca2c171cb56ad612",
+          "resolvedFiles": [
+            "fixture.txt"
+          ],
+          "unresolvedFiles": []
+        }
+      },
+      "executionId": "",
+      "attempt": 1,
+      "id": "resolve",
+      "type": "agent.resolve-conflicts",
+      "status": "completed",
+      "inputs": {
+        "worktree": {
+          "branch": "codex/pipeline-TSVIIP2WH3ULLQKYTV6QACFDRA",
+          "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/TSVIIP2WH3ULLQKYTV6QACFDRA",
+          "mergedCommit": "",
+          "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/conflict-resolve",
+          "sourceBranch": "main",
+          "sourceCommit": "0d1b3783ffe018f045161509d6c364fd3e71c325"
+        }
+      },
+      "output": {
+        "mergeCommit": "75dee43c6b041ad87b90c1e5ca2c171cb56ad612",
+        "resolvedFiles": [
+          "fixture.txt"
+        ],
+        "unresolvedFiles": []
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:43:15.363064Z",
+      "completedAt": "2026-10-23T15:44:08.083769Z"
+    }
+  ],
+  "artifactIds": []
+}

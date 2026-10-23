@@ -1,0 +1,16 @@
+
+> agentor@0.1.0 test:pipeline
+> playwright test --config playwright.pipeline.config.ts
+
+[WebServer] (node:99369) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 3 tests using 1 worker
+
+(node:99378) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/pipeline/canvas.spec.ts:2:1 › 画布拖入、连线、展开、分支和布局持久化 (2.0s)
+  ✓  2 tests/pipeline/canvas.spec.ts:46:1 › 自由 JSON 输入保持结构并阻止无效输入运行 (317ms)
+  ✓  3 tests/pipeline/canvas.spec.ts:59:1 › 缩略图 SVG 完整位于容器内 (333ms)
+
+  3 passed (4.8s)

@@ -1,6 +1,9 @@
 export const actionNames: Record<string, string> = {
   "workspace.snapshot": "读取项目概况",
-  "step.run": "执行开发步骤",
+  "agent.run": "执行 Agent 任务",
+  "agent.resolve-conflicts": "智能解决合并冲突",
+ "end.success": "成功结束",
+ "end.failure": "失败结束",
   "knowledge.read": "读取知识文档",
   "report.write": "生成运行报告",
   "worktree.create": "创建独立工作区",
@@ -17,6 +20,6 @@ export const parameterHelp: Record<string, { label: string; help: string; placeh
   fileName: { label: "报告文件名", help: "使用 .md 文件名，不包含目录。", placeholder: "例如：result.md" },
   content: { label: "报告内容", help: "填写正文，或引用前面节点的完整输出结果。", placeholder: "报告正文" },
 };
-export const typeNames: Record<string, string> = { string: "文本", number: "数字", boolean: "是 / 否", any: "文本或节点结果" };
+export const typeNames: Record<string, string> = { string: "文本", number: "数字", boolean: "是 / 否", any: "自由 JSON" };
 export const runLabels: Record<string, string> = { queued: "等待执行", running: "执行中", paused: "已暂停", completed: "成功", error: "失败", interrupted: "已中断", cancelled: "已取消", pending: "尚未执行" };
 export function actionName(type: string) { return actionNames[type] ? `${type} · ${actionNames[type]}` : type; }

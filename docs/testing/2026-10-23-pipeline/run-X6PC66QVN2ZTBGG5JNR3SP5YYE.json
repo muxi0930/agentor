@@ -1,0 +1,276 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-success",
+  "stepContexts": {},
+  "worktree": {
+    "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/X6PC66QVN2ZTBGG5JNR3SP5YYE",
+    "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-success",
+    "sourceBranch": "main",
+    "sourceCommit": "efd426bc4a57be72601e283865481df274f9849e",
+    "branch": "codex/pipeline-X6PC66QVN2ZTBGG5JNR3SP5YYE",
+    "mergedCommit": "3ee73d330bcf41927dfdb56504b6f7825b550056"
+  },
+  "pauseRequested": false,
+  "id": "X6PC66QVN2ZTBGG5JNR3SP5YYE",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "URV63IWDJJKHCLSLAVXTJA5MJC",
+  "task": {
+    "id": "URV63IWDJJKHCLSLAVXTJA5MJC",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 S-Git-success",
+    "entry": "create",
+    "inputs": null,
+    "actions": [
+      {
+        "id": "create",
+        "kind": "static",
+        "type": "worktree.create",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "gate"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "gate",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 280,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "merge"
+          }
+        ],
+        "prompt": "验收暂停点，不修改任何文件。等待30秒后汇报 success。执行。",
+        "criteria": "等待验收",
+        "permission": "read-only",
+        "maxRetries": 0,
+        "timeoutSeconds": 3,
+        "failureTarget": "merge",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "merge",
+        "kind": "static",
+        "type": "worktree.merge",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 560,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          },
+          {
+            "name": "dirty",
+            "description": "",
+            "target": "dirty"
+          },
+          {
+            "name": "diverged",
+            "description": "",
+            "target": "diverged"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "dirty",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "dirty branch",
+          "fileName": "dirty.md"
+        },
+        "position": {
+          "x": 840,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "diverged",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "diverged branch",
+          "fileName": "diverged.md"
+        },
+        "position": {
+          "x": 1120,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 1400,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": null,
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:37:34.114716Z",
+  "completedAt": "2026-10-23T15:37:37.293817Z",
+  "actions": [
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "create",
+      "type": "worktree.create",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-X6PC66QVN2ZTBGG5JNR3SP5YYE",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/X6PC66QVN2ZTBGG5JNR3SP5YYE",
+        "mergedCommit": "",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-success",
+        "sourceBranch": "main",
+        "sourceCommit": "efd426bc4a57be72601e283865481df274f9849e"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:37:34.118071Z",
+      "completedAt": "2026-10-23T15:37:34.169104Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a16969-0ae0-7350-a4eb-12cafc092408",
+      "turnId": "01a16969-10bc-7ca3-a95e-e4fa8f2b8997",
+      "executionId": "",
+      "attempt": 1,
+      "id": "gate",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": null,
+      "error": "context deadline exceeded",
+      "startedAt": "2026-10-23T15:37:34.171741Z",
+      "completedAt": "2026-10-23T15:37:37.187466Z"
+    },
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "merge",
+      "type": "worktree.merge",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-X6PC66QVN2ZTBGG5JNR3SP5YYE",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/X6PC66QVN2ZTBGG5JNR3SP5YYE",
+        "mergedCommit": "3ee73d330bcf41927dfdb56504b6f7825b550056",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-success",
+        "sourceBranch": "main",
+        "sourceCommit": "efd426bc4a57be72601e283865481df274f9849e"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:37:37.193503Z",
+      "completedAt": "2026-10-23T15:37:37.291005Z"
+    }
+  ],
+  "artifactIds": []
+}

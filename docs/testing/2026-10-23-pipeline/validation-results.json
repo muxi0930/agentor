@@ -1,0 +1,51 @@
+[
+  {
+    "id": "V-循环连线",
+    "pass": true,
+    "response": {
+      "error": "节点图包含循环：choose；请使用 Agent 节点的有限重试"
+    }
+  },
+  {
+    "id": "V-不存在的目标节点",
+    "pass": true,
+    "response": {
+      "error": "节点 choose 的目标 missing 不存在"
+    }
+  },
+  {
+    "id": "V-空提示词",
+    "pass": true,
+    "response": {
+      "error": "Agent 节点 choose 必须填写提示词和验收标准"
+    }
+  },
+  {
+    "id": "V-必填步骤清空",
+    "pass": true,
+    "response": {
+      "error": "请绑定步骤插槽 choose"
+    }
+  },
+  {
+    "id": "V-未来节点输出引用",
+    "pass": true,
+    "response": {
+      "error": "结果 ready-report 不是节点 choose 在所有路径上的前序节点"
+    }
+  },
+  {
+    "id": "V-重复分支名称",
+    "pass": true,
+    "response": {
+      "error": "节点 choose 分支名称为空、保留名称或重复"
+    }
+  },
+  {
+    "id": "V-运行输入类型错误",
+    "pass": true,
+    "response": {
+      "error": "输入 route 应为 string"
+    }
+  }
+]

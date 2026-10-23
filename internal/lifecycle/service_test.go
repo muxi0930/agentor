@@ -93,8 +93,7 @@ func TestSnapshotIncludesEveryTaskSourceWithoutCountingManagedTurnsTwice(t *test
 		Requests: []tasksmodel.Request{{ID: "controller", Status: "queued", Text: "检查项目"}},
 	}
 	pipelines := pipelinemodel.State{
-		Runs:     []pipelinemodel.Run{{ID: "run", Status: "running", Task: pipelinemodel.Task{Name: "生成报告"}}},
-		Requests: []pipelinemodel.SessionRequest{{ID: "session", Status: "queued", Input: pipelinemodel.SessionInput{Text: "调整流水线"}}},
+		Runs: []pipelinemodel.Run{{ID: "run", Status: "running", Task: pipelinemodel.Task{Name: "生成报告"}}},
 	}
 	active := []codexmodel.ActiveTurn{
 		{ThreadID: "step-thread", Summary: "步骤轮次"},
@@ -104,7 +103,7 @@ func TestSnapshotIncludesEveryTaskSourceWithoutCountingManagedTurnsTwice(t *test
 	}
 
 	result := snapshot(state, pipelines, active, map[string]string{"managed-thread": "controller"})
-	if result.Running != 5 || result.Queued != 2 || len(result.Tasks) != 7 {
+	if result.Running != 5 || result.Queued != 1 || len(result.Tasks) != 6 {
 		t.Fatalf("退出任务统计不完整或重复：%+v", result)
 	}
 	for _, task := range result.Tasks {

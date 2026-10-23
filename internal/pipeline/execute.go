@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,7 +11,7 @@ import (
 	tasksmodel "agentor/internal/tasks/model"
 )
 
-// execute 执行当前任务并保存动作或轮次结果
+// execute 每次只执行一个节点，持久化结果与下一位置后再继续
 func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 	defer s.workerGroup.Done()
 	defer func() {
@@ -22,32 +23,22 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 		s.mu.Unlock()
 		s.changed()
 	}()
-
-	err := s.updateRun(run.ID, func(record *pipelinemodel.Run) { record.Status = constant.TasksStatusRunning })
-	s.changed()
+	err := s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Status = constant.TasksStatusRunning })
+	nodes := map[string]pipelinemodel.Action{}
+	for _, node := range run.Task.Actions {
+		nodes[node.ID] = node
+	}
 	results := map[string]any{}
-	for _, action := range run.Task.Actions {
-		attempt := 1
-		completed := false
-		for _, previous := range run.Actions {
-			if previous.ID == action.ID {
-				attempt++
-				if previous.Status == constant.TasksStatusCompleted {
-					results[action.ID], completed = previous.Output, true
-				}
-			}
+	for _, record := range run.Actions {
+		// 失败处理分支也可以引用失败节点的输出，恢复时保留最后一次已结束尝试
+		if record.Status == constant.TasksStatusCompleted || record.Status == constant.TasksStatusError {
+			results[record.ID] = record.Output
 		}
-		if completed {
-			continue
-		}
-		if err != nil {
-			break
-		}
-
+	}
+	for err == nil {
 		if err = ctx.Err(); err != nil {
 			break
 		}
-
 		var paused bool
 		paused, err = s.pauseAtBoundary(run.ID)
 		if err != nil {
@@ -56,100 +47,182 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 		if paused {
 			return
 		}
-
-		var params map[string]any
-		params, err = resolveParams(action.Params, run.Inputs, results)
-		resolveErr := err
-
-		record := pipelinemodel.ActionResult{Attempt: attempt, ID: action.ID, Type: action.Type, Status: constant.TasksStatusRunning, Inputs: params, StartedAt: now()}
-		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Actions = append(value.Actions, record) })
+		node, exists := nodes[run.CurrentNode]
+		if !exists {
+			err = fmt.Errorf("执行位置 %s 不存在", run.CurrentNode)
+			break
+		}
+		if node.Kind == constant.PipelineKindEnd {
+			if node.Type == constant.PipelineEndFailure {
+				err = fmt.Errorf("到达失败终点 %s", node.ID)
+			}
+			break
+		}
+		params, resolveErr := resolveParams(node.Params, run.Inputs, results)
+		attempt := 1
+		for _, previous := range run.Actions {
+			if previous.ID == node.ID {
+				attempt++
+			}
+		}
+		record := pipelinemodel.ActionResult{ID: node.ID, Kind: node.Kind, Type: node.Type, Attempt: attempt, Inputs: params, Status: constant.TasksStatusRunning, StartedAt: now()}
+		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Actions = append(value.Actions, record); run = clone(*value) })
+		if err != nil {
+			break
+		}
+		s.changed()
+		report := pipelinemodel.NodeReport{}
+		actionErr := resolveErr
+		if actionErr == nil {
+			if node.Kind == constant.PipelineKindAgent {
+				if node.Type == constant.PipelineActionResolveConflicts {
+					if run.Worktree == nil {
+						actionErr = constant.ErrPipelineWorktreeMissing
+					} else {
+						params["worktree"] = run.Worktree
+					}
+				}
+				if actionErr == nil {
+					report, actionErr = s.runAgent(ctx, run, node, params)
+				}
+				// 冲突解决后复用静态合并检查与状态登记，使后续清理能够继续
+				if actionErr == nil && node.Type == constant.PipelineActionResolveConflicts && report.Outcome == constant.PipelineBranchSuccess {
+					var merged any
+					merged, actionErr = s.performWorktree(ctx, run, constant.PipelineActionMergeWorktree)
+					if pending, ok := merged.(pipelinemodel.NodeReport); actionErr == nil && ok {
+						actionErr = fmt.Errorf("冲突解决后仍无法合并：%s", pending.Branch)
+					}
+				}
+			} else {
+				report, actionErr = s.performStatic(ctx, run, node, params)
+			}
+		}
+		if actionErr == nil && report.Outcome == constant.PipelineBranchFailure {
+			actionErr = fmt.Errorf("%s", report.Summary)
+		}
+		if ctx.Err() != nil {
+			actionErr = ctx.Err()
+		}
+		target := ""
+		retry := false
+		if actionErr != nil && ctx.Err() == nil && node.Kind == constant.PipelineKindAgent {
+			retry = attempt <= node.MaxRetries
+			if retry {
+				target = node.ID
+			} else {
+				target = node.FailureTarget
+			}
+		} else if actionErr == nil {
+			for _, branch := range node.Branches {
+				if branch.Name == report.Branch {
+					target = branch.Target
+					break
+				}
+			}
+			if target == "" {
+				actionErr = fmt.Errorf("节点 %s 的结果 %s 没有连接处理分支", node.ID, report.Branch)
+			}
+		}
+		record.Output, record.Branch, record.CompletedAt = report.Output, report.Branch, now()
+		record.Status = constant.TasksStatusCompleted
+		if actionErr != nil {
+			record.Status, record.Error = constant.TasksStatusError, actionErr.Error()
+		}
+		if ctx.Err() != nil {
+			record.Status = constant.TasksStatusInterrupted
+		}
+		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) {
+			previous := value.Actions[len(value.Actions)-1]
+			record.ThreadID, record.TurnID, record.Report, record.ExecutionID = previous.ThreadID, previous.TurnID, previous.Report, previous.ExecutionID
+			value.Actions[len(value.Actions)-1] = record
+			if target != "" {
+				value.CurrentNode = target
+			}
+			if node.Type == constant.PipelineActionWriteReport && actionErr == nil {
+				if output, ok := report.Output.(map[string]any); ok {
+					if id, ok := output["artifactId"].(string); ok {
+						value.ArtifactIDs = append(value.ArtifactIDs, id)
+					}
+				}
+			}
+			run = clone(*value)
+		})
 		s.changed()
 		if err != nil {
 			break
 		}
-
-		var output any
-		err = resolveErr
-		if err == nil {
-			output, err = s.perform(ctx, run, action.Type, params)
+		if actionErr != nil && (target == "" || ctx.Err() != nil) {
+			err = actionErr
+			break
 		}
-		record.Output, record.CompletedAt = output, now()
-		record.Status = constant.TasksStatusCompleted
-		if err != nil {
-			record.Status = constant.TasksStatusError
-			record.Error = err.Error()
-			if ctx.Err() != nil {
-				record.Status = constant.TasksStatusInterrupted
-			}
+		if !retry {
+			results[node.ID] = report.Output
 		}
-
-		saveErr := s.updateRun(run.ID, func(value *pipelinemodel.Run) {
-			value.Actions[len(value.Actions)-1] = record
-			if action.Type == constant.PipelineActionWriteReport && err == nil {
-				value.ArtifactIDs = append(value.ArtifactIDs, output.(map[string]any)["artifactId"].(string))
-			}
-		})
-		s.changed()
-		if err == nil {
-			err = saveErr
-		}
-
-		results[action.ID] = output
-	}
-
-	if err == nil {
-		err = ctx.Err()
 	}
 	status := constant.TasksStatusCompleted
 	if err != nil {
 		status = constant.TasksStatusError
-		if ctx.Err() != nil {
-			status = constant.TasksStatusInterrupted
-		}
 	}
-
+	if ctx.Err() != nil {
+		status = constant.TasksStatusCancelled
+		err = ctx.Err()
+	}
 	finishErr := s.updateRun(run.ID, func(value *pipelinemodel.Run) {
 		value.PauseRequested = false
 		value.Status, value.CompletedAt = status, now()
 		if err != nil {
 			value.Error = err.Error()
 		}
-
 		run = clone(*value)
 	})
 	if finishErr != nil || s.ctx.Err() != nil {
 		return
 	}
-
 	s.changed()
 	var summary strings.Builder
 	fmt.Fprintf(&summary, constant.PipelineReportHeaderTemplate, run.Task.Name, status)
-	for _, action := range run.Actions {
-		fmt.Fprintf(&summary, "- %s (%s)：%s\n", action.ID, action.Type, action.Status)
+	for _, node := range run.Actions {
+		fmt.Fprintf(&summary, "- %s (%s)：%s → %s\n", node.ID, node.Type, node.Status, node.Branch)
 	}
-
 	if err != nil {
 		fmt.Fprintf(&summary, constant.PipelineReportErrorTemplate, err)
 	}
-
 	for _, id := range run.ArtifactIDs {
 		fmt.Fprintf(&summary, constant.PipelineReportArtifactsTemplate, id)
 	}
-
-	s.tasks.RecordNotification(tasksmodel.Notification{
-		Title:         run.Task.Name + " · " + status,
-		Body:          summary.String(),
-		PipelineRunID: run.ID,
-		ProjectID:     run.ProjectID,
-		Source:        run.Source,
-		RequestID:     run.RequestID,
-	})
+	s.tasks.RecordNotification(tasksmodel.Notification{Title: run.Task.Name + " · " + status, Body: summary.String(), PipelineRunID: run.ID, ProjectID: run.ProjectID, Source: run.Source, RequestID: run.RequestID})
 	s.tasks.ReportExternalResult(run.RequestID, constant.TasksRequestKindPipelineResult, run.ID, run.ProjectID, summary.String())
-	s.reportRun(run, summary.String())
 }
 
-// perform 调用当前固定动作并返回其结果
-func (s *Service) perform(ctx context.Context, run pipelinemodel.Run, kind string, params map[string]any) (any, error) {
+// performStatic 将 Go 动作结果统一为业务分支，不重试任何异常
+func (s *Service) performStatic(ctx context.Context, run pipelinemodel.Run, node pipelinemodel.Action, params map[string]any) (pipelinemodel.NodeReport, error) {
+	for _, spec := range s.GetActions() {
+		if spec.Name == node.Type {
+			if err := validateParameters(spec, params, false); err != nil {
+				return pipelinemodel.NodeReport{}, err
+			}
+		}
+	}
+	output, err := s.performValue(ctx, run, node.Type, params)
+	if err != nil {
+		return pipelinemodel.NodeReport{}, err
+	}
+	if report, ok := output.(pipelinemodel.NodeReport); ok {
+		return report, nil
+	}
+	// 转成 JSON 值，使对象字段引用不依赖 Go 的具体结构体类型
+	raw, err := json.Marshal(output)
+	if err != nil {
+		return pipelinemodel.NodeReport{}, err
+	}
+	if err = json.Unmarshal(raw, &output); err != nil {
+		return pipelinemodel.NodeReport{}, err
+	}
+	return pipelinemodel.NodeReport{Outcome: constant.PipelineBranchSuccess, Branch: constant.PipelineBranchSuccess, Output: output}, nil
+}
+
+// performValue 调用当前固定动作并返回其结果
+func (s *Service) performValue(ctx context.Context, run pipelinemodel.Run, kind string, params map[string]any) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -201,64 +274,6 @@ func (s *Service) perform(ctx context.Context, run pipelinemodel.Run, kind strin
 		return map[string]any{"project": project, "stepStatuses": states}, nil
 	case constant.PipelineActionReadKnowledge:
 		return s.work.ReadKnowledge(run.ProjectID, stringParam(params, "featureId"), stringParam(params, "documentId"))
-	case constant.PipelineActionRunStep:
-		stepContext, err := s.work.GetStepContext(stringParam(params, "stepId"))
-		if err != nil {
-			return nil, err
-		}
-
-		if stepContext.ProjectID != run.ProjectID {
-			return nil, constant.ErrPipelineStepOutsidePipelineProject
-		}
-
-		if err = ctx.Err(); err != nil {
-			return nil, err
-		}
-
-		directory := ""
-		for _, current := range s.GetState().Runs {
-			if current.ID == run.ID && current.Worktree != nil {
-				directory = current.Worktree.Directory
-			}
-		}
-		execution, err := s.tasks.Dispatch(tasksmodel.DispatchInput{
-			ExecutionDirectory:  directory,
-			AttachmentRequestID: run.RequestID,
-			StepID:              stepContext.Step.ID,
-			Instruction:         stringParam(params, "instruction"),
-			CompletionCriteria:  stringParam(params, "completionCriteria"),
-			Model:               run.Model,
-			Effort:              run.Effort,
-			Source:              run.Source,
-			PipelineRunID:       run.ID,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		result, err := s.tasks.WaitExecution(ctx, execution.ID)
-		if err != nil {
-			s.tasks.StopExecution(execution.ID)
-			cleanup, cancel := context.WithTimeout(s.ctx, constant.PipelineActionCleanupTimeout)
-			defer cancel()
-			s.tasks.WaitExecution(cleanup, execution.ID)
-			return nil, err
-		}
-
-		ids := []string{}
-		for _, file := range s.files.GetExecutionArtifacts(result.ID) {
-			ids = append(ids, file.ID)
-		}
-
-		output := map[string]any{"outcome": result.Outcome, "outcomeSummary": result.OutcomeSummary, "executionId": result.ID, "status": result.Status, "result": result.Result, "artifactIds": ids}
-		if result.Status != constant.TasksStatusCompleted {
-			return output, fmt.Errorf("步骤 %s：%s %s", result.Context.Step.Title, result.Status, result.Error)
-		}
-
-		if result.Outcome != constant.TasksStatusCompleted {
-			return output, constant.ErrPipelineStepOutcomeMissing
-		}
-		return output, nil
 	case constant.PipelineActionWriteReport:
 		name := stringParam(params, "fileName")
 		if err := reportName(name); err != nil {

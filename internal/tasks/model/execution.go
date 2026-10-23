@@ -74,18 +74,17 @@ type NotificationPart struct {
 }
 
 type Notification struct {
-	PipelineSessionID string             `json:"pipelineSessionId"` // 所属流水线专用会话请求
-	PipelineRunID     string             `json:"pipelineRunId"`     // 所属流水线运行
-	ProjectID         string             `json:"projectId"`         // 所属项目
-	Source            Source             `json:"source"`            // 原始请求来源
-	ID                string             `json:"id"`                // 稳定标识
-	Title             string             `json:"title"`             // 显示标题
-	Body              string             `json:"body"`              // 通知正文
-	ExecutionID       string             `json:"executionId"`       // 所属步骤执行
-	RequestID         string             `json:"requestId"`         // 所属控制中心请求
-	CreatedAt         string             `json:"createdAt"`         // 创建时间
-	Read              bool               `json:"read"`              // 是否已读
-	Parts             []NotificationPart `json:"parts"`             // 各渠道的分项发送记录
+	PipelineRunID string             `json:"pipelineRunId"` // 所属流水线运行
+	ProjectID     string             `json:"projectId"`     // 所属项目
+	Source        Source             `json:"source"`        // 原始请求来源
+	ID            string             `json:"id"`            // 稳定标识
+	Title         string             `json:"title"`         // 显示标题
+	Body          string             `json:"body"`          // 通知正文
+	ExecutionID   string             `json:"executionId"`   // 所属步骤执行
+	RequestID     string             `json:"requestId"`     // 所属控制中心请求
+	CreatedAt     string             `json:"createdAt"`     // 创建时间
+	Read          bool               `json:"read"`          // 是否已读
+	Parts         []NotificationPart `json:"parts"`         // 各渠道的分项发送记录
 }
 
 type State struct {

@@ -132,10 +132,17 @@ func (s *Service) approvalSource(threadID string) tasksmodel.Source {
 		}
 	}
 	if s.pipelines != nil {
-		if request, err := s.pipelines.ActiveSession(threadID); err == nil && request.Input.Source.Type == "lark" {
-			return request.Input.Source
+		for _, run := range s.pipelines.GetState().Runs {
+			if run.Status == constant.TasksStatusRunning && run.Source.Type == "lark" {
+				for _, node := range run.Actions {
+					if node.ThreadID == threadID && node.Status == constant.TasksStatusRunning {
+						return run.Source
+					}
+				}
+			}
 		}
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.config.Binding

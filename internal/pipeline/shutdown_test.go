@@ -11,7 +11,6 @@ import (
 func TestShutdownWaitsForWorkAndCancelsEveryQueue(t *testing.T) {
 	s, _ := fixture(t)
 	s.state.Runs = []pipelinemodel.Run{{ID: "running", Status: "running", Actions: []pipelinemodel.ActionResult{{ID: "action", Status: "running"}}}, {ID: "queued", Status: "queued"}}
-	s.state.Requests = []pipelinemodel.SessionRequest{{ID: "request", Status: "queued"}}
 	s.workerGroup.Add(1)
 	release := make(chan struct{})
 	go func() {
@@ -44,10 +43,7 @@ func TestShutdownWaitsForWorkAndCancelsEveryQueue(t *testing.T) {
 	}
 	defer reopened.ServiceShutdown()
 	state := reopened.GetState()
-	if state.Paused {
-		t.Error("正常退出不应把新会话永久留在暂停队列")
-	}
-	if state.Runs[0].Status != "interrupted" || state.Runs[0].Actions[0].Status != "interrupted" || state.Runs[1].Status != "cancelled" || state.Requests[0].Status != "cancelled" {
+	if state.Runs[0].Status != "interrupted" || state.Runs[0].Actions[0].Status != "interrupted" || state.Runs[1].Status != "cancelled" {
 		t.Fatalf("重新启动后仍有未取消流水线任务：%+v", state)
 	}
 }

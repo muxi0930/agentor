@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,19 +24,15 @@ func (s *Service) performWorktree(ctx context.Context, run pipelinemodel.Run, ki
 	w := run.Worktree
 	if kind == constant.PipelineActionCreateWorktree {
 		if w == nil {
-			project, err := s.project(run.ProjectID)
+			branch, err := git(ctx, run.Directory, "symbolic-ref", "--short", "HEAD")
 			if err != nil {
 				return nil, err
 			}
-			branch, err := git(ctx, project.Directory, "symbolic-ref", "--short", "HEAD")
+			commit, err := git(ctx, run.Directory, "rev-parse", "HEAD")
 			if err != nil {
 				return nil, err
 			}
-			commit, err := git(ctx, project.Directory, "rev-parse", "HEAD")
-			if err != nil {
-				return nil, err
-			}
-			w = &pipelinemodel.Worktree{Repository: project.Directory, SourceBranch: branch, SourceCommit: commit, Branch: "codex/pipeline-" + run.ID, Directory: filepath.Join(s.root, "worktrees", run.ID)}
+			w = &pipelinemodel.Worktree{Repository: run.Directory, SourceBranch: branch, SourceCommit: commit, Branch: "codex/pipeline-" + run.ID, Directory: filepath.Join(s.root, "worktrees", run.ID)}
 			if err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Worktree = w }); err != nil {
 				return nil, err
 			}
@@ -65,23 +62,13 @@ func (s *Service) performWorktree(ctx context.Context, run pipelinemodel.Run, ki
 		return nil, fmt.Errorf("来源工作区已切换分支，预期 %s", w.SourceBranch)
 	}
 	if kind == constant.PipelineActionMergeWorktree {
-		// 合并只接受当前运行中已通过结构化成功检查的步骤
-		success := false
-		for _, action := range run.Actions {
-			if action.Type == constant.PipelineActionRunStep && action.Status == constant.TasksStatusCompleted {
-				success = true
-			}
-		}
-		if !success {
-			return nil, constant.ErrPipelineStepOutcomeMissing
-		}
 		for _, directory := range []string{w.Repository, w.Directory} {
 			status, err := git(ctx, directory, "status", "--porcelain")
 			if err != nil {
 				return nil, err
 			}
 			if status != "" {
-				return nil, fmt.Errorf("工作区存在未提交变更：%s", directory)
+				return pipelinemodel.NodeReport{Outcome: constant.PipelineBranchSuccess, Branch: constant.PipelineBranchDirty, Output: map[string]any{"directory": directory, "reason": status}}, nil
 			}
 		}
 		branch, err = git(ctx, w.Directory, "symbolic-ref", "--short", "HEAD")
@@ -92,6 +79,14 @@ func (s *Service) performWorktree(ctx context.Context, run pipelinemodel.Run, ki
 		if err != nil {
 			return nil, err
 		}
+		if _, ancestorErr := git(ctx, w.Repository, "merge-base", "--is-ancestor", "HEAD", commit); ancestorErr != nil {
+			var exitErr *exec.ExitError
+			if errors.As(ancestorErr, &exitErr) && exitErr.ExitCode() == 1 {
+				return pipelinemodel.NodeReport{Outcome: constant.PipelineBranchSuccess, Branch: constant.PipelineBranchDiverged, Output: map[string]any{"sourceBranch": w.SourceBranch, "branch": w.Branch}}, nil
+			}
+			return nil, ancestorErr
+		}
+
 		if _, err = git(ctx, w.Repository, "-c", "core.hooksPath="+os.DevNull, "merge", "--ff-only", "--", w.Branch); err != nil {
 			return nil, err
 		}

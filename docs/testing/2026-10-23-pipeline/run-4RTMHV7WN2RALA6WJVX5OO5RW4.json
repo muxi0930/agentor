@@ -1,0 +1,285 @@
+{
+  "currentNode": "choose",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {
+    "choose": {
+      "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+      "projectName": "Feat",
+      "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+      "sharedContext": "",
+      "projectPrompt": "",
+      "structure": "",
+      "versionId": "5Y5BVPO36V5TH3RNW7EWJKYFIH",
+      "versionName": "流水线验收 2026-10-23",
+      "featureId": "3QITUIIFP6CPSW56BJCKQBZP5H",
+      "featureTitle": "模板、静态分支和 Agent 多分支验收",
+      "featureDescription": "成功、业务分支、失败重试、Git 合并及输入引用验证",
+      "featureContext": "",
+      "featurePrompt": "只执行本轮验收定义，保留测试现场。",
+      "step": {
+        "completed": false,
+        "completedAt": "",
+        "createdAt": "2026-10-23T15:32:45.014778Z",
+        "id": "M65INSLXTVPXETBMVXZ72RAY2A",
+        "title": "验收 Agent 分支路由和输入",
+        "description": "",
+        "prompt": "根据节点明确指定的分支进行真实工具汇报，不修改项目文件。",
+        "threadId": "",
+        "permissionMode": ""
+      },
+      "documents": []
+    }
+  },
+  "pauseRequested": false,
+  "id": "4RTMHV7WN2RALA6WJVX5OO5RW4",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "GMKZOPNUF4LM437FMEULEMJVC7",
+  "task": {
+    "id": "GMKZOPNUF4LM437FMEULEMJVC7",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "TMQHLTFLPJTBUSWGH3ITOE6SFR",
+    "directory": "",
+    "name": "验收1023 A01 三分支实例",
+    "entry": "choose",
+    "inputs": [
+      {
+        "name": "route",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "payload",
+        "type": "any",
+        "required": true
+      }
+    ],
+    "actions": [
+      {
+        "id": "choose",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "choose",
+        "params": {
+          "payload": {
+            "input": "payload"
+          },
+          "route": {
+            "input": "route"
+          }
+        },
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "ready",
+            "description": "ready",
+            "target": "ready-report"
+          },
+          {
+            "name": "review",
+            "description": "review",
+            "target": "review-report"
+          },
+          {
+            "name": "reject",
+            "description": "reject",
+            "target": "reject-report"
+          }
+        ],
+        "prompt": "这是分支路由验收。禁止执行命令或改文件。读取已解析输入 route 与 payload，立即调用 pipeline_complete_node，outcome=success，branch 精确等于 route，summary 说明输入，output={route:实际route,payload:实际payload}。汇报后正常结束。",
+        "criteria": "按要求调用 pipeline_complete_node 汇报可验证的结果，且正常结束本轮。",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "choose",
+        "stepId": "M65INSLXTVPXETBMVXZ72RAY2A"
+      },
+      {
+        "id": "ready-report",
+        "kind": "static",
+        "type": "report.write",
+        "name": "ready-report",
+        "params": {
+          "content": {
+            "result": "choose"
+          },
+          "fileName": "ready-report.md"
+        },
+        "position": {
+          "x": 300,
+          "y": 130
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "review-report",
+        "kind": "static",
+        "type": "report.write",
+        "name": "review-report",
+        "params": {
+          "content": {
+            "result": "choose"
+          },
+          "fileName": "review-report.md"
+        },
+        "position": {
+          "x": 600,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "reject-report",
+        "kind": "static",
+        "type": "report.write",
+        "name": "reject-report",
+        "params": {
+          "content": {
+            "result": "choose"
+          },
+          "fileName": "reject-report.md"
+        },
+        "position": {
+          "x": 900,
+          "y": 130
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "failed"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "done",
+        "params": {},
+        "position": {
+          "x": 1200,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "failed",
+        "kind": "end",
+        "type": "end.failure",
+        "name": "failed",
+        "params": {},
+        "position": {
+          "x": 1500,
+          "y": 130
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": {
+    "payload": {
+      "count": 3,
+      "enabled": true,
+      "message": "真实输入-reject"
+    },
+    "route": "reject"
+  },
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "cancelled",
+  "error": "context canceled",
+  "createdAt": "2026-10-23T15:36:48.549566Z",
+  "completedAt": "2026-10-23T15:38:41.765427Z",
+  "actions": [
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a16968-58b6-7b52-9453-24cd76ba5b19",
+      "turnId": "01a16968-5f01-7232-9765-fc6f75aabfa0",
+      "executionId": "4RTMHV7WN2RALA6WJVX5OO5RW4:choose:1",
+      "attempt": 1,
+      "id": "choose",
+      "type": "agent.run",
+      "status": "interrupted",
+      "inputs": {
+        "payload": {
+          "count": 3,
+          "enabled": true,
+          "message": "真实输入-reject"
+        },
+        "route": "reject"
+      },
+      "output": null,
+      "error": "context canceled",
+      "startedAt": "2026-10-23T15:36:48.558073Z",
+      "completedAt": "2026-10-23T15:38:41.763452Z"
+    }
+  ],
+  "artifactIds": []
+}

@@ -7,11 +7,22 @@ import (
 	"testing"
 
 	codexmodel "agentor/internal/codex/model"
-	pipelinemodel "agentor/internal/pipeline/model"
+	"agentor/internal/constant"
+	tasksmodel "agentor/internal/tasks/model"
 )
 
 // TestToolCatalogContract 验证角色工具的顺序、说明和完整参数协议保持不变
 func TestToolCatalogContract(t *testing.T) {
+	if os.Getenv("UPDATE_TOOL_CATALOG") == "1" {
+		actual := map[string]any{}
+		for _, role := range []string{"controller", "step", "pipeline_node"} {
+			actual[role] = (&Router{}).Specs(role)
+		}
+		raw, _ := json.MarshalIndent(actual, "", "  ")
+		if err := os.WriteFile("testdata/catalog.json", append(raw, '\n'), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	raw, err := os.ReadFile("testdata/catalog.json")
 	if err != nil {
 		t.Fatal(err)
@@ -42,36 +53,29 @@ func TestToolCatalogContract(t *testing.T) {
 	}
 }
 
-// TestPipelineAuthorizationPrecedesArguments 验证角色和请求类型检查先于参数解析
-func TestPipelineAuthorizationPrecedesArguments(t *testing.T) {
+// TestPipelineNodeCannotManageGraph 验证节点 Agent 只能汇报，不能自行编排或修改流水线
+func TestPipelineNodeCannotManageGraph(t *testing.T) {
 	router := &Router{}
+	specs := router.Specs(constant.ToolRouterRolePipelineNode)
+	if len(specs) != 1 || specs[0].Name != constant.ToolRouterToolCompleteNode {
+		t.Fatal(specs)
+	}
 	for _, role := range []string{"pipeline_manager", "pipeline_config"} {
-		for _, spec := range router.Specs(role) {
-			readOnly := spec.Name == "list_actions" || spec.Name == "list_pipeline_tasks" || spec.Name == "validate_pipeline_task"
-			for _, kind := range []string{"instruction", "run_result", ""} {
-				t.Run(role+"/"+kind+"/"+spec.Name, func(t *testing.T) {
-					_, err := router.pipelineCall(pipelinemodel.SessionRequest{Kind: kind, Input: pipelinemodel.SessionInput{Role: role}}, codexmodel.ToolCall{Tool: spec.Name, Arguments: json.RawMessage(`{`)})
-					if kind != "instruction" && !readOnly {
-						if err == nil || err.Error() != "完成汇报只能查询，不能重新运行或修改配置" {
-							t.Fatal(err)
-						}
-					} else if _, ok := err.(*json.SyntaxError); !ok {
-						t.Fatalf("允许的工具未进入参数解析：%v", err)
-					}
-				})
-			}
+		if router.Specs(role) != nil {
+			t.Fatal("retired role retains tools", role)
 		}
-		_, err := router.pipelineCall(pipelinemodel.SessionRequest{Input: pipelinemodel.SessionInput{Role: role}}, codexmodel.ToolCall{Tool: "unknown", Arguments: json.RawMessage(`{`)})
-		if err == nil || err.Error() != "当前流水线角色不能调用此工具" {
-			t.Fatal(err)
+	}
+	for _, name := range []string{"save_pipeline_task", "run_pipeline", "control_pipeline_run"} {
+		if _, err := authorizeTool(constant.ToolRouterRolePipelineNode, name, false, constant.ErrToolRouterRoleForbidden, nil); err == nil {
+			t.Fatal("node received management tool", name)
 		}
 	}
 }
 
-// TestPipelineScheduleCannotChangeProject 验证配置工具不会修改请求范围外的调度
-func TestPipelineScheduleCannotChangeProject(t *testing.T) {
-	_, err := (&Router{}).pipelineCall(pipelinemodel.SessionRequest{Kind: "instruction", Input: pipelinemodel.SessionInput{Role: "pipeline_config", ProjectID: "allowed"}}, codexmodel.ToolCall{Tool: "save_pipeline_schedule", Arguments: json.RawMessage(`{"json":"{\"projectId\":\"other\"}"}`)})
-	if err == nil || err.Error() != "调度不能改变项目范围" {
+// TestControllerPipelineCannotChangeProject 验证控制中心不能覆盖所属项目
+func TestControllerPipelineCannotChangeProject(t *testing.T) {
+	_, err := (&Router{}).controllerPipelineCall(tasksmodel.Request{ProjectID: "allowed"}, codexmodel.ToolCall{Tool: "save_pipeline_task", Arguments: json.RawMessage(`{"projectId":"other","json":"{}"}`)})
+	if err != constant.ErrToolRouterProjectOutsideScope {
 		t.Fatal(err)
 	}
 }

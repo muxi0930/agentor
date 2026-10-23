@@ -1,0 +1,325 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-cleanup",
+  "stepContexts": {},
+  "worktree": {
+    "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/J3KUUVAQ4XELN2DH2FKEVQU7FX",
+    "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-cleanup",
+    "sourceBranch": "main",
+    "sourceCommit": "e9633dd42ddc60e6fba83758111eeedc568e3004",
+    "branch": "codex/pipeline-J3KUUVAQ4XELN2DH2FKEVQU7FX",
+    "mergedCommit": "c5f8ad70994ca5eb4b55f453c45c14553dbeac92"
+  },
+  "pauseRequested": false,
+  "id": "J3KUUVAQ4XELN2DH2FKEVQU7FX",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "BZOPS2XAEM55NXYP52BLHDPG2Y",
+  "task": {
+    "id": "BZOPS2XAEM55NXYP52BLHDPG2Y",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 S-Git-cleanup",
+    "entry": "create",
+    "inputs": null,
+    "actions": [
+      {
+        "id": "create",
+        "kind": "static",
+        "type": "worktree.create",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "gate"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "gate",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 280,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "merge"
+          }
+        ],
+        "prompt": "验收暂停点，不修改任何文件。等待30秒后汇报 success。执行。",
+        "criteria": "等待验收",
+        "permission": "read-only",
+        "maxRetries": 0,
+        "timeoutSeconds": 3,
+        "failureTarget": "merge",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "merge",
+        "kind": "static",
+        "type": "worktree.merge",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 560,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "cleanup"
+          },
+          {
+            "name": "dirty",
+            "description": "",
+            "target": "dirty"
+          },
+          {
+            "name": "diverged",
+            "description": "",
+            "target": "diverged"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "dirty",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "dirty branch",
+          "fileName": "dirty.md"
+        },
+        "position": {
+          "x": 840,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "diverged",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "diverged branch",
+          "fileName": "diverged.md"
+        },
+        "position": {
+          "x": 1120,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 1400,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "cleanup",
+        "kind": "static",
+        "type": "worktree.remove",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 1680,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": null,
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:39:51.917166Z",
+  "completedAt": "2026-10-23T15:39:55.182685Z",
+  "actions": [
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "create",
+      "type": "worktree.create",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-J3KUUVAQ4XELN2DH2FKEVQU7FX",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/J3KUUVAQ4XELN2DH2FKEVQU7FX",
+        "mergedCommit": "",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-cleanup",
+        "sourceBranch": "main",
+        "sourceCommit": "e9633dd42ddc60e6fba83758111eeedc568e3004"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:39:51.92174Z",
+      "completedAt": "2026-10-23T15:39:51.976008Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a1696b-252f-75d1-8234-e0dc951ce41f",
+      "turnId": "01a1696b-2588-7432-97ee-b71b093154b3",
+      "executionId": "",
+      "attempt": 1,
+      "id": "gate",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": null,
+      "error": "context deadline exceeded",
+      "startedAt": "2026-10-23T15:39:51.979617Z",
+      "completedAt": "2026-10-23T15:39:54.991504Z"
+    },
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "merge",
+      "type": "worktree.merge",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-J3KUUVAQ4XELN2DH2FKEVQU7FX",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/J3KUUVAQ4XELN2DH2FKEVQU7FX",
+        "mergedCommit": "c5f8ad70994ca5eb4b55f453c45c14553dbeac92",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-cleanup",
+        "sourceBranch": "main",
+        "sourceCommit": "e9633dd42ddc60e6fba83758111eeedc568e3004"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:39:54.99822Z",
+      "completedAt": "2026-10-23T15:39:55.098009Z"
+    },
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "cleanup",
+      "type": "worktree.remove",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-J3KUUVAQ4XELN2DH2FKEVQU7FX",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/J3KUUVAQ4XELN2DH2FKEVQU7FX",
+        "mergedCommit": "c5f8ad70994ca5eb4b55f453c45c14553dbeac92",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-cleanup",
+        "sourceBranch": "main",
+        "sourceCommit": "e9633dd42ddc60e6fba83758111eeedc568e3004"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:39:55.101488Z",
+      "completedAt": "2026-10-23T15:39:55.178406Z"
+    }
+  ],
+  "artifactIds": []
+}

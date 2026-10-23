@@ -1,0 +1,16 @@
+
+> agentor@0.1.0 test:pipeline
+> playwright test --config playwright.pipeline.config.ts --grep 已连出口|Agent 参数|冲突节点
+
+[WebServer] (node:392) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 3 tests using 1 worker
+
+(node:398) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/pipeline/acceptance.spec.ts:3:1 › 已连出口拖至空白解除连线，目标端点显示吸附圈 (1.1s)
+  ✓  2 tests/pipeline/acceptance.spec.ts:19:1 › Agent 参数表单保留重命名及运行输入引用 (657ms)
+  ✓  3 tests/pipeline/acceptance.spec.ts:39:1 › 冲突节点自动填充模板，缩略图遮罩半透明 (467ms)
+
+  3 passed (3.9s)

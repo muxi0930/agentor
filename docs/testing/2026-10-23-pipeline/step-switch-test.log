@@ -1,0 +1,14 @@
+
+> agentor@0.1.0 test:pipeline
+> playwright test --config playwright.pipeline.config.ts --grep 模板步骤绑定
+
+[WebServer] (node:1061) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:1067) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/pipeline/acceptance.spec.ts:53:1 › 模板步骤绑定开关自动建立单步骤绑定 (661ms)
+
+  1 passed (2.3s)

@@ -10,7 +10,7 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as model$0 from "./model/models.js";
 
 /**
- * ControlRun 校验项目和状态后执行暂停、继续、重试或停止命令
+ * ControlRun 校验项目和状态后执行暂停、继续或停止命令
  */
 export function ControlRun(projectID: string, id: string, operation: string): $CancellablePromise<model$0.Run> {
     return $Call.ByID(2601412071, projectID, id, operation);
@@ -31,7 +31,14 @@ export function DeleteTask(projectID: string, id: string): $CancellablePromise<v
 }
 
 /**
- * GetActions 读取流水线支持的固定动作目录
+ * DeleteTemplate 仅删除模板定义，不修改已复制的实例
+ */
+export function DeleteTemplate(id: string): $CancellablePromise<void> {
+    return $Call.ByID(2597562620, id);
+}
+
+/**
+ * GetActions 读取静态动作契约与固定业务分支
  */
 export function GetActions(): $CancellablePromise<model$0.ActionSpec[] | null> {
     return $Call.ByID(1288283818);
@@ -45,17 +52,17 @@ export function GetState(): $CancellablePromise<model$0.State> {
 }
 
 /**
+ * Instantiate 复制模板并一次性校验所有步骤插槽
+ */
+export function Instantiate(input: model$0.InstantiateInput): $CancellablePromise<model$0.Task> {
+    return $Call.ByID(3777325643, input);
+}
+
+/**
  * ResolveScheduleTime 将指定时区的本地时间转换为 UTC
  */
 export function ResolveScheduleTime(local: string, timezone: string): $CancellablePromise<string> {
     return $Call.ByID(537429147, local, timezone);
-}
-
-/**
- * ResumeSessions 由用户恢复重启后保留的会话队列
- */
-export function ResumeSessions(): $CancellablePromise<void> {
-    return $Call.ByID(80372407);
 }
 
 /**
@@ -80,6 +87,13 @@ export function SaveTask(projectID: string, text: string): $CancellablePromise<m
 }
 
 /**
+ * SaveTemplate 保存可重复应用且不绑定项目的模板
+ */
+export function SaveTemplate(text: string): $CancellablePromise<model$0.Task> {
+    return $Call.ByID(2112636994, text);
+}
+
+/**
  * SetScheduleEnabled 切换调度状态并恢复下次触发时间
  */
 export function SetScheduleEnabled(projectID: string, id: string, enabled: boolean): $CancellablePromise<void> {
@@ -94,20 +108,6 @@ export function StopRun(id: string): $CancellablePromise<void> {
 }
 
 /**
- * StopSession 停止指定会话请求
- */
-export function StopSession(id: string): $CancellablePromise<void> {
-    return $Call.ByID(3997408743, id);
-}
-
-/**
- * SubmitSession 向专用会话提交用户请求
- */
-export function SubmitSession(input: model$0.SessionInput): $CancellablePromise<model$0.SessionRequest> {
-    return $Call.ByID(4193303399, input);
-}
-
-/**
  * TriggerSchedule 手动触发调度并记录调度来源
  */
 export function TriggerSchedule(projectID: string, id: string): $CancellablePromise<model$0.Run> {
@@ -115,8 +115,15 @@ export function TriggerSchedule(projectID: string, id: string): $CancellableProm
 }
 
 /**
- * ValidateTask 解析并校验当前项目的任务配置
+ * ValidateTask 校验独立或项目流水线的完整节点图
  */
 export function ValidateTask(projectID: string, text: string): $CancellablePromise<model$0.Task> {
     return $Call.ByID(1212362154, projectID, text);
+}
+
+/**
+ * ValidateTemplate 校验不绑定项目与实际步骤的流水线模板
+ */
+export function ValidateTemplate(text: string): $CancellablePromise<model$0.Task> {
+    return $Call.ByID(1551312937, text);
 }

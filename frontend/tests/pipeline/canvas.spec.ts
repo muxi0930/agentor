@@ -1,0 +1,66 @@
+import { test, expect } from "@playwright/test";
+test("画布拖入、连线、展开、分支和布局持久化", async ({ page }) => {
+ const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+ await page.goto("/tests/pipeline/index.html");
+ const graph = async () => JSON.parse(await page.getByTestId("graph").textContent() || "{}");
+ const agent = page.locator('.react-flow__node[data-id="agent"]');
+ await expect(agent).toBeVisible();
+ const port = agent.locator('[data-handleid="success"]'), target = page.locator('.react-flow__node[data-id="done"] .react-flow__handle.target');
+ const from = await port.boundingBox(), to = await target.boundingBox();
+ if (!from || !to) throw new Error("missing handles");
+ await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2); await page.mouse.down(); await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 15 }); await page.mouse.up();
+ await expect.poll(async () => (await graph()).actions[0].branches[0].target).toBe("done");
+ await agent.click();
+ const panel = page.getByRole("dialog", { name: "agent.run · 执行 Agent 任务 配置" });
+ await expect(panel).toBeVisible();
+ await panel.getByLabel("执行要求", { exact: true }).fill("执行新增提示词");
+ await panel.getByRole("button", { name: "添加分支" }).click();
+ await expect.poll(async () => (await graph()).actions[0].branches.length).toBe(2);
+ await panel.getByRole("button", { name: "完成", exact: true }).click();
+ const before = await agent.boundingBox(); if (!before) throw new Error("missing node");
+ await page.mouse.move(before.x + 40, before.y + 15); await page.mouse.down(); await page.mouse.move(before.x + 100, before.y + 110, { steps: 12 }); await page.mouse.up();
+ await expect(page.getByRole("dialog")).toHaveCount(0);
+ await expect.poll(async () => (await graph()).actions[0].position.y).not.toBe(50);
+ const palette = page.locator(".pipeline-palette-item").filter({ hasText: "report.write" });
+ const canvas = page.locator(".pipeline-canvas");
+ await palette.dragTo(canvas, { targetPosition: { x: 180, y: 400 } });
+ await expect.poll(async () => (await graph()).actions.length).toBe(3);
+ await expect(page.getByRole("dialog")).toBeVisible();
+ await page.getByRole("button", { name: "关闭节点配置" }).click();
+ const saved = await graph();
+ await page.getByRole("button", { name: "保存布局" }).click(); await page.reload();
+ await expect.poll(async () => (await graph()).actions).toEqual(saved.actions);
+ await page.getByRole("button", { name: "切换主题" }).click();
+ await page.locator('.react-flow__node[data-id="agent"]').click();
+ await page.screenshot({ path: "/private/tmp/agentor-pipeline-canvas-dark.png" });
+ await page.getByRole("button", { name: "关闭节点配置" }).click();
+ await page.getByRole("button", { name: "切换主题" }).click();
+ await page.setViewportSize({ width: 850, height: 680 });
+ await page.locator('.react-flow__node[data-id="agent"]').click();
+ const bounds = await page.getByRole("dialog").boundingBox(), surface = await canvas.boundingBox();
+ expect(bounds && surface && bounds.x >= surface.x && bounds.x + bounds.width <= surface.x + surface.width).toBeTruthy();
+ await page.screenshot({ path: "/private/tmp/agentor-pipeline-canvas-compact.png" });
+ expect(errors).toEqual([]);
+});
+
+test("自由 JSON 输入保持结构并阻止无效输入运行", async ({ page }) => {
+ await page.goto("/tests/pipeline/index.html?inputs");
+ const input = page.getByLabel("payload", { exact: false });
+ await input.fill('{"items":[1,true],"text":"开始"}');
+ await expect(page.getByTestId("input-value")).toHaveText('{"payload":{"items":[1,true],"text":"开始"}}');
+ await input.fill('{"items":');
+ await expect(page.getByRole("alert")).toBeVisible();
+ await expect(page.getByRole("button", { name: "运行流水线" })).toBeDisabled();
+ await input.fill('["重新执行",2]');
+ await expect(page.getByRole("button", { name: "运行流水线" })).toBeEnabled();
+ await expect(page.getByTestId("input-value")).toHaveText('{"payload":["重新执行",2]}');
+});
+
+test("缩略图 SVG 完整位于容器内", async ({ page }) => {
+ await page.goto("/tests/pipeline/index.html");
+ const minimap = page.locator(".react-flow__minimap");
+ await expect(minimap).toBeVisible();
+ const outer = await minimap.boundingBox();
+ const svg = await minimap.locator("svg").boundingBox();
+ expect(outer && svg && svg.width <= outer.width && svg.height <= outer.height).toBeTruthy();
+});

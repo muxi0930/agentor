@@ -79,11 +79,6 @@ func main() {
 				return constant.ErrAppPipelineRunsActive
 			}
 		}
-		for _, request := range pipelineState.Requests {
-			if request.Status == constant.TasksStatusRunning || changing && request.Status == constant.TasksStatusQueued {
-				return constant.ErrAppPipelineSessionsActive
-			}
-		}
 		return nil
 	})
 

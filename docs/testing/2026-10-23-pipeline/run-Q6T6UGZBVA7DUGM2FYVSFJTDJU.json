@@ -1,0 +1,131 @@
+{
+  "currentNode": "gate",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {},
+  "pauseRequested": false,
+  "id": "Q6T6UGZBVA7DUGM2FYVSFJTDJU",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "BVOJQHJNCBCIMZFMDSVULGQ2LA",
+  "task": {
+    "id": "BVOJQHJNCBCIMZFMDSVULGQ2LA",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 L01 暂停继续",
+    "entry": "gate",
+    "inputs": null,
+    "actions": [
+      {
+        "id": "gate",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "report"
+          }
+        ],
+        "prompt": "等待30秒后汇报。执行。",
+        "criteria": "等待",
+        "permission": "read-only",
+        "maxRetries": 0,
+        "timeoutSeconds": 5,
+        "failureTarget": "report",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "report",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "恢复后的报告",
+          "fileName": "resume.md"
+        },
+        "position": {
+          "x": 300,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 600,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": null,
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "cancelled",
+  "error": "context canceled",
+  "createdAt": "2026-10-23T15:41:48.847835Z",
+  "completedAt": "2026-10-23T15:41:48.87021Z",
+  "actions": [
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "gate",
+      "type": "agent.run",
+      "status": "interrupted",
+      "inputs": {},
+      "output": null,
+      "error": "context canceled",
+      "startedAt": "2026-10-23T15:41:48.858311Z",
+      "completedAt": "2026-10-23T15:41:48.864724Z"
+    }
+  ],
+  "artifactIds": []
+}

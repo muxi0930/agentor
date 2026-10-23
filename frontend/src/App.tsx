@@ -1,3 +1,4 @@
+import { PipelinePage } from "@/features/pipeline/PipelinePage";
 import { HeaderActionButton } from "@/app/HeaderActionButton";
 import { ShortcutHelp } from "@/app/ShortcutHelp";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -121,14 +122,14 @@ export default function App() {
     await navigate("home", mode);
   }
   async function openSource(target:NotificationTarget){
-    if(target.pipelineRunId||target.pipelineSessionId){
+    if(target.pipelineRunId){
       let projectId=target.projectId;
       if(!projectId){
         const pipelines=await Pipeline.GetState();
-        projectId=pipelines.runs?.find(run=>run.id===target.pipelineRunId)?.projectId||pipelines.requests?.find(request=>request.id===target.pipelineSessionId)?.input.projectId;
+        projectId=pipelines.runs?.find(run=>run.id===target.pipelineRunId)?.projectId;
       }
       if(projectId)await Work.Select(projectId);
-      setFocusPipeline({...target,projectId});setWorkspaceKey(key=>key+1);await navigate("home", "workspace");
+      setFocusPipeline({...target,projectId});setWorkspaceKey(key=>key+1);await navigate(projectId ? "home" : "pipelines", "workspace");
     }
     else if(target.stepId){setFocusPipeline(undefined);await Work.GetStepContext(target.stepId);await Work.Select(target.stepId);setFocusExecution(target.executionId||"");setWorkspaceKey(key=>key+1);await navigate("home", "workspace");}
     else if(target.requestId){setFocusRequest(target.requestId);await navigate("controller", "workspace");}
@@ -144,6 +145,7 @@ export default function App() {
       <SidebarHeader className="h-16 shrink-0 justify-center border-b border-sidebar-border px-3 py-0 group-data-[collapsible=icon]:px-2"><ModeSwitcher mode={settings.mode} onChange={mode=>void changeMode(mode)}/></SidebarHeader>
       <SidebarContent><div ref={setSidebarBody} className="flex min-h-0 flex-1 flex-col overflow-hidden group-data-[collapsible=icon]:hidden"/></SidebarContent>
       <SidebarFooter className="p-3 group-data-[collapsible=icon]:p-2"><SidebarMenu>
+        <SidebarMenuItem><SidebarMenuButton tooltip="流水线模板" isActive={page==="pipelines"} onClick={()=>setPage("pipelines")}><ListTodo/><span>流水线模板</span></SidebarMenuButton></SidebarMenuItem>
         <SidebarMenuItem><SidebarMenuButton tooltip="控制中心" isActive={page==="controller"} onClick={()=>setPage("controller")}><ListTodo/><span>控制中心</span></SidebarMenuButton></SidebarMenuItem>
         <SidebarMenuItem><SidebarMenuButton tooltip="飞书连接" isActive={page==="lark"} onClick={()=>setPage("lark")}><Radio/><span>飞书连接</span></SidebarMenuButton></SidebarMenuItem>
         <SidebarMenuItem><SidebarMenuButton tooltip="设置" isActive={page === "settings"} onClick={() => openSettings()}><Settings2 /><span>设置</span></SidebarMenuButton></SidebarMenuItem>
@@ -154,13 +156,14 @@ export default function App() {
       <header className="flex h-16 shrink-0 items-center gap-3 border-b px-5">
         <div className="flex shrink-0 items-center gap-1">
         </div>
-        <SidebarTrigger /><span className="shrink-0 text-sm font-medium">{page === "settings" ? "设置" : page==="controller"?"控制中心":page==="lark"?"飞书连接":settings.mode === "chat" ? "会话" : "工作区"}</span>
+        <SidebarTrigger /><span className="shrink-0 text-sm font-medium">{page === "pipelines" ? "流水线模板" : page === "settings" ? "设置" : page==="controller"?"控制中心":page==="lark"?"飞书连接":settings.mode === "chat" ? "会话" : "工作区"}</span>
         <div ref={setHeaderBody} className={page==="home"&&settings.mode==="workspace"?"min-w-0 flex-1 overflow-x-auto":"hidden"}/>
         <div className="ml-auto flex shrink-0 items-center gap-2"><ShortcutHelp/><HeaderActionButton icon={settings.theme === "dark" ? Moon : Sun} label={settings.theme === "dark" ? "夜间" : "日间"} aria-label={settings.theme === "dark" ? "切换到日间模式" : "切换到夜间模式"} onClick={() => void Data.SetTheme(settings.theme === "dark" ? "light" : "dark").then(setSettings).catch(error => setError(errorText(error)))} /><ApprovalCenter status={status} /><NotificationCenter onOpenSource={openSource}/></div>
       </header>
       {error && <div className="p-4"><Alert variant="destructive"><AlertDescription className="flex justify-between">{error}<Button variant="ghost" size="sm" onClick={() => setError("")}>关闭</Button></AlertDescription></Alert></div>}
       <main className="relative flex min-h-0 flex-1 overflow-hidden">
         {page === "settings" && <div className="size-full overflow-y-auto"><SettingsPage initialTab={settingsTab} info={info} settings={settings} onSettings={setSettings} status={status} onStatus={acceptStatus} onOpenThread={threadId => { void navigate("home", "chat").then(() => setFocusThread({ threadId })); }} /></div>}
+        {page==="pipelines"&&<div className="size-full overflow-y-auto p-5"><PipelinePage settings={settings} status={status} projectId="" focusRunId={focusPipeline?.pipelineRunId}/></div>}
         {page==="controller"&&<div className="size-full overflow-y-auto"><ControllerPage openSettings={() => openSettings("controller")} settings={settings} onSettings={setSettings} status={status} focusRequestId={focusRequest} onOpenThread={threadId => { void navigate("home", "chat").then(() => setFocusThread({ threadId })); }}/></div>}
         {page==="lark"&&<div className="size-full overflow-y-auto"><LarkPage onOpenRequest={requestId=>void openSource({requestId}).catch(error=>setError(errorText(error)))}/></div>}
         <div className={page === "home" && settings.mode === "chat" ? "flex size-full min-h-0" : "hidden"}>

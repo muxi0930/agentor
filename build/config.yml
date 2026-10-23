@@ -4,7 +4,7 @@ info:
   productName: agentor
   productIdentifier: io.agentor.desktop
   description: Codex 对话与工作编排
-  version: '0.1.0'
+  version: '0.1.1'
 dev_mode:
   root_path: .
   log_level: warn

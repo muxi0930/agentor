@@ -1,0 +1,40 @@
+WAIT QTEG6XCHLLJ5PTBAH4BCKQOM4F choose
+WAIT QTEG6XCHLLJ5PTBAH4BCKQOM4F choose
+file:///Users/zhui/Work/p/wails/agentor/docs/testing/2026-10-23-pipeline/resume-acceptance.mjs:25
+ r=await run(instance,{route,payload:{message:'真实输入-'+route,enabled:true,count:3}});
+  ^
+
+ReferenceError: r is not defined
+    at file:///Users/zhui/Work/p/wails/agentor/docs/testing/2026-10-23-pipeline/resume-acceptance.mjs:25:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+Node.js v24.13.0
+A01-review PASS {"runID":"QTEG6XCHLLJ5PTBAH4BCKQOM4F","status":"completed","error":"","path":["choose:review:completed","review-report:success:completed"],"attempts":2}
+WAIT 4TYKTWK6XUHMJX5X6NDIDZD4JD choose
+WAIT 4TYKTWK6XUHMJX5X6NDIDZD4JD choose
+A01-reject PASS {"runID":"4TYKTWK6XUHMJX5X6NDIDZD4JD","status":"error","error":"到达失败终点 failed","path":["choose:reject:completed","reject-report:success:completed"],"attempts":2}
+WAIT OIFTVS3Z3LYY6MU5KXARM3WNG5 retry
+WAIT OIFTVS3Z3LYY6MU5KXARM3WNG5 retry
+WAIT OIFTVS3Z3LYY6MU5KXARM3WNG5 retry
+A02 PASS {"runID":"OIFTVS3Z3LYY6MU5KXARM3WNG5","status":"completed","error":"","path":["retry::error","retry:success:completed"],"attempts":2}
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+WAIT GTYXIUHFZRBLEBXVJNW3ESULTW fail
+A03 PASS {"runID":"GTYXIUHFZRBLEBXVJNW3ESULTW","status":"completed","error":"","path":["fail::error","fail::error","handled:success:completed"],"attempts":3}
+WAIT K3GXHU73FPHWI5IRBZ2I7F6HQR loose
+WAIT K3GXHU73FPHWI5IRBZ2I7F6HQR loose
+WAIT K3GXHU73FPHWI5IRBZ2I7F6HQR loose
+WAIT K3GXHU73FPHWI5IRBZ2I7F6HQR loose
+WAIT K3GXHU73FPHWI5IRBZ2I7F6HQR loose
+WAIT K3GXHU73FPHWI5IRBZ2I7F6HQR loose
+WAIT K3GXHU73FPHWI5IRBZ2I7F6HQR loose
+A04 PASS {"runID":"K3GXHU73FPHWI5IRBZ2I7F6HQR","status":"error","error":"节点 loose 的结果 success 没有连接处理分支","path":["loose:success:error"],"attempts":1}

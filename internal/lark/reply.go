@@ -26,14 +26,6 @@ func (s *Service) replyFooter(notification tasksmodel.Notification) string {
 			break
 		}
 	}
-	if notification.PipelineSessionID != "" && s.pipelines != nil {
-		for _, request := range s.pipelines.GetState().Requests {
-			if request.ID == notification.PipelineSessionID {
-				model, effort, threadID = request.Input.Model, request.Input.Effort, request.ThreadID
-				break
-			}
-		}
-	}
 	var usage *codexmodel.TokenUsage
 	if s.runtime != nil && threadID != "" {
 		usage = s.runtime.GetTokenUsage(threadID)

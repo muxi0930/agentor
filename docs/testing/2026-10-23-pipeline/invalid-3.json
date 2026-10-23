@@ -1,0 +1,198 @@
+{
+  "id": "",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "templateId": "TMQHLTFLPJTBUSWGH3ITOE6SFR",
+  "directory": "",
+  "name": "验收1023 A01 三分支实例",
+  "entry": "choose",
+  "inputs": [
+    {
+      "name": "route",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "payload",
+      "type": "any",
+      "required": true
+    }
+  ],
+  "actions": [
+    {
+      "id": "choose",
+      "kind": "agent",
+      "type": "agent.run",
+      "name": "choose",
+      "params": {
+        "payload": {
+          "input": "payload"
+        },
+        "route": {
+          "input": "route"
+        }
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "branches": [
+        {
+          "name": "ready",
+          "description": "ready",
+          "target": "ready-report"
+        },
+        {
+          "name": "review",
+          "description": "review",
+          "target": "review-report"
+        },
+        {
+          "name": "reject",
+          "description": "reject",
+          "target": "reject-report"
+        }
+      ],
+      "prompt": "",
+      "criteria": "按要求调用 pipeline_complete_node 汇报可验证的结果，且正常结束本轮。",
+      "permission": "workspace-write",
+      "maxRetries": 0,
+      "timeoutSeconds": 120,
+      "failureTarget": "",
+      "stepSlot": "choose",
+      "stepId": "M65INSLXTVPXETBMVXZ72RAY2A"
+    },
+    {
+      "id": "ready-report",
+      "kind": "static",
+      "type": "report.write",
+      "name": "ready-report",
+      "params": {
+        "content": {
+          "result": "choose"
+        },
+        "fileName": "ready-report.md"
+      },
+      "position": {
+        "x": 300,
+        "y": 130
+      },
+      "branches": [
+        {
+          "name": "success",
+          "description": "success",
+          "target": "done"
+        }
+      ],
+      "prompt": "",
+      "criteria": "",
+      "permission": "workspace-write",
+      "maxRetries": 0,
+      "timeoutSeconds": 120,
+      "failureTarget": "",
+      "stepSlot": "",
+      "stepId": ""
+    },
+    {
+      "id": "review-report",
+      "kind": "static",
+      "type": "report.write",
+      "name": "review-report",
+      "params": {
+        "content": {
+          "result": "choose"
+        },
+        "fileName": "review-report.md"
+      },
+      "position": {
+        "x": 600,
+        "y": 0
+      },
+      "branches": [
+        {
+          "name": "success",
+          "description": "success",
+          "target": "done"
+        }
+      ],
+      "prompt": "",
+      "criteria": "",
+      "permission": "workspace-write",
+      "maxRetries": 0,
+      "timeoutSeconds": 120,
+      "failureTarget": "",
+      "stepSlot": "",
+      "stepId": ""
+    },
+    {
+      "id": "reject-report",
+      "kind": "static",
+      "type": "report.write",
+      "name": "reject-report",
+      "params": {
+        "content": {
+          "result": "choose"
+        },
+        "fileName": "reject-report.md"
+      },
+      "position": {
+        "x": 900,
+        "y": 130
+      },
+      "branches": [
+        {
+          "name": "success",
+          "description": "success",
+          "target": "failed"
+        }
+      ],
+      "prompt": "",
+      "criteria": "",
+      "permission": "workspace-write",
+      "maxRetries": 0,
+      "timeoutSeconds": 120,
+      "failureTarget": "",
+      "stepSlot": "",
+      "stepId": ""
+    },
+    {
+      "id": "done",
+      "kind": "end",
+      "type": "end.success",
+      "name": "done",
+      "params": {},
+      "position": {
+        "x": 1200,
+        "y": 0
+      },
+      "branches": [],
+      "prompt": "",
+      "criteria": "",
+      "permission": "workspace-write",
+      "maxRetries": 0,
+      "timeoutSeconds": 120,
+      "failureTarget": "",
+      "stepSlot": "",
+      "stepId": ""
+    },
+    {
+      "id": "failed",
+      "kind": "end",
+      "type": "end.failure",
+      "name": "failed",
+      "params": {},
+      "position": {
+        "x": 1500,
+        "y": 130
+      },
+      "branches": [],
+      "prompt": "",
+      "criteria": "",
+      "permission": "workspace-write",
+      "maxRetries": 0,
+      "timeoutSeconds": 120,
+      "failureTarget": "",
+      "stepSlot": "",
+      "stepId": ""
+    }
+  ]
+}

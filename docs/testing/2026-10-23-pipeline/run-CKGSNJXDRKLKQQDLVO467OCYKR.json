@@ -1,0 +1,296 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-diverged",
+  "stepContexts": {},
+  "worktree": {
+    "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/CKGSNJXDRKLKQQDLVO467OCYKR",
+    "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-diverged",
+    "sourceBranch": "main",
+    "sourceCommit": "4b0d83425a05046aad17460905ecd091d01a4e7c",
+    "branch": "codex/pipeline-CKGSNJXDRKLKQQDLVO467OCYKR",
+    "mergedCommit": ""
+  },
+  "pauseRequested": false,
+  "id": "CKGSNJXDRKLKQQDLVO467OCYKR",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "PQRIFOAFCUOKENBRC5U4SSAKWW",
+  "task": {
+    "id": "PQRIFOAFCUOKENBRC5U4SSAKWW",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 S-Git-diverged",
+    "entry": "create",
+    "inputs": null,
+    "actions": [
+      {
+        "id": "create",
+        "kind": "static",
+        "type": "worktree.create",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "gate"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "gate",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 280,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "merge"
+          }
+        ],
+        "prompt": "验收暂停点，不修改任何文件。等待30秒后汇报 success。执行。",
+        "criteria": "等待验收",
+        "permission": "read-only",
+        "maxRetries": 0,
+        "timeoutSeconds": 3,
+        "failureTarget": "merge",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "merge",
+        "kind": "static",
+        "type": "worktree.merge",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 560,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          },
+          {
+            "name": "dirty",
+            "description": "",
+            "target": "dirty"
+          },
+          {
+            "name": "diverged",
+            "description": "",
+            "target": "diverged"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "dirty",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "dirty branch",
+          "fileName": "dirty.md"
+        },
+        "position": {
+          "x": 840,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "diverged",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "diverged branch",
+          "fileName": "diverged.md"
+        },
+        "position": {
+          "x": 1120,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 1400,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": null,
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:37:40.90972Z",
+  "completedAt": "2026-10-23T15:37:44.070809Z",
+  "actions": [
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "create",
+      "type": "worktree.create",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-CKGSNJXDRKLKQQDLVO467OCYKR",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/CKGSNJXDRKLKQQDLVO467OCYKR",
+        "mergedCommit": "",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-diverged",
+        "sourceBranch": "main",
+        "sourceCommit": "4b0d83425a05046aad17460905ecd091d01a4e7c"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:37:40.913483Z",
+      "completedAt": "2026-10-23T15:37:40.966032Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a16969-256d-7062-b7c8-a61d2b52604c",
+      "turnId": "01a16969-25c5-7de1-8b26-7fcd7458f6ff",
+      "executionId": "",
+      "attempt": 1,
+      "id": "gate",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": null,
+      "error": "context deadline exceeded",
+      "startedAt": "2026-10-23T15:37:40.969175Z",
+      "completedAt": "2026-10-23T15:37:43.981457Z"
+    },
+    {
+      "kind": "static",
+      "branch": "diverged",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "merge",
+      "type": "worktree.merge",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-CKGSNJXDRKLKQQDLVO467OCYKR",
+        "sourceBranch": "main"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:37:43.987198Z",
+      "completedAt": "2026-10-23T15:37:44.061989Z"
+    },
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "diverged",
+      "type": "report.write",
+      "status": "completed",
+      "inputs": {
+        "content": "diverged branch",
+        "fileName": "diverged.md"
+      },
+      "output": {
+        "artifactId": "MR2SDW7XRZP6OK5HSV4BRJOOF5",
+        "fileName": "diverged.md"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:37:44.065201Z",
+      "completedAt": "2026-10-23T15:37:44.067431Z"
+    }
+  ],
+  "artifactIds": [
+    "MR2SDW7XRZP6OK5HSV4BRJOOF5"
+  ]
+}

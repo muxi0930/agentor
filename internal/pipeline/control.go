@@ -9,7 +9,7 @@ import (
 	pipelinemodel "agentor/internal/pipeline/model"
 )
 
-// ControlRun 校验项目和状态后执行暂停、继续、重试或停止命令
+// ControlRun 校验项目和状态后执行暂停、继续或停止命令
 func (s *Service) ControlRun(projectID, id, operation string) (pipelinemodel.Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -32,11 +32,11 @@ func (s *Service) ControlRun(projectID, id, operation string) (pipelinemodel.Run
 				return pipelinemodel.Run{}, constant.ErrPipelineTransitionInvalid
 			}
 			run.PauseRequested = true
-		case constant.PipelineControlResume, constant.PipelineControlRetry:
-			if operation == constant.PipelineControlResume && run.Status != constant.PipelineStatusPaused ||
-				operation == constant.PipelineControlRetry && run.Status != constant.TasksStatusError && run.Status != constant.TasksStatusInterrupted {
+		case constant.PipelineControlResume:
+			if run.Status != constant.PipelineStatusPaused {
 				return pipelinemodel.Run{}, constant.ErrPipelineTransitionInvalid
 			}
+
 			if s.cancellations[id] != nil {
 				return pipelinemodel.Run{}, constant.ErrPipelineWorkerActive
 			}

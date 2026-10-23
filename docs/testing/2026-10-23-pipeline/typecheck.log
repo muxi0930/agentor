@@ -1,0 +1,6 @@
+
+> agentor@0.1.0 typecheck
+> tsc --noEmit
+
+src/features/pipeline/NodeEditor.tsx(80,19): error TS2550: Property 'hasOwn' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.
+src/features/pipeline/NodeEditor.tsx(94,90): error TS2550: Property 'hasOwn' does not exist on type 'ObjectConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.

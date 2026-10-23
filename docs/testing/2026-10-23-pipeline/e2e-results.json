@@ -1,0 +1,24 @@
+[
+  {
+    "id": "E01",
+    "expected": "模板→绑定步骤→独立工作区→真实 Agent 提交→合并→报告→清理→成功",
+    "actual": {
+      "runID": "LTI5BHTJLRTDVULK7UFV7H24VY",
+      "status": "completed",
+      "error": "",
+      "path": [
+        "create:success:completed",
+        "develop:success:completed",
+        "merge:success:completed",
+        "report:success:completed",
+        "cleanup:success:completed"
+      ],
+      "attempts": 5,
+      "templateID": "XQ2MCSLVQG6GBV23DWI6MUBLHP",
+      "taskID": "52YXHEQXL2TZPKQLLJJ3IV35VS",
+      "stepID": "VJ5LUT3B27YHGG5TMD35RYDOX5",
+      "file": "PIPELINE_E2E_1023\n"
+    },
+    "pass": true
+  }
+]

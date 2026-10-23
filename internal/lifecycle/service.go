@@ -196,13 +196,12 @@ func snapshot(state tasksmodel.State, pipelines pipelinemodel.State, active []co
 		appendTask(request.ID, constant.LifecycleControllerLabel, request.Status, request.Text)
 	}
 	for _, run := range pipelines.Runs {
-		appendTask(run.ID, constant.LifecyclePipelineLabel, run.Status, run.Task.Name)
-	}
-	for _, request := range pipelines.Requests {
-		if request.Status == constant.TasksStatusRunning || request.Status == constant.TasksStatusQueued {
-			ownedThreads[request.ThreadID] = true
+		for _, node := range run.Actions {
+			if node.Status == constant.TasksStatusRunning {
+				ownedThreads[node.ThreadID] = true
+			}
 		}
-		appendTask(request.ID, constant.LifecyclePipelineSessionLabel, request.Status, request.Input.Text)
+		appendTask(run.ID, constant.LifecyclePipelineLabel, run.Status, run.Task.Name)
 	}
 	for _, turn := range active {
 		if ownedThreads[turn.ThreadID] {

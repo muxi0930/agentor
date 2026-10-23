@@ -1,0 +1,60 @@
+{
+  "createdAt": "2026-10-22T07:14:25.978113Z",
+  "id": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "name": "Feat",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "sharedContext": "",
+  "prompt": "",
+  "structure": "",
+  "tags": [],
+  "versions": [
+    {
+      "createdAt": "2026-10-23T15:32:45.007728Z",
+      "documentIds": null,
+      "id": "5Y5BVPO36V5TH3RNW7EWJKYFIH",
+      "name": "流水线验收 2026-10-23",
+      "description": "保留完整验收模板、需求、步骤与运行记录",
+      "tagIds": null,
+      "features": [
+        {
+          "completed": true,
+          "completedAt": "2026-10-23T15:48:28.81203Z",
+          "createdAt": "2026-10-23T15:32:45.012902Z",
+          "id": "3QITUIIFP6CPSW56BJCKQBZP5H",
+          "title": "模板、静态分支和 Agent 多分支验收",
+          "description": "成功、业务分支、失败重试、Git 合并及输入引用验证",
+          "context": "",
+          "prompt": "只执行本轮验收定义，保留测试现场。",
+          "documentIds": [],
+          "steps": [
+            {
+              "completed": true,
+              "completedAt": "2026-10-23T15:45:24.566025Z",
+              "createdAt": "2026-10-23T15:32:45.014778Z",
+              "id": "M65INSLXTVPXETBMVXZ72RAY2A",
+              "title": "验收 Agent 分支路由和输入",
+              "description": "",
+              "prompt": "根据节点明确指定的分支进行真实工具汇报，不修改项目文件。",
+              "threadId": "",
+              "permissionMode": ""
+            },
+            {
+              "completed": true,
+              "completedAt": "2026-10-23T15:48:28.81203Z",
+              "createdAt": "2026-10-23T15:46:13.876573Z",
+              "id": "VJ5LUT3B27YHGG5TMD35RYDOX5",
+              "title": "完整模板链路写入并提交验收文件",
+              "description": "",
+              "prompt": "执行：在当前独立工作区创建 acceptance-e2e.txt，内容精确为 PIPELINE_E2E_1023 加换行。读取核验，只提交该文件，标题 test: Verify pipeline e2e，追加 Co-authored-by: Codex <codex@openai.com>。不修改其他文件，不合并，不清理。调用 pipeline_complete_node，outcome=success，branch=success，summary=文件核验与提交证据，output 包含 file 和 commit。",
+              "threadId": "",
+              "permissionMode": ""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "documentIds": [
+    "PI5RILNON3RFEODH4LEL3354VA"
+  ]
+}

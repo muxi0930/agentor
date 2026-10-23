@@ -22,6 +22,10 @@ import (
 
 // TestMain 在测试子进程中提供本地原生协议响应，不连接模型或外部服务
 func TestMain(m *testing.M) {
+	if mode := os.Getenv("AGENTOR_ROUTER_PIPELINE_PROTOCOL"); mode != "" {
+		pipelineProtocolServer(mode)
+		return
+	}
 	if os.Getenv("AGENTOR_ROUTER_PROTOCOL_TEST") != "1" {
 		os.Exit(m.Run())
 	}
@@ -77,7 +81,7 @@ func TestControllerRequestPermissions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			router, _ := newControllerRouter(t, test.kind, test.needsTarget)
 			for _, spec := range router.Specs("controller") {
-				readOnly := spec.Name == "list_workspaces" || spec.Name == "get_work_item" || spec.Name == "list_executions" || spec.Name == "list_pipeline_tasks"
+				readOnly := spec.Name == "list_workspaces" || spec.Name == "get_work_item" || spec.Name == "list_executions" || spec.Name == "list_pipeline_tasks" || spec.Name == "list_actions" || spec.Name == "validate_pipeline_task"
 				_, err := router.Call(codexmodel.ToolCall{ThreadID: "router-thread", Tool: spec.Name, Arguments: json.RawMessage(`{`)})
 				if !readOnly && (test.needsTarget || test.kind != "instruction") {
 					if err == nil || err.Error() != "此请求需要明确目标或仅用于完成汇报，不能修改或再次派发" {

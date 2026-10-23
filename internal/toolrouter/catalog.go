@@ -15,7 +15,7 @@ type toolDefinition struct {
 func roleTools(role string) []toolDefinition {
 	switch role {
 	case constant.ToolRouterRoleController:
-		return []toolDefinition{
+		return append(controllerPipelineTools(), []toolDefinition{
 			defineTool(true, constant.ToolRouterRoleController, constant.ToolRouterToolListWorkspaces, constant.ToolRouterListWorkspacesDescription, map[string]any{}),
 			defineTool(true, constant.ToolRouterRoleController, constant.ToolRouterToolGetWorkItem, constant.ToolRouterGetWorkItemDescription, map[string]any{"kind": stringField(constant.ToolRouterWorkItemKindDescription), "id": stringField(constant.ToolRouterWorkItemIDDescription)}, "kind", "id"),
 			defineTool(false, constant.ToolRouterRoleController, constant.ToolRouterToolCreateVersion, constant.ToolRouterCreateVersionDescription, map[string]any{"projectId": stringField(constant.ToolRouterExplicitProjectIDDescription), "name": stringField(constant.ToolRouterVersionNameDescription), "description": stringField(constant.ToolRouterVersionSummaryDescription)}, "projectId", "name", "description"),
@@ -27,11 +27,10 @@ func roleTools(role string) []toolDefinition {
 			defineTool(false, constant.ToolRouterRoleController, constant.ToolRouterToolRebuildStepContext, constant.ToolRouterRebuildStepDescription, map[string]any{"stepId": stringField(constant.ToolRouterStepIDDescription)}, "stepId"),
 			defineTool(true, constant.ToolRouterGroupControllerPipeline, constant.ToolRouterToolListPipelineTasks, constant.ToolRouterControllerListTasksDescription, map[string]any{}),
 			defineTool(false, constant.ToolRouterGroupControllerPipeline, constant.ToolRouterToolRunPipeline, constant.ToolRouterControllerRunDescription, map[string]any{"taskId": stringField(constant.ToolRouterTaskIDDescription), "inputs": map[string]any{"type": "object", "description": constant.ToolRouterTaskInputsDescription}, "model": stringField(constant.ToolRouterExecutorModelDescription), "effort": stringField(constant.ToolRouterExecutorEffortDescription)}, "taskId", "inputs", "model", "effort"),
-			defineTool(false, constant.ToolRouterGroupControllerPipeline, constant.ToolRouterToolRequestPipelineSession, constant.ToolRouterRequestPipelineSessionDescription, map[string]any{"projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "role": stringField(constant.ToolRouterSessionRoleDescription), "text": stringField(constant.ToolRouterSessionTextDescription), "model": stringField(constant.ToolRouterExecutorModelDescription), "effort": stringField(constant.ToolRouterExecutorEffortDescription)}, "projectId", "role", "text", "model", "effort"),
 			defineTool(false, constant.ToolRouterGroupControllerPipeline, constant.ToolRouterToolSetScheduleEnabled, constant.ToolRouterSetScheduleEnabledDescription, map[string]any{"scheduleId": stringField(constant.ToolRouterScheduleIDDescription), "enabled": map[string]any{"type": "boolean"}}, "scheduleId", "enabled"),
 			defineTool(false, constant.ToolRouterGroupControllerPipeline, constant.ToolRouterToolTriggerSchedule, constant.ToolRouterTriggerScheduleDescription, map[string]any{"scheduleId": stringField(constant.ToolRouterScheduleIDDescription), "model": stringField(constant.ToolRouterExecutorModelDescription), "effort": stringField(constant.ToolRouterExecutorEffortDescription)}, "scheduleId", "model", "effort"),
 			defineTool(false, constant.ToolRouterRoleController, constant.ToolRouterToolShareArtifact, constant.ToolRouterControllerShareDescription, map[string]any{"artifactId": stringField(constant.ToolRouterArtifactIDDescription)}, "artifactId"),
-		}
+		}...)
 	case constant.ToolRouterRoleStep:
 		return []toolDefinition{
 			defineTool(false, constant.ToolRouterRoleStep, constant.ToolRouterToolReportStepOutcome, constant.ToolRouterReportStepOutcomeDescription, map[string]any{"success": map[string]any{"type": "boolean"}, "summary": map[string]any{"type": "string"}}, "success", "summary"),
@@ -44,26 +43,12 @@ func roleTools(role string) []toolDefinition {
 			defineTool(false, constant.ToolRouterRoleStep, constant.ToolRouterToolRegisterArtifact, constant.ToolRouterRegisterArtifactDescription, map[string]any{"path": stringField(constant.ToolRouterArtifactPathDescription)}, "path"),
 			defineTool(false, constant.ToolRouterRoleStep, constant.ToolRouterToolShareArtifact, constant.ToolRouterStepShareDescription, map[string]any{"artifactId": stringField(constant.ToolRouterProducedArtifactIDDescription)}, "artifactId"),
 		}
-	case constant.ToolRouterRolePipelineManager, constant.ToolRouterRolePipelineConfig:
-		specs := []toolDefinition{
-			defineTool(true, constant.ToolRouterGroupPipeline, constant.ToolRouterToolListActions, constant.ToolRouterListActionsDescription, map[string]any{}),
-			defineTool(true, constant.ToolRouterGroupPipeline, constant.ToolRouterToolListPipelineTasks, constant.ToolRouterPipelineListTasksDescription, map[string]any{}),
-			defineTool(true, constant.ToolRouterGroupPipeline, constant.ToolRouterToolValidatePipelineTask, constant.ToolRouterValidateTaskDescription, map[string]any{"json": stringField(constant.ToolRouterTaskJSONDescription)}, "json"),
-		}
-		if role == constant.ToolRouterRolePipelineManager {
-			specs = append(specs,
-				defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolSetScheduleEnabled, constant.ToolRouterSetScheduleEnabledDescription, map[string]any{"scheduleId": stringField(constant.ToolRouterScheduleIDDescription), "enabled": map[string]any{"type": "boolean"}}, "scheduleId", "enabled"),
-				defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolTriggerSchedule, constant.ToolRouterTriggerScheduleDescription, map[string]any{"scheduleId": stringField(constant.ToolRouterScheduleIDDescription)}, "scheduleId"),
-			)
-			specs = append(specs, defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolControlPipelineRun, constant.ToolRouterControlPipelineDescription, map[string]any{"runId": stringField(constant.ToolRouterRunIDDescription), "operation": map[string]any{"type": "string", "enum": []string{constant.PipelineControlPause, constant.PipelineControlResume, constant.PipelineControlRetry, constant.PipelineControlStop}}}, "runId", "operation"))
-			return append(specs, defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolRunPipeline, constant.ToolRouterPipelineRunDescription, map[string]any{"taskId": stringField(constant.ToolRouterTaskIDDescription), "inputs": map[string]any{"type": "object"}}, "taskId", "inputs"), defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolShareArtifact, constant.ToolRouterPipelineShareDescription, map[string]any{"artifactId": stringField(constant.ToolRouterRegisteredArtifactIDDescription)}, "artifactId"))
-		}
-		return append(specs,
-			defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolSavePipelineTask, constant.ToolRouterSaveTaskDescription, map[string]any{"json": stringField(constant.ToolRouterTaskJSONDescription)}, "json"),
-			defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolDeletePipelineTask, constant.ToolRouterDeleteTaskDescription, map[string]any{"taskId": stringField(constant.ToolRouterTaskIDDescription)}, "taskId"),
-			defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolSavePipelineSchedule, constant.ToolRouterSaveScheduleDescription, map[string]any{"json": stringField(constant.ToolRouterScheduleJSONDescription)}, "json"),
-			defineTool(false, constant.ToolRouterGroupPipeline, constant.ToolRouterToolDeletePipelineSchedule, constant.ToolRouterDeleteScheduleDescription, map[string]any{"scheduleId": stringField(constant.ToolRouterScheduleIDDescription)}, "scheduleId"),
-		)
+	case constant.ToolRouterRolePipelineNode:
+		return []toolDefinition{defineTool(false, constant.ToolRouterRolePipelineNode, constant.ToolRouterToolCompleteNode, constant.ToolRouterCompleteNodeDescription, map[string]any{
+			"outcome": map[string]any{"type": "string", "enum": []string{constant.PipelineBranchSuccess, constant.PipelineBranchFailure}},
+			"branch":  map[string]any{"type": "string"}, "summary": map[string]any{"type": "string"}, "output": map[string]any{},
+		}, "outcome", "branch", "summary", "output")}
+
 	}
 	return nil
 }
@@ -96,4 +81,21 @@ func defineTool(readOnly bool, group, name, description string, properties map[s
 // stringField 构造字符串类型的工具参数
 func stringField(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
+}
+
+// controllerPipelineTools 声明控制中心可用的配置能力，全部经过 Go 校验
+func controllerPipelineTools() []toolDefinition {
+	group := constant.ToolRouterGroupControllerPipeline
+	config := map[string]any{"projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "json": stringField(constant.ToolRouterTaskJSONDescription)}
+	return []toolDefinition{
+		defineTool(true, group, constant.ToolRouterToolListActions, constant.ToolRouterListActionsDescription, map[string]any{}),
+		defineTool(true, group, constant.ToolRouterToolValidatePipelineTask, constant.ToolRouterValidateTaskDescription, config, "json"),
+		defineTool(false, group, constant.ToolRouterToolSavePipelineTask, constant.ToolRouterSaveTaskDescription, config, "json"),
+		defineTool(false, group, constant.ToolRouterToolDeletePipelineTask, constant.ToolRouterDeleteTaskDescription, map[string]any{"projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "taskId": stringField(constant.ToolRouterTaskIDDescription)}, "taskId"),
+		defineTool(false, group, constant.ToolRouterToolSavePipelineTemplate, constant.ToolRouterSaveTemplateDescription, map[string]any{"json": stringField(constant.ToolRouterTaskJSONDescription)}, "json"),
+		defineTool(false, group, constant.ToolRouterToolInstantiatePipeline, constant.ToolRouterInstantiateDescription, map[string]any{"templateId": map[string]any{"type": "string"}, "projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "name": map[string]any{"type": "string"}, "directory": map[string]any{"type": "string"}, "bindings": map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}}}, "templateId", "bindings"),
+		defineTool(false, group, constant.ToolRouterToolSavePipelineSchedule, constant.ToolRouterSaveScheduleDescription, config, "json"),
+		defineTool(false, group, constant.ToolRouterToolDeletePipelineSchedule, constant.ToolRouterDeleteScheduleDescription, map[string]any{"projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "scheduleId": stringField(constant.ToolRouterScheduleIDDescription)}, "scheduleId"),
+		defineTool(false, group, constant.ToolRouterToolControlPipelineRun, constant.ToolRouterControlPipelineDescription, map[string]any{"runId": stringField(constant.ToolRouterRunIDDescription), "operation": map[string]any{"type": "string", "enum": []string{constant.PipelineControlPause, constant.PipelineControlResume, constant.PipelineControlStop}}}, "runId", "operation"),
+	}
 }

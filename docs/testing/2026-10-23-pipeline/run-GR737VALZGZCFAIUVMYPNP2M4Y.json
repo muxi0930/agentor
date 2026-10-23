@@ -1,0 +1,106 @@
+{
+  "currentNode": "knowledge",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {},
+  "pauseRequested": false,
+  "id": "GR737VALZGZCFAIUVMYPNP2M4Y",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "O2ZHAAW3DFF2KVUFTA2E3UIJUD",
+  "task": {
+    "id": "O2ZHAAW3DFF2KVUFTA2E3UIJUD",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 S02 知识不存在",
+    "entry": "knowledge",
+    "inputs": [],
+    "actions": [
+      {
+        "id": "knowledge",
+        "kind": "static",
+        "type": "knowledge.read",
+        "name": "knowledge",
+        "params": {
+          "documentId": "acceptance-missing-document"
+        },
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "done",
+        "params": {},
+        "position": {
+          "x": 300,
+          "y": 130
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 120,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": {},
+  "model": "",
+  "effort": "",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "error",
+  "error": "文档不存在",
+  "createdAt": "2026-10-23T15:32:46.02781Z",
+  "completedAt": "2026-10-23T15:32:46.031714Z",
+  "actions": [
+    {
+      "kind": "static",
+      "branch": "",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "knowledge",
+      "type": "knowledge.read",
+      "status": "error",
+      "inputs": {
+        "documentId": "acceptance-missing-document"
+      },
+      "output": null,
+      "error": "文档不存在",
+      "startedAt": "2026-10-23T15:32:46.029876Z",
+      "completedAt": "2026-10-23T15:32:46.03085Z"
+    }
+  ],
+  "artifactIds": []
+}

@@ -75,3 +75,72 @@ func TestConcurrencyLimitChanges(t *testing.T) {
 		t.Fatal("任务完成后未释放并发名额")
 	}
 }
+
+// TestPipelineExecutionBlocksFeatureQueueAndNotifiesWaiters 验证绑定步骤与普通队列互斥且终态唤醒等待者
+func TestPipelineExecutionBlocksFeatureQueueAndNotifiesWaiters(t *testing.T) {
+	s, err := NewService(testData(t), nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.ServiceShutdown()
+	execution := tasksmodel.Execution{ID: "pipeline-attempt", StepID: "step", FeatureID: "feature", PipelineRunID: "run", Status: "running"}
+	if err = s.RecordPipelineExecution(execution, func() {}); err != nil {
+		t.Fatal(err)
+	}
+	another := execution
+	another.ID = "second-attempt"
+	if err = s.RecordPipelineExecution(another, func() {}); err == nil {
+		t.Fatal("同一功能下两个流水线节点同时执行")
+	}
+	started := make(chan struct{}, 1)
+	s.runExecution = func(ctx context.Context, execution tasksmodel.Execution) (string, string, error) {
+		started <- struct{}{}
+		return "completed", "", nil
+	}
+	s.mu.Lock()
+	s.state.Executions = append(s.state.Executions, tasksmodel.Execution{ID: "regular", StepID: "other-step", FeatureID: "feature", Status: "queued"})
+	listener := make(chan tasksmodel.Execution, 1)
+	s.completed[execution.ID] = []chan tasksmodel.Execution{listener}
+	s.mu.Unlock()
+	s.kick("feature")
+	select {
+	case <-started:
+		t.Fatal("流水线步骤未结束时普通步骤提前执行")
+	case <-time.After(150 * time.Millisecond):
+	}
+	execution.Status = "completed"
+	if err = s.RecordPipelineExecution(execution, nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case finished := <-listener:
+		if finished.Status != "completed" {
+			t.Fatal(finished)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("流水线终态未通知步骤等待者")
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("流水线步骤结束后未继续普通队列")
+	}
+}
+
+// TestManagedTurnWaitsForSharedConcurrencySlot 验证节点 Agent 在普通步骤占满名额时可取消等待
+func TestManagedTurnWaitsForSharedConcurrencySlot(t *testing.T) {
+	data := testData(t)
+	data.SetMaxConcurrentAgents(1)
+	s, err := NewService(data, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.ServiceShutdown()
+	s.activeExecutions.Store(1)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	status, _, err := s.RunManagedTurn(ctx, "thread", "", "", "", "read-only", "", "", func(string) { t.Error("超出全局并发上限") })
+	if err != context.DeadlineExceeded || status != "interrupted" || s.activeExecutions.Load() != 1 {
+		t.Fatal(status, err, s.activeExecutions.Load())
+	}
+}

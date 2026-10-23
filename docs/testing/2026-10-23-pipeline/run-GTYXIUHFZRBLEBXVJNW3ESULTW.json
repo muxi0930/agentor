@@ -1,0 +1,183 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {},
+  "pauseRequested": false,
+  "id": "GTYXIUHFZRBLEBXVJNW3ESULTW",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "46IUDAD6KMQ5U2WY4NBONTQOT2",
+  "task": {
+    "id": "46IUDAD6KMQ5U2WY4NBONTQOT2",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 A03 耗尽后处理",
+    "entry": "fail",
+    "inputs": [],
+    "actions": [
+      {
+        "id": "fail",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "fail",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "仅调用 pipeline_complete_node，outcome=failure, branch=\"\", summary=\"ACCEPTANCE_EXPECTED_FAILURE\"，不执行命令，然后正常结束。",
+        "criteria": "按要求调用 pipeline_complete_node 汇报可验证的结果，且正常结束本轮。",
+        "permission": "workspace-write",
+        "maxRetries": 1,
+        "timeoutSeconds": 300,
+        "failureTarget": "handled",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "handled",
+        "kind": "static",
+        "type": "report.write",
+        "name": "handled",
+        "params": {
+          "content": "重试耗尽后的处理已执行",
+          "fileName": "handled.md"
+        },
+        "position": {
+          "x": 300,
+          "y": 130
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 300,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "done",
+        "params": {},
+        "position": {
+          "x": 600,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 300,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": {},
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:46:09.293029Z",
+  "completedAt": "2026-10-23T15:49:56.876658Z",
+  "actions": [
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a16970-e723-78f0-860d-79b0ef8cf938",
+      "turnId": "01a16970-e783-7b21-944b-f809150d7b3a",
+      "report": {
+        "outcome": "failure",
+        "branch": "",
+        "summary": "ACCEPTANCE_EXPECTED_FAILURE",
+        "output": {}
+      },
+      "executionId": "",
+      "attempt": 1,
+      "id": "fail",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": {},
+      "error": "ACCEPTANCE_EXPECTED_FAILURE",
+      "startedAt": "2026-10-23T15:46:09.306765Z",
+      "completedAt": "2026-10-23T15:47:55.30672Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a16972-853e-7803-bbc6-e3e597282f04",
+      "turnId": "01a16972-8b51-7a12-8b71-6db8821b458a",
+      "report": {
+        "outcome": "failure",
+        "branch": "",
+        "summary": "ACCEPTANCE_EXPECTED_FAILURE",
+        "output": {}
+      },
+      "executionId": "",
+      "attempt": 2,
+      "id": "fail",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": {},
+      "error": "ACCEPTANCE_EXPECTED_FAILURE",
+      "startedAt": "2026-10-23T15:47:55.317108Z",
+      "completedAt": "2026-10-23T15:49:56.848463Z"
+    },
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "handled",
+      "type": "report.write",
+      "status": "completed",
+      "inputs": {
+        "content": "重试耗尽后的处理已执行",
+        "fileName": "handled.md"
+      },
+      "output": {
+        "artifactId": "TW6HHEHRJZKXV3YOE4T7ENIG7R",
+        "fileName": "handled.md"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:49:56.860105Z",
+      "completedAt": "2026-10-23T15:49:56.866429Z"
+    }
+  ],
+  "artifactIds": [
+    "TW6HHEHRJZKXV3YOE4T7ENIG7R"
+  ]
+}

@@ -10,7 +10,7 @@ func TestControllerDispatchToolsRequireExecutionChoice(t *testing.T) {
 	router := &Router{}
 	checked := 0
 	for _, spec := range router.Specs("controller") {
-		if !slices.Contains([]string{"dispatch_step", "run_pipeline", "request_pipeline_session", "trigger_schedule"}, spec.Name) {
+		if !slices.Contains([]string{"dispatch_step", "run_pipeline", "trigger_schedule"}, spec.Name) {
 			continue
 		}
 		properties := spec.InputSchema["properties"].(map[string]any)
@@ -20,7 +20,7 @@ func TestControllerDispatchToolsRequireExecutionChoice(t *testing.T) {
 		}
 		checked++
 	}
-	if checked != 4 {
+	if checked != 3 {
 		t.Fatal(checked)
 	}
 }
@@ -45,7 +45,7 @@ func TestControllerCreateVersionSpec(t *testing.T) {
 	if !found {
 		t.Fatal("控制中心未注册 create_version")
 	}
-	for _, role := range []string{"step", "pipeline_manager", "pipeline_config"} {
+	for _, role := range []string{"step", "pipeline_node"} {
 		for _, spec := range router.Specs(role) {
 			if spec.Name == "create_version" {
 				t.Fatalf("%s 不应拥有创建版本工具", role)

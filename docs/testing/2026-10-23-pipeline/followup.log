@@ -1,0 +1,16 @@
+file:///Users/zhui/Work/p/wails/agentor/docs/testing/2026-10-23-pipeline/followup-acceptance.mjs:4
+async function call(...a){const r=await rpc(...a);if(r.error)throw Error(r.error);return r.data}
+                                                                   ^
+
+Error: 版本或功能不属于当前项目
+    at call (file:///Users/zhui/Work/p/wails/agentor/docs/testing/2026-10-23-pipeline/followup-acceptance.mjs:4:68)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///Users/zhui/Work/p/wails/agentor/docs/testing/2026-10-23-pipeline/followup-acceptance.mjs:9:11
+
+Node.js v24.13.0
+S03 true {"runID":"4W6WUOE3N7CQNR2KTATSG3BEK7","status":"completed","documentID":"PI5RILNON3RFEODH4LEL3354VA"}
+A05 true {"runID":"F274NPTIMAVOCDB5KWXN7HM4OK","status":"completed","errors":["context deadline exceeded","context deadline exceeded",""],"path":["timeout","timeout","handled"]}
+L01-pause true {"runID":"NYI7QRTHPQNMYLD5NBM2K6GWHI","status":"paused"}
+L01-resume true {"runID":"NYI7QRTHPQNMYLD5NBM2K6GWHI","status":"completed"}
+L02-stop true {"runID":"Q6T6UGZBVA7DUGM2FYVSFJTDJU","status":"cancelled"}
+A06 true {"runID":"4ZZZPDATZQSNUDETFLMH64IUOA","status":"completed","error":"","report":{"outcome":"success","branch":"ready","summary":"已解析输入 route=ready；payload 包含 count=3、enabled=true、message=延长时限验证。","output":{"payload":{"count":3,"enabled":true,"message":"延长时限验证"},"route":"ready"}}}

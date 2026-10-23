@@ -1,0 +1,243 @@
+{
+  "currentNode": "merge",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-unhandled",
+  "stepContexts": {},
+  "worktree": {
+    "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/RXGSMT5M5DIQAWK6PVOZIRLI6U",
+    "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-unhandled",
+    "sourceBranch": "main",
+    "sourceCommit": "678e6475ae3ed73a4918a9a0ba1b737b7b1b4c19",
+    "branch": "codex/pipeline-RXGSMT5M5DIQAWK6PVOZIRLI6U",
+    "mergedCommit": ""
+  },
+  "pauseRequested": false,
+  "id": "RXGSMT5M5DIQAWK6PVOZIRLI6U",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "KTIB4Z4XZFUJAE3VCBLRXEAH4V",
+  "task": {
+    "id": "KTIB4Z4XZFUJAE3VCBLRXEAH4V",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 S-Git-unhandled",
+    "entry": "create",
+    "inputs": null,
+    "actions": [
+      {
+        "id": "create",
+        "kind": "static",
+        "type": "worktree.create",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "gate"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "gate",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 280,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "merge"
+          }
+        ],
+        "prompt": "验收暂停点，不修改任何文件。等待30秒后汇报 success。执行。",
+        "criteria": "等待验收",
+        "permission": "read-only",
+        "maxRetries": 0,
+        "timeoutSeconds": 3,
+        "failureTarget": "merge",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "merge",
+        "kind": "static",
+        "type": "worktree.merge",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 560,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          },
+          {
+            "name": "dirty",
+            "description": "",
+            "target": ""
+          },
+          {
+            "name": "diverged",
+            "description": "",
+            "target": "diverged"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "diverged",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "diverged branch",
+          "fileName": "diverged.md"
+        },
+        "position": {
+          "x": 840,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 1120,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": null,
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "error",
+  "error": "节点 merge 的结果 dirty 没有连接处理分支",
+  "createdAt": "2026-10-23T15:39:48.529802Z",
+  "completedAt": "2026-10-23T15:39:51.67329Z",
+  "actions": [
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "create",
+      "type": "worktree.create",
+      "status": "completed",
+      "inputs": {},
+      "output": {
+        "branch": "codex/pipeline-RXGSMT5M5DIQAWK6PVOZIRLI6U",
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/RXGSMT5M5DIQAWK6PVOZIRLI6U",
+        "mergedCommit": "",
+        "repository": "/Users/zhui/Work/p/trash/aa/Feat/pipeline-acceptance-20261023/static-final-unhandled",
+        "sourceBranch": "main",
+        "sourceCommit": "678e6475ae3ed73a4918a9a0ba1b737b7b1b4c19"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:39:48.533925Z",
+      "completedAt": "2026-10-23T15:39:48.586263Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a1696b-17fc-75f2-8257-5b7ef5501019",
+      "turnId": "01a1696b-190b-7080-a1d7-6a035b05ec3e",
+      "executionId": "",
+      "attempt": 1,
+      "id": "gate",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": null,
+      "error": "context deadline exceeded",
+      "startedAt": "2026-10-23T15:39:48.589143Z",
+      "completedAt": "2026-10-23T15:39:51.619693Z"
+    },
+    {
+      "kind": "static",
+      "branch": "dirty",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "merge",
+      "type": "worktree.merge",
+      "status": "error",
+      "inputs": {},
+      "output": {
+        "directory": "/Users/zhui/Library/Application Support/agentor/pipelines/worktrees/RXGSMT5M5DIQAWK6PVOZIRLI6U",
+        "reason": "?? dirty.txt"
+      },
+      "error": "节点 merge 的结果 dirty 没有连接处理分支",
+      "startedAt": "2026-10-23T15:39:51.625217Z",
+      "completedAt": "2026-10-23T15:39:51.670691Z"
+    }
+  ],
+  "artifactIds": []
+}

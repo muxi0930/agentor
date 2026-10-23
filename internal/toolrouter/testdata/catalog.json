@@ -2,6 +2,206 @@
   "controller": [
     {
       "type": "function",
+      "name": "list_actions",
+      "description": "读取固定 Go 动作及参数/结果契约。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "validate_pipeline_task",
+      "description": "只读校验流水线图。定义包含 id、name、entry、inputs、actions；每个节点包含 id、kind、type、params、branches（name/description/target）。Agent 还需 prompt、criteria、permission、timeoutSeconds，可设 maxRetries、failureTarget、stepSlot、stepId；end 节点的 type 为 end.success 或 end.failure。引用值使用 {input:名称} 或 {result:前序节点ID,path:对象字段路径}。单路无环，未连接的结果终止。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整 JSON 配置",
+            "type": "string"
+          },
+          "projectId": {
+            "description": "当前范围内的项目 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "save_pipeline_task",
+      "description": "验证并保存当前项目 JSON 任务；新建 ID 留空，修改保留 ID。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整 JSON 配置",
+            "type": "string"
+          },
+          "projectId": {
+            "description": "当前范围内的项目 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "delete_pipeline_task",
+      "description": "删除当前项目的空闲任务；有关联调度时需先移除调度。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "description": "当前范围内的项目 ID",
+            "type": "string"
+          },
+          "taskId": {
+            "description": "任务 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "save_pipeline_template",
+      "description": "保存独立流水线模板，模板中的 stepSlot 在实例化时绑定项目步骤。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整 JSON 配置",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "instantiate_pipeline",
+      "description": "复制模板为独立实例，绑定步骤插槽；后续模板修改不会影响实例。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "directory": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "projectId": {
+            "description": "当前范围内的项目 ID",
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "templateId",
+          "bindings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "save_pipeline_schedule",
+      "description": "保存一次性或间隔调度。字段 id/taskId/name/kind/enabled/at/anchor/intervalSeconds/timezone/inputs/misfirePolicy。时间为带时区 RFC3339。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "json": {
+            "description": "完整 JSON 配置",
+            "type": "string"
+          },
+          "projectId": {
+            "description": "当前范围内的项目 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "delete_pipeline_schedule",
+      "description": "删除当前项目调度。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "description": "当前范围内的项目 ID",
+            "type": "string"
+          },
+          "scheduleId": {
+            "description": "调度 ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleId"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
+      "name": "control_pipeline_run",
+      "description": "通过 Go 状态机暂停、继续或停止运行。暂停等待当前节点结束；只有 Agent 节点会按 maxRetries 自动重试，静态失败与中断运行不重放。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "enum": [
+              "pause",
+              "resume",
+              "stop"
+            ],
+            "type": "string"
+          },
+          "runId": {
+            "description": "流水线运行标识",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "operation"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "type": "function",
       "name": "list_workspaces",
       "description": "查询本次请求范围内的项目、版本、功能和步骤摘要及稳定 ID。",
       "inputSchema": {
@@ -221,7 +421,7 @@
     {
       "type": "function",
       "name": "list_pipeline_tasks",
-      "description": "查询本次项目范围内的流水线任务、调度与运行记录。",
+      "description": "查询公共模板和本次权限范围内的流水线实例、定时触发与运行记录。",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {},
@@ -256,44 +456,6 @@
         "required": [
           "taskId",
           "inputs",
-          "model",
-          "effort"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "request_pipeline_session",
-      "description": "给项目专用管理/配置会话提交请求。管理会话运行已有任务，配置会话维护 JSON 和调度。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "effort": {
-            "description": "从允许范围选择兼容的 effort，空字符串跟随默认会话",
-            "type": "string"
-          },
-          "model": {
-            "description": "从允许范围选择模型，空字符串跟随默认会话",
-            "type": "string"
-          },
-          "projectId": {
-            "description": "当前范围内的项目 ID",
-            "type": "string"
-          },
-          "role": {
-            "description": "pipeline_manager / pipeline_config",
-            "type": "string"
-          },
-          "text": {
-            "description": "会话请求",
-            "type": "string"
-          }
-        },
-        "required": [
-          "projectId",
-          "role",
-          "text",
           "model",
           "effort"
         ],
@@ -369,265 +531,34 @@
       }
     }
   ],
-  "pipeline_config": [
+  "pipeline_node": [
     {
       "type": "function",
-      "name": "list_actions",
-      "description": "读取固定 Go 动作及参数/结果契约。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {},
-        "required": [],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "list_pipeline_tasks",
-      "description": "查询当前项目的任务、调度和运行记录。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {},
-        "required": [],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "validate_pipeline_task",
-      "description": "只读验证 JSON 任务，不执行动作。任务字段为 id（新建可空）、name、inputs、actions。",
+      "name": "pipeline_complete_node",
+      "description": "提交当前流水线节点的最终验收结果。success 时 branch 必须来自节点声明；failure 会按节点重试策略处理。output 接受自由文本或 JSON。宿主绑定本次运行、节点和尝试，正常结束轮次后推进。",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "json": {
-            "description": "完整 JSON 配置",
+          "branch": {
             "type": "string"
-          }
-        },
-        "required": [
-          "json"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "save_pipeline_task",
-      "description": "验证并保存当前项目 JSON 任务；新建 ID 留空，修改保留 ID。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "json": {
-            "description": "完整 JSON 配置",
-            "type": "string"
-          }
-        },
-        "required": [
-          "json"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "delete_pipeline_task",
-      "description": "删除当前项目的空闲任务；有关联调度时需先移除调度。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "taskId": {
-            "description": "任务 ID",
-            "type": "string"
-          }
-        },
-        "required": [
-          "taskId"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "save_pipeline_schedule",
-      "description": "保存一次性或间隔调度。字段 id/taskId/name/kind/enabled/at/anchor/intervalSeconds/timezone/inputs/misfirePolicy。时间为带时区 RFC3339。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "json": {
-            "description": "完整调度 JSON",
-            "type": "string"
-          }
-        },
-        "required": [
-          "json"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "delete_pipeline_schedule",
-      "description": "删除当前项目调度。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "scheduleId": {
-            "description": "调度 ID",
-            "type": "string"
-          }
-        },
-        "required": [
-          "scheduleId"
-        ],
-        "type": "object"
-      }
-    }
-  ],
-  "pipeline_manager": [
-    {
-      "type": "function",
-      "name": "list_actions",
-      "description": "读取固定 Go 动作及参数/结果契约。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {},
-        "required": [],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "list_pipeline_tasks",
-      "description": "查询当前项目的任务、调度和运行记录。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {},
-        "required": [],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "validate_pipeline_task",
-      "description": "只读验证 JSON 任务，不执行动作。任务字段为 id（新建可空）、name、inputs、actions。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "json": {
-            "description": "完整 JSON 配置",
-            "type": "string"
-          }
-        },
-        "required": [
-          "json"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "set_schedule_enabled",
-      "description": "启用或停用当前项目的调度。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "enabled": {
-            "type": "boolean"
           },
-          "scheduleId": {
-            "description": "调度 ID",
-            "type": "string"
-          }
-        },
-        "required": [
-          "scheduleId",
-          "enabled"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "trigger_schedule",
-      "description": "手动触发已有调度，同任务不重入。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "scheduleId": {
-            "description": "调度 ID",
-            "type": "string"
-          }
-        },
-        "required": [
-          "scheduleId"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "name": "control_pipeline_run",
-      "description": "通过 Go 状态机暂停、继续、重试或停止本项目运行。暂停等待当前节点结束；重试使用原冻结定义并保留成功节点和尝试历史。",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "type": "string",
-            "description": "流水线运行标识"
-          },
-          "operation": {
-            "type": "string",
+          "outcome": {
             "enum": [
-              "pause",
-              "resume",
-              "retry",
-              "stop"
-            ]
-          }
-        },
-        "required": [
-          "runId",
-          "operation"
-        ],
-        "additionalProperties": false
-      },
-      "type": "function"
-    },
-    {
-      "type": "function",
-      "name": "run_pipeline",
-      "description": "运行当前项目已有任务；模型和来源沿用此会话请求。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "inputs": {
-            "type": "object"
+              "success",
+              "failure"
+            ],
+            "type": "string"
           },
-          "taskId": {
-            "description": "任务 ID",
+          "output": {},
+          "summary": {
             "type": "string"
           }
         },
         "required": [
-          "taskId",
-          "inputs"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "type": "function",
-      "name": "share_artifact",
-      "description": "显式分享当前项目的报告或步骤产物到原飞书会话。",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "artifactId": {
-            "description": "已登记产物 ID",
-            "type": "string"
-          }
-        },
-        "required": [
-          "artifactId"
+          "outcome",
+          "branch",
+          "summary",
+          "output"
         ],
         "type": "object"
       }
@@ -639,7 +570,7 @@
       "name": "report_step_outcome",
       "description": "汇报当前步骤的业务结果与验证说明；不会直接改变流水线状态。",
       "inputSchema": {
-        "type": "object",
+        "additionalProperties": false,
         "properties": {
           "success": {
             "type": "boolean"
@@ -652,7 +583,7 @@
           "success",
           "summary"
         ],
-        "additionalProperties": false
+        "type": "object"
       }
     },
     {

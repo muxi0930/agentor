@@ -1,0 +1,171 @@
+{
+  "currentNode": "done",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {},
+  "pauseRequested": false,
+  "id": "F274NPTIMAVOCDB5KWXN7HM4OK",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "IJVCK2SWHCJF5ATWLIDUKJNB4Q",
+  "task": {
+    "id": "IJVCK2SWHCJF5ATWLIDUKJNB4Q",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 A05 超时重试耗尽",
+    "entry": "timeout",
+    "inputs": null,
+    "actions": [
+      {
+        "id": "timeout",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "等待30秒后调用 pipeline_complete_node，outcome=success branch=success。执行。",
+        "criteria": "完成等待",
+        "permission": "read-only",
+        "maxRetries": 1,
+        "timeoutSeconds": 2,
+        "failureTarget": "handled",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "handled",
+        "kind": "static",
+        "type": "report.write",
+        "name": "",
+        "params": {
+          "content": "超时重试耗尽后处理",
+          "fileName": "timeout-handled.md"
+        },
+        "position": {
+          "x": 300,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "",
+            "target": "done"
+          }
+        ],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      },
+      {
+        "id": "done",
+        "kind": "end",
+        "type": "end.success",
+        "name": "",
+        "params": {},
+        "position": {
+          "x": 600,
+          "y": 0
+        },
+        "branches": [],
+        "prompt": "",
+        "criteria": "",
+        "permission": "",
+        "maxRetries": 0,
+        "timeoutSeconds": 0,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": null,
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "completed",
+  "error": "",
+  "createdAt": "2026-10-23T15:41:37.705149Z",
+  "completedAt": "2026-10-23T15:41:41.772388Z",
+  "actions": [
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a1696c-c239-7313-9648-5b3e9633e027",
+      "turnId": "01a1696c-c2bb-7d11-bfd1-b010ed0ec24a",
+      "executionId": "",
+      "attempt": 1,
+      "id": "timeout",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": null,
+      "error": "context deadline exceeded",
+      "startedAt": "2026-10-23T15:41:37.713873Z",
+      "completedAt": "2026-10-23T15:41:39.750212Z"
+    },
+    {
+      "kind": "agent",
+      "branch": "",
+      "threadId": "01a1696c-ca2d-76d3-925f-9b55fb04826a",
+      "turnId": "01a1696c-ca88-74f0-bcf0-85d6504deaa0",
+      "executionId": "",
+      "attempt": 2,
+      "id": "timeout",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": null,
+      "error": "context deadline exceeded",
+      "startedAt": "2026-10-23T15:41:39.753956Z",
+      "completedAt": "2026-10-23T15:41:41.760287Z"
+    },
+    {
+      "kind": "static",
+      "branch": "success",
+      "threadId": "",
+      "turnId": "",
+      "executionId": "",
+      "attempt": 1,
+      "id": "handled",
+      "type": "report.write",
+      "status": "completed",
+      "inputs": {
+        "content": "超时重试耗尽后处理",
+        "fileName": "timeout-handled.md"
+      },
+      "output": {
+        "artifactId": "SCFX3CQ5VRIHNKKOHQ7XQSE2WC",
+        "fileName": "timeout-handled.md"
+      },
+      "error": "",
+      "startedAt": "2026-10-23T15:41:41.764485Z",
+      "completedAt": "2026-10-23T15:41:41.76767Z"
+    }
+  ],
+  "artifactIds": [
+    "SCFX3CQ5VRIHNKKOHQ7XQSE2WC"
+  ]
+}

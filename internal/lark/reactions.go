@@ -67,11 +67,6 @@ func (s *Service) finishReaction(source tasksmodel.Source) {
 				return
 			}
 		}
-		for _, request := range pipelines.Requests {
-			if sameMessage(request.Input.Source, source) && (request.Status == constant.TasksStatusRunning || request.Status == constant.TasksStatusQueued) {
-				return
-			}
-		}
 	}
 	client, ctx, err := s.deliveryClient(source)
 	if err != nil {

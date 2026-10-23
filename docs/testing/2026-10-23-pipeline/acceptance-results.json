@@ -1,0 +1,85 @@
+[
+  {
+    "id": "S01",
+    "expected": "snapshot → report → success，报告保留",
+    "actual": {
+      "runID": "ZUQBPZHMLVKRKKXWWQFBBU4D6D",
+      "status": "completed",
+      "error": "",
+      "path": [
+        "snapshot:success:completed",
+        "report:success:completed"
+      ],
+      "attempts": 2
+    },
+    "pass": true
+  },
+  {
+    "id": "S02",
+    "expected": "静态异常只执行一次并失败",
+    "actual": {
+      "runID": "GR737VALZGZCFAIUVMYPNP2M4Y",
+      "status": "error",
+      "error": "文档不存在",
+      "path": [
+        "knowledge::error"
+      ],
+      "attempts": 1
+    },
+    "pass": true
+  },
+  {
+    "id": "T01",
+    "expected": "未绑定必填 Step 拒绝实例化",
+    "actual": {
+      "error": "请绑定步骤插槽 choose"
+    },
+    "pass": true
+  },
+  {
+    "id": "T02",
+    "expected": "缺少必填运行输入拒绝启动",
+    "actual": {
+      "error": "缺少输入 payload"
+    },
+    "pass": true
+  },
+  {
+    "id": "T03",
+    "expected": "修改模板不改变实例",
+    "actual": {
+      "templateID": "TMQHLTFLPJTBUSWGH3ITOE6SFR",
+      "taskID": "GMKZOPNUF4LM437FMEULEMJVC7",
+      "name": "验收1023 A01 三分支实例"
+    },
+    "pass": true
+  },
+  {
+    "id": "A01-ready",
+    "expected": "只走 ready 分支，输入原样透传",
+    "actual": {
+      "runID": "ZTLU4DPJ24FXTNI2VGWWB6N546",
+      "status": "error",
+      "error": "context deadline exceeded",
+      "path": [
+        "choose::error"
+      ],
+      "attempts": 1
+    },
+    "pass": false
+  },
+  {
+    "id": "A01-review",
+    "expected": "只走 review 分支，输入原样透传",
+    "actual": {
+      "runID": "62K466EV2OMLKIOKFV46AM7OT5",
+      "status": "error",
+      "error": "context deadline exceeded",
+      "path": [
+        "choose::error"
+      ],
+      "attempts": 1
+    },
+    "pass": false
+  }
+]

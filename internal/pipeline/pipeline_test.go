@@ -89,8 +89,8 @@ func TestValidationRejectsForwardWrongTypeAndForeignReferences(t *testing.T) {
 
 	bad = snapshotTask()
 	bad.Actions[1].Params["content"] = map[string]any{"result": "snapshot", "path": "project.name"}
-	if _, err := s.ValidateTask(projectID, textOf(bad)); err == nil {
-		t.Fatal("path evaluation accepted")
+	if _, err := s.ValidateTask(projectID, textOf(bad)); err != nil {
+		t.Fatal("field reference rejected", err)
 	}
 
 	bad = snapshotTask()
@@ -120,7 +120,8 @@ func TestValidationRejectsForwardWrongTypeAndForeignReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bad = pipelinemodel.Task{Name: "foreign", Actions: []pipelinemodel.Action{{ID: "step", Type: "step.run", Params: map[string]any{"stepId": state.SelectedID, "instruction": "test"}}}}
+	bad = agentGraph()
+	bad.Actions[0].StepID = state.SelectedID
 	if _, err = s.ValidateTask(projectID, textOf(bad)); err == nil {
 		t.Fatal("foreign project step accepted")
 	}
@@ -311,13 +312,15 @@ func textOf(task pipelinemodel.Task) string {
 func snapshotTask() pipelinemodel.Task {
 	return pipelinemodel.Task{
 		Name:   "snapshot report",
+		Entry:  "snapshot",
 		Inputs: []pipelinemodel.InputField{},
 		Actions: []pipelinemodel.Action{
-			{ID: "snapshot", Type: "workspace.snapshot", Params: map[string]any{}},
-			{ID: "report", Type: "report.write", Params: map[string]any{
+			{ID: "snapshot", Kind: "static", Type: "workspace.snapshot", Params: map[string]any{}, Branches: []pipelinemodel.Branch{{Name: "success", Target: "report"}}},
+			{ID: "report", Kind: "static", Type: "report.write", Branches: []pipelinemodel.Branch{{Name: "success", Target: "done"}}, Params: map[string]any{
 				"fileName": "result.md",
 				"content":  map[string]any{"result": "snapshot"},
 			}},
+			{ID: "done", Kind: "end", Type: "end.success"},
 		},
 	}
 }

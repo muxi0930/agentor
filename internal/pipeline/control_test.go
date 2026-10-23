@@ -3,9 +3,7 @@ package pipeline
 import (
 	"context"
 	"testing"
-	"time"
 
-	"agentor/internal/constant"
 	pipelinemodel "agentor/internal/pipeline/model"
 )
 
@@ -16,7 +14,7 @@ func TestPauseResumeFrozenRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run := pipelinemodel.Run{ID: "paused-test", ProjectID: projectID, TaskID: task.ID, Task: task, Status: "queued", PauseRequested: true}
+	run := pipelinemodel.Run{ID: "paused-test", CurrentNode: task.Entry, ProjectID: projectID, TaskID: task.ID, Task: task, Status: "queued", PauseRequested: true}
 	s.mu.Lock()
 	s.state.Runs = append(s.state.Runs, run)
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -60,8 +58,8 @@ func TestPauseResumeFrozenRun(t *testing.T) {
 	}
 }
 
-// TestRetryPreservesAttemptsAndSuccessfulPrefix 验证重试保留成功节点和失败尝试
-func TestRetryPreservesAttemptsAndSuccessfulPrefix(t *testing.T) {
+// TestStaticFailureCannotRetry 验证静态节点失败直接终止且不能重试
+func TestStaticFailureCannotRetry(t *testing.T) {
 	s, projectID := fixture(t)
 	task := snapshotTask()
 	task.Actions[1].Params["fileName"] = map[string]any{"input": "file"}
@@ -78,20 +76,10 @@ func TestRetryPreservesAttemptsAndSuccessfulPrefix(t *testing.T) {
 	if failed.Status != "error" {
 		t.Fatal(failed)
 	}
-	// 等待结果通知完成后，执行器才释放重试入口
-	deadline := time.Now().Add(time.Second)
-	for {
-		_, err = s.ControlRun(projectID, run.ID, "retry")
-		if err != constant.ErrPipelineWorkerActive || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(time.Millisecond)
+	if _, err = s.ControlRun(projectID, run.ID, "retry"); err == nil {
+		t.Fatal("static failure retried")
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	retried := waitRun(t, s, run.ID)
-	if retried.Status != "error" || len(retried.Actions) != 3 || retried.Actions[0].Attempt != 1 || retried.Actions[2].Attempt != 2 || retried.Inputs["file"] != "../bad.md" {
-		t.Fatal(retried)
+	if len(failed.Actions) != 2 || failed.Actions[1].Attempt != 1 {
+		t.Fatal(failed)
 	}
 }

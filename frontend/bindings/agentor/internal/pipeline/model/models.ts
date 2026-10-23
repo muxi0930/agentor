@@ -3,28 +3,121 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as model$0 from "../../tasks/model/models.js";
+import * as model$1 from "../../tasks/model/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as model$0 from "../../workspace/model/models.js";
 
 export interface Action {
     /**
-     * 动作标识
+     * 图内唯一节点标识
      */
     "id": string;
 
     /**
-     * 固定动作名称
+     * static、agent 或终点 end
+     */
+    "kind": string;
+
+    /**
+     * 静态动作标识或 agent.run、end.success、end.failure
      */
     "type": string;
 
     /**
-     * 动作参数及完整值引用
+     * 节点显示名称
+     */
+    "name": string;
+
+    /**
+     * 输入数据与结构化引用
      */
     "params": { [_ in string]?: any } | null;
+
+    /**
+     * 画布位置
+     */
+    "position": Position;
+
+    /**
+     * 业务结果到后续节点的单选路由
+     */
+    "branches": Branch[] | null;
+
+    /**
+     * Agent 执行提示词
+     */
+    "prompt": string;
+
+    /**
+     * Agent 自检验收标准
+     */
+    "criteria": string;
+
+    /**
+     * 只读或工作区写入权限
+     */
+    "permission": string;
+
+    /**
+     * Agent 失败后的额外尝试次数
+     */
+    "maxRetries": number;
+
+    /**
+     * Agent 单次尝试超时秒数
+     */
+    "timeoutSeconds": number;
+
+    /**
+     * Agent 重试耗尽后的处理节点
+     */
+    "failureTarget": string;
+
+    /**
+     * 模板预设的项目步骤插槽
+     */
+    "stepSlot": string;
+
+    /**
+     * 实例绑定的实际步骤
+     */
+    "stepId": string;
 }
 
 export interface ActionResult {
     /**
-     * 当前动作的尝试次数，历史记录持续保留
+     * 节点类型
+     */
+    "kind": string;
+
+    /**
+     * 实际选择的业务分支
+     */
+    "branch": string;
+
+    /**
+     * Agent 尝试使用的原生会话
+     */
+    "threadId": string;
+
+    /**
+     * Agent 尝试使用的原生轮次
+     */
+    "turnId": string;
+
+    /**
+     * 工具汇报，轮次正常结束后才可推进
+     */
+    "report"?: NodeReport | null;
+
+    /**
+     * 可选绑定步骤的执行记录
+     */
+    "executionId": string;
+
+    /**
+     * 当前节点的尝试次数，历史记录持续保留
      */
     "attempt": number;
 
@@ -34,7 +127,7 @@ export interface ActionResult {
     "id": string;
 
     /**
-     * 固定动作名称
+     * 静态动作名称或 Agent 类型
      */
     "type": string;
 
@@ -71,7 +164,17 @@ export interface ActionResult {
 
 export interface ActionSpec {
     /**
-     * 固定动作名称
+     * 动作可以返回的固定业务结果
+     */
+    "branches": Branch[] | null;
+
+    /**
+     * 是否依赖项目范围
+     */
+    "requiresProject": boolean;
+
+    /**
+     * 静态动作名称或 Agent 类型
      */
     "name": string;
 
@@ -89,6 +192,23 @@ export interface ActionSpec {
      * 动作返回值说明
      */
     "result": string;
+}
+
+export interface Branch {
+    /**
+     * 预先声明的业务结果标识
+     */
+    "name": string;
+
+    /**
+     * 分支含义与选择条件
+     */
+    "description": string;
+
+    /**
+     * 下一节点标识，空值表示未处理并终止
+     */
+    "target": string;
 }
 
 export interface Changed {
@@ -111,6 +231,55 @@ export interface InputField {
     "required": boolean;
 }
 
+export interface InstantiateInput {
+    /**
+     * 模板标识
+     */
+    "templateId": string;
+
+    /**
+     * 可选的项目范围
+     */
+    "projectId": string;
+
+    /**
+     * 新实例名称
+     */
+    "name": string;
+
+    /**
+     * 独立实例执行目录
+     */
+    "directory": string;
+
+    /**
+     * 步骤插槽到步骤标识的映射
+     */
+    "bindings": { [_ in string]?: string } | null;
+}
+
+export interface NodeReport {
+    /**
+     * success 表示验收通过，failure 表示本次尝试失败
+     */
+    "outcome": string;
+
+    /**
+     * 通过验收后选择的已声明业务分支
+     */
+    "branch": string;
+
+    /**
+     * 验收依据或失败原因
+     */
+    "summary": string;
+
+    /**
+     * 交付给后续节点的自由文本或 JSON
+     */
+    "output": any;
+}
+
 export interface Parameter {
     /**
      * 参数名称
@@ -128,7 +297,34 @@ export interface Parameter {
     "required": boolean;
 }
 
+export interface Position {
+    /**
+     * 画布横坐标
+     */
+    "x": number;
+
+    /**
+     * 画布纵坐标
+     */
+    "y": number;
+}
+
 export interface Run {
+    /**
+     * 已持久化的下一执行位置
+     */
+    "currentNode": string;
+
+    /**
+     * 冻结的工作目录
+     */
+    "directory": string;
+
+    /**
+     * 按节点冻结的项目步骤上下文
+     */
+    "stepContexts": { [_ in string]?: model$0.StepContext } | null;
+
     /**
      * 本次运行专属的工作区记录
      */
@@ -138,11 +334,6 @@ export interface Run {
      * 当前节点结束后暂停推进
      */
     "pauseRequested": boolean;
-
-    /**
-     * 发起运行的专用会话请求标识
-     */
-    "sessionRequestId": string;
 
     /**
      * 运行记录标识
@@ -160,7 +351,7 @@ export interface Run {
     "taskId": string;
 
     /**
-     * 本次运行冻结的任务定义
+     * 本次运行冻结的节点图定义
      */
     "task": Task;
 
@@ -182,7 +373,7 @@ export interface Run {
     /**
      * 任务请求来源
      */
-    "source": model$0.Source;
+    "source": model$1.Source;
 
     /**
      * 关联的外部请求标识
@@ -227,11 +418,6 @@ export interface Run {
 
 export interface RunInput {
     /**
-     * 发起运行的专用会话请求标识
-     */
-    "sessionRequestId": string;
-
-    /**
      * 待运行任务标识
      */
     "taskId": string;
@@ -254,7 +440,7 @@ export interface RunInput {
     /**
      * 任务请求来源
      */
-    "source": model$0.Source;
+    "source": model$1.Source;
 
     /**
      * 关联的外部请求标识
@@ -344,147 +530,58 @@ export interface Schedule {
     "lastRunId": string;
 }
 
-export interface SessionInput {
-    /**
-     * 专用会话所属项目标识
-     */
-    "projectId": string;
-
-    /**
-     * 管理或配置会话角色
-     */
-    "role": string;
-
-    /**
-     * 用户请求或完成结果正文
-     */
-    "text": string;
-
-    /**
-     * 请求使用的模型
-     */
-    "model": string;
-
-    /**
-     * 请求使用的推理强度
-     */
-    "effort": string;
-
-    /**
-     * 会话请求来源
-     */
-    "source": model$0.Source;
-
-    /**
-     * 关联的外部请求标识
-     */
-    "requestId": string;
-}
-
-export interface SessionRequest {
-    /**
-     * 用户指令或运行完成事件类型
-     */
-    "kind": string;
-
-    /**
-     * 完成事件对应的运行标识
-     */
-    "completionRunId": string;
-
-    /**
-     * 专用会话请求标识
-     */
-    "id": string;
-
-    /**
-     * 本次请求冻结的输入参数
-     */
-    "input": SessionInput;
-
-    /**
-     * 会话请求状态
-     */
-    "status": string;
-
-    /**
-     * 对应的原生会话标识
-     */
-    "threadId": string;
-
-    /**
-     * 对应的原生轮次标识
-     */
-    "turnId": string;
-
-    /**
-     * 会话处理结果正文
-     */
-    "result": string;
-
-    /**
-     * 会话错误说明
-     */
-    "error": string;
-
-    /**
-     * 请求创建时间
-     */
-    "createdAt": string;
-
-    /**
-     * 请求结束时间
-     */
-    "completedAt": string;
-}
-
 export interface State {
     /**
-     * 已配置的流水线任务
+     * 独立流水线模板
+     */
+    "templates": Task[] | null;
+
+    /**
+     * 可运行的独立或项目流水线实例
      */
     "tasks": Task[] | null;
 
     /**
-     * 任务调度配置
+     * 实例定时触发配置
      */
     "schedules": Schedule[] | null;
 
     /**
-     * 流水线运行记录
+     * 冻结的运行与尝试记录
      */
     "runs": Run[] | null;
-
-    /**
-     * 专用会话请求队列
-     */
-    "requests": SessionRequest[] | null;
-
-    /**
-     * 按项目与角色保存的会话标识
-     */
-    "threads": { [_ in string]?: string } | null;
-
-    /**
-     * 专用会话队列是否暂停
-     */
-    "paused": boolean;
 }
 
 export interface Task {
     /**
-     * 任务标识
+     * 流水线或模板标识
      */
     "id": string;
 
     /**
-     * 所属项目标识
+     * 所属项目，独立实例与模板为空
      */
     "projectId": string;
 
     /**
-     * 任务显示名称
+     * 创建时使用的模板，仅记录来源
+     */
+    "templateId": string;
+
+    /**
+     * 独立实例执行目录，空值使用本次运行目录
+     */
+    "directory": string;
+
+    /**
+     * 流水线显示名称
      */
     "name": string;
+
+    /**
+     * 入口节点标识
+     */
+    "entry": string;
 
     /**
      * 运行输入字段
@@ -492,7 +589,7 @@ export interface Task {
     "inputs": InputField[] | null;
 
     /**
-     * 按顺序执行的固定动作
+     * 节点图，执行顺序由分支连线决定
      */
     "actions": Action[] | null;
 }

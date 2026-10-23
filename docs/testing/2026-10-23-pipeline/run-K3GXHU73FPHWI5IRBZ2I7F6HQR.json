@@ -1,0 +1,88 @@
+{
+  "currentNode": "loose",
+  "directory": "/Users/zhui/Work/p/trash/aa/Feat",
+  "stepContexts": {},
+  "pauseRequested": false,
+  "id": "K3GXHU73FPHWI5IRBZ2I7F6HQR",
+  "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+  "taskId": "KJQ777ZK45DB3Q3WG5V76DMUMV",
+  "task": {
+    "id": "KJQ777ZK45DB3Q3WG5V76DMUMV",
+    "projectId": "OZK6T6UTSA72SJGPJTK7ONAE7N",
+    "templateId": "",
+    "directory": "",
+    "name": "验收1023 A04 未连接分支",
+    "entry": "loose",
+    "inputs": [],
+    "actions": [
+      {
+        "id": "loose",
+        "kind": "agent",
+        "type": "agent.run",
+        "name": "loose",
+        "params": {},
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "branches": [
+          {
+            "name": "success",
+            "description": "success",
+            "target": ""
+          }
+        ],
+        "prompt": "仅调用 pipeline_complete_node，outcome=success, branch=success, summary=\"验收未连接分支\"，正常结束。",
+        "criteria": "按要求调用 pipeline_complete_node 汇报可验证的结果，且正常结束本轮。",
+        "permission": "workspace-write",
+        "maxRetries": 0,
+        "timeoutSeconds": 300,
+        "failureTarget": "",
+        "stepSlot": "",
+        "stepId": ""
+      }
+    ]
+  },
+  "inputs": {},
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "source": {
+    "type": "desktop",
+    "appId": "",
+    "chatId": "",
+    "senderId": "",
+    "messageId": "",
+    "replyToMessageId": ""
+  },
+  "requestId": "",
+  "scheduleId": "",
+  "status": "error",
+  "error": "节点 loose 的结果 success 没有连接处理分支",
+  "createdAt": "2026-10-23T15:49:57.681575Z",
+  "completedAt": "2026-10-23T15:52:00.558407Z",
+  "actions": [
+    {
+      "kind": "agent",
+      "branch": "success",
+      "threadId": "01a16974-6348-7a70-940d-b83be17cb646",
+      "turnId": "01a16974-6949-75f1-a8a4-4715b1f7bcbc",
+      "report": {
+        "outcome": "success",
+        "branch": "success",
+        "summary": "验收未连接分支",
+        "output": {}
+      },
+      "executionId": "",
+      "attempt": 1,
+      "id": "loose",
+      "type": "agent.run",
+      "status": "error",
+      "inputs": {},
+      "output": {},
+      "error": "节点 loose 的结果 success 没有连接处理分支",
+      "startedAt": "2026-10-23T15:49:57.693911Z",
+      "completedAt": "2026-10-23T15:52:00.550346Z"
+    }
+  ],
+  "artifactIds": []
+}

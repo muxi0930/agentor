@@ -44,13 +44,21 @@ func (r *Router) Specs(role string) []codexmodel.DynamicToolSpec {
 
 // Call 按会话角色转交实际宿主工具请求
 func (r *Router) Call(call codexmodel.ToolCall) (any, error) {
-	scope, err := r.tasks.ScopeForThread(call.ThreadID)
-	if err != nil {
-		if r.pipeline != nil {
-			if request, sessionErr := r.pipeline.ActiveSession(call.ThreadID); sessionErr == nil {
-				return r.pipelineCall(request, call)
+	if call.Tool == constant.ToolRouterToolCompleteNode && r.pipeline != nil {
+		return r.pipeline.CompleteNode(call)
+	}
+	if r.pipeline != nil {
+		for _, run := range r.pipeline.GetState().Runs {
+			for _, attempt := range run.Actions {
+				if attempt.ThreadID == call.ThreadID && call.ThreadID != "" {
+					return nil, constant.ErrToolRouterRoleForbidden
+				}
 			}
 		}
+	}
+
+	scope, err := r.tasks.ScopeForThread(call.ThreadID)
+	if err != nil {
 		return nil, err
 	}
 
