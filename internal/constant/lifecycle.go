@@ -2,6 +2,8 @@ package constant
 
 // lifecycle 模块的固定配置与提示文案
 const (
+	LifecycleShowWindowLabel     = "显示窗口"
+	LifecycleQuitLabel           = "退出"
 	LifecycleStepLabel           = "步骤"
 	LifecycleControllerLabel     = "控制中心"
 	LifecyclePipelineLabel       = "流水线"

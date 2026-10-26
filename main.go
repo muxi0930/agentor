@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	goruntime "runtime"
 
 	"agentor/internal/appdata"
 	"agentor/internal/artifact"
@@ -17,9 +18,10 @@ import (
 	"agentor/internal/workspace"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-var version string = "0.2.6" // 应用版本
+var version string = "0.2.7" // 应用版本
 
 //go:embed all:frontend/dist
 var assets embed.FS
@@ -85,9 +87,10 @@ func main() {
 	var window *application.WebviewWindow
 	app := application.New(application.Options{
 		Name: constant.AppDataApplicationName, Description: "Codex 对话与工作编排",
+		Icon:     appIcon,
 		Services: []application.Service{application.NewService(data), application.NewService(files), application.NewService(runtime), application.NewService(work), application.NewService(executions), application.NewService(pipelines), application.NewService(remote), application.NewService(lifetime)},
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(assets), Middleware: files.Middleware},
-		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: false},
 		PostShutdown: func() {
 			if err := lifetime.CompleteRestart(); err != nil {
 				log.Printf("应用重启失败：%v", err)
@@ -97,6 +100,7 @@ func main() {
 			UniqueID: "io.agentor.desktop",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 				if window != nil {
+					window.UnMinimise()
 					window.Show()
 					window.Focus()
 				}
@@ -108,6 +112,41 @@ func main() {
 		Title: constant.AppDataApplicationName, Width: 1360, Height: 900, MinWidth: 900, MinHeight: 640,
 		BackgroundColour: application.NewRGB(250, 250, 249), URL: "/",
 	})
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		event.Cancel()
+		if goruntime.GOOS == "darwin" {
+			window.Hide()
+			return
+		}
+		window.Minimise()
+	})
+
+	showWindow := func() {
+		window.UnMinimise()
+		window.Show()
+		window.Focus()
+	}
+	if goruntime.GOOS == "darwin" {
+		app.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
+			showWindow()
+		})
+	} else {
+		trayMenu := application.NewMenu()
+		trayMenu.Add(constant.LifecycleShowWindowLabel).OnClick(func(*application.Context) {
+			showWindow()
+		})
+		trayMenu.Add(constant.LifecycleQuitLabel).OnClick(func(*application.Context) {
+			if err := lifetime.Quit(); err != nil {
+				log.Printf("应用退出失败：%v", err)
+			}
+		})
+		tray := app.SystemTray.New()
+		tray.SetIcon(appIcon)
+		tray.SetTooltip(constant.AppDataApplicationName)
+		tray.SetMenu(trayMenu)
+		tray.OnClick(showWindow)
+		tray.OnRightClick(tray.OpenMenu)
+	}
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

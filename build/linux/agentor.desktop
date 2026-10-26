@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=agentor
+Comment=Codex chat and workflow orchestration
+Exec=agentor
+Icon=agentor
+Terminal=false
+Categories=Development;
+StartupWMClass=agentor

@@ -16,7 +16,10 @@ tasks:
     cmds:
       - task: common:generate:bindings
       - task: common:build:frontend
+      - cmd: wails3 generate syso -arch {{ARCH}} -icon "build/windows/icon.ico" -manifest "build/windows/agentor.exe.manifest" -out "rsrc_windows_{{ARCH}}.syso"
+        platforms: [windows]
       - go build -buildvcs=false -o "{{.BIN_DIR}}/{{.APP_NAME}}{{if eq OS "windows"}}.exe{{end}}" .
+      - make package_{{OS}}
   run:
     cmds:
       - task: common:run:{{OS}}

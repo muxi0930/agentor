@@ -22,10 +22,11 @@ tasks:
       - npm run dev -- --port {{.VITE_PORT}}
   run:darwin:
     cmds:
-      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
+      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}.next"
       - mv "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}.next" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"
       - cp build/darwin/Info.dev.plist "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Info.plist"
+      - cp build/darwin/icon.icns "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources/icon.icns"
       - '"{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"'
   run:linux:
     cmds: ['"{{.BIN_DIR}}/{{.APP_NAME}}"']

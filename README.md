@@ -18,6 +18,8 @@ make build_exe  # 交叉编译 Windows x64，输出 bin/agentor.exe
 
 两个构建命令都会先生成绑定并构建前端生产资源，再将资源嵌入应用。Windows 构建使用 `CGO_ENABLED=0`，无需额外的 C/C++ 交叉编译工具链；生成的应用运行时仍需目标平台的 Codex 原生程序。
 
+应用图标使用白底蓝色 A，Windows/Linux 主图为 `build/appicon.png`；macOS 使用 `build/darwin/appicon.png`，带透明留边和圆角白底，使 Dock 中的视觉尺寸与其他应用一致。执行 `make icons` 可重新生成 macOS 的 ICNS 和 Windows 的多尺寸 ICO。`make build` 在 macOS 上同时生成带图标的 `bin/agentor.dev.app`，Windows 原生构建和 `make build_exe` 会将图标嵌入 EXE。Linux 原生构建同时生成 `bin/agentor-linux/usr/` 安装目录，将其中内容安装到 `/usr/` 或 `/usr/local/` 对应目录后，应用菜单使用配套的桌面入口和图标；直接运行裸二进制不提供文件管理器图标。`make build_mac`、`make build_linux` 分别是对应平台的本机构建入口，需要在目标平台执行。
+
 应用启动时按以下优先级确定数据根目录：进程环境变量 `AGENTOR_DATA_DIR` > `~/.config/agentor/conf.yaml` 中的 `AGENTOR_DATA_DIR` > 系统用户配置目录下的 `agentor`。未设置环境变量且配置文件不存在时，会自动生成默认配置；环境变量覆盖时不会创建或改写全局配置文件。例如：
 
 ```yaml
