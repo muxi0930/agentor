@@ -73,6 +73,13 @@ export function RunTask(input: model$0.RunInput): $CancellablePromise<model$0.Ru
 }
 
 /**
+ * RunVersion 通过固定系统定义运行版本工作区流程，独占范围覆盖整个运行
+ */
+export function RunVersion(input: model$0.VersionRunInput): $CancellablePromise<model$0.Run> {
+    return $Call.ByID(2003856966, input);
+}
+
+/**
  * SaveSchedule 校验并保存任务调度
  */
 export function SaveSchedule(input: model$0.Schedule): $CancellablePromise<model$0.Schedule> {

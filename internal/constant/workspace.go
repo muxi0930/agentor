@@ -19,3 +19,10 @@ const (
 	WorkspaceStateFilename      = "workspace.json"
 	WorkspaceKnowledgeDirectory = "knowledge"
 )
+
+const (
+	WorkspaceWorktreePreparing = "preparing"
+	WorkspaceWorktreeReady     = "ready"
+	WorkspaceWorktreeMerged    = "merged"
+	WorkspaceWorktreeCleaned   = "cleaned"
+)

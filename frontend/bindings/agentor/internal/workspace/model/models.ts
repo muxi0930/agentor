@@ -326,6 +326,11 @@ export interface Tag {
 
 export interface Version {
     /**
+     * 版本专属工作区及历史合并记录
+     */
+    "worktree"?: VersionWorktree | null;
+
+    /**
      * 创建时间
      */
     "createdAt"?: string;
@@ -359,4 +364,46 @@ export interface Version {
      * 版本内的功能
      */
     "features": Feature[] | null;
+}
+
+export interface VersionWorktree {
+    /**
+     * 活动工作区目录，清理后为空
+     */
+    "directory": string;
+
+    /**
+     * 来源仓库目录
+     */
+    "repository": string;
+
+    /**
+     * 创建时的来源及合并目标分支
+     */
+    "sourceBranch": string;
+
+    /**
+     * 创建时的来源提交
+     */
+    "sourceCommit": string;
+
+    /**
+     * 工作分支
+     */
+    "branch": string;
+
+    /**
+     * 已合入的提交
+     */
+    "mergedCommit": string;
+
+    /**
+     * 准备、可用、已合并或已清理
+     */
+    "status": string;
+
+    /**
+     * 最近一次系统流水线运行
+     */
+    "runId": string;
 }

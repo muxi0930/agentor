@@ -54,6 +54,9 @@ func (s *Service) MoveFeature(projectID, featureID, targetVersionID string) (wor
 		if source.ID == target.ID {
 			return nil
 		}
+		for i := range feature.Steps {
+			feature.Steps[i].ThreadID = ""
+		}
 		target.Features = append(target.Features, *feature)
 		source.Features = slices.DeleteFunc(source.Features, func(v workspacemodel.Feature) bool { return v.ID == featureID })
 		return nil

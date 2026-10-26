@@ -41,6 +41,9 @@ type Action struct {
 }
 
 type Task struct {
+	System    string `json:"system,omitempty"`    // 内置系统流程标识
+	VersionID string `json:"versionId,omitempty"` // 系统流程所属版本
+
 	ID         string       `json:"id"`         // 流水线或模板标识
 	ProjectID  string       `json:"projectId"`  // 所属项目，独立实例与模板为空
 	TemplateID string       `json:"templateId"` // 创建时使用的模板，仅记录来源
@@ -109,6 +112,8 @@ type ActionResult struct {
 }
 
 type Run struct {
+	VersionID string `json:"versionId,omitempty"` // 本次系统运行所属版本
+
 	CurrentNode    string                                `json:"currentNode"`        // 已持久化的下一执行位置
 	Directory      string                                `json:"directory"`          // 冻结的工作目录
 	StepContexts   map[string]workspacemodel.StepContext `json:"stepContexts"`       // 按节点冻结的项目步骤上下文
@@ -165,4 +170,14 @@ type Worktree struct {
 	SourceCommit string `json:"sourceCommit"` // 创建时的来源提交
 	Branch       string `json:"branch"`       // 本次运行专属分支
 	MergedCommit string `json:"mergedCommit"` // 合并成功的提交
+}
+
+type VersionRunInput struct {
+	ProjectID string            `json:"projectId"` // 目标项目
+	VersionID string            `json:"versionId"` // 目标版本
+	Operation string            `json:"operation"` // prepare 或 merge
+	Model     string            `json:"model"`     // 冲突处理模型
+	Effort    string            `json:"effort"`    // 推理强度
+	Source    tasksmodel.Source `json:"source"`    // 请求来源
+	RequestID string            `json:"requestId"` // 控制中心请求
 }

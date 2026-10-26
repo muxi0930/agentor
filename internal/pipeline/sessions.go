@@ -85,6 +85,33 @@ func (s *Service) performAgent(ctx context.Context, run pipelinemodel.Run, node 
 	if run.Worktree != nil {
 		directory = run.Worktree.Directory
 	}
+	if node.StepID != "" {
+		raw, lookupErr := s.work.GetStepContext(node.StepID)
+		if lookupErr != nil {
+			return report, lookupErr
+		}
+		release, acquireErr := s.work.AcquireVersion(raw.ProjectID, raw.VersionID, false)
+		if acquireErr != nil {
+			return report, acquireErr
+		}
+		defer release()
+		resolved, resolveErr := s.work.ResolveStepContext(node.StepID)
+		if resolveErr != nil {
+			return report, resolveErr
+		}
+		frozen := run.StepContexts[node.ID]
+		if frozen.VersionID != resolved.VersionID || frozen.Directory != resolved.Directory {
+			return report, constant.ErrWorkspaceWorktreeInvalid
+		}
+		if resolved.Directory != raw.Directory {
+			if node.Type == constant.PipelineActionResolveConflicts && run.Worktree != nil && run.Worktree.Directory != resolved.Directory {
+				return report, constant.ErrWorkspaceWorktreeInvalid
+			}
+			directory = resolved.Directory
+		}
+		frozen.Directory = directory
+		run.StepContexts[node.ID] = frozen
+	}
 	if err = ctx.Err(); err != nil {
 		return report, err
 	}

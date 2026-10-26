@@ -17,5 +17,6 @@ export type {
     Schedule,
     State,
     Task,
+    VersionRunInput,
     Worktree
 } from "./models.js";

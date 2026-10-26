@@ -82,6 +82,12 @@ Agent 必须调用宿主工具 `pipeline_complete_node`：
 
 Git 链路可编排为 `worktree.create → agent.run → worktree.merge → worktree.remove → end.success`。创建时保存来源分支与提交；Agent 在独立工作区执行并自行提交需合并的变更。合并只允许快进，未提交变更返回 `dirty`，分支分歧返回 `diverged`，可按需连接处理节点；没有对应连线时终止并保留现场。清理只删除已确认合并、没有新增提交的 worktree 目录和分支。
 
+版本级工作区通过控制中心的 `prepare_version_worktree`、`get_version_worktree`、`merge_version_worktree` 操作。例如“为版本 V1 创建 worktree，后续在里面开发”和“检查并合并版本 V1 的 worktree”。两条内置系统流水线可查看但不可编辑、删除、复制或配置定时触发，只能通过版本入口启动；运行历史和 Agent 会话继续显示在现有监控中。
+
+创建时以项目当前分支和提交作为来源，不要求指定目标分支，后续合回记录的来源分支。版本绑定独立持久化，重启后保留。普通派发和流水线绑定步骤均由 Go 确定执行目录，绑定异常会停止，不回退主目录；没有绑定的版本仍使用项目目录。同一功能内步骤串行，不同功能仍允许并行，共用同一版本工作区。
+
+准备或合并期间阻止该版本的新执行及结构变更。合并要求版本包含功能和步骤、全部完成，且无排队、运行或暂停的相关任务。两侧存在未提交改动时停止并提示；分叉时由 Agent 在版本 worktree 内整合目标分支、解决冲突，并按仓库现有说明执行相关测试和构建，在节点报告中列出验证命令和结果，验证不通过则停止。宿主重新检查 Git 状态后执行快进合并，成功后自动删除 worktree 和工作分支。清理失败保留“已合并，待清理”记录，再次发出合并指令只重试清理。侧边栏版本节点的树状图标提示工作区目录，版本详情保留合并提交和最近运行记录。
+
 定时触发支持一次性与固定间隔、启停及错过后补一次/跳过，直接启动实例；同一实例禁止重入。仅在应用进程运行时调度。数据写入 `pipelines/graph-state.json`，本版不迁移或加载旧的顺序流水线 `state.json`。
 
 验证：`go test ./internal/pipeline ./internal/toolrouter ./internal/tasks ./internal/lifecycle ./internal/lark`；前端 `npm run typecheck`、`npm run build`、`npm run test:pipeline`。画布测试使用独立 Chrome 临时资料目录，协议测试使用本地原生进程模拟器，不连接模型或发送外部消息。`TestNativePipelineWorktree` 仍提供显式开启的真实模型链路实测。

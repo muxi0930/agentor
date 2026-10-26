@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"agentor/internal/appdata"
 	"agentor/internal/constant"
@@ -16,6 +17,9 @@ func (s *Service) SaveTemplate(text string) (pipelinemodel.Task, error) {
 	task, err := s.ValidateTemplate(text)
 	if err != nil {
 		return task, err
+	}
+	if task.System != "" || task.VersionID != "" || strings.HasPrefix(task.ID, constant.PipelineSystemPrefix) {
+		return task, constant.ErrPipelineSystemReadOnly
 	}
 	if task.ID == "" {
 		task.ID = rand.Text()
@@ -44,6 +48,9 @@ func (s *Service) SaveTemplate(text string) (pipelinemodel.Task, error) {
 
 // DeleteTemplate 仅删除模板定义，不修改已复制的实例
 func (s *Service) DeleteTemplate(id string) error {
+	if strings.HasPrefix(id, constant.PipelineSystemPrefix) {
+		return constant.ErrPipelineSystemReadOnly
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := clone(s.state)
@@ -63,6 +70,9 @@ func (s *Service) DeleteTemplate(id string) error {
 
 // Instantiate 复制模板并一次性校验所有步骤插槽
 func (s *Service) Instantiate(input pipelinemodel.InstantiateInput) (pipelinemodel.Task, error) {
+	if strings.HasPrefix(input.TemplateID, constant.PipelineSystemPrefix) {
+		return pipelinemodel.Task{}, constant.ErrPipelineSystemReadOnly
+	}
 	var task pipelinemodel.Task
 	for _, item := range s.GetState().Templates {
 		if item.ID == input.TemplateID {

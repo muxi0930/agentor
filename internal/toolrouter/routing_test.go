@@ -81,7 +81,7 @@ func TestControllerRequestPermissions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			router, _ := newControllerRouter(t, test.kind, test.needsTarget)
 			for _, spec := range router.Specs("controller") {
-				readOnly := spec.Name == "list_workspaces" || spec.Name == "get_work_item" || spec.Name == "list_executions" || spec.Name == "list_pipeline_tasks" || spec.Name == "list_actions" || spec.Name == "validate_pipeline_task"
+				readOnly := spec.Name == "list_workspaces" || spec.Name == "get_work_item" || spec.Name == "list_executions" || spec.Name == "list_pipeline_tasks" || spec.Name == "list_actions" || spec.Name == "validate_pipeline_task" || spec.Name == "get_version_worktree"
 				_, err := router.Call(codexmodel.ToolCall{ThreadID: "router-thread", Tool: spec.Name, Arguments: json.RawMessage(`{`)})
 				if !readOnly && (test.needsTarget || test.kind != "instruction") {
 					if err == nil || err.Error() != "此请求需要明确目标或仅用于完成汇报，不能修改或再次派发" {

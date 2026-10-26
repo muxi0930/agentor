@@ -13,15 +13,27 @@ import (
 	pipelinemodel "agentor/internal/pipeline/model"
 )
 
-// performWorktree 执行仅限本次运行的工作区创建、快进合并与清理
-func (s *Service) performWorktree(ctx context.Context, run pipelinemodel.Run, kind string) (any, error) {
-	for _, current := range s.GetState().Runs {
-		if current.ID == run.ID {
-			run = current
-			break
+// performRunWorktree 执行宿主已确定的工作区创建、快进合并与清理
+func (s *Service) performRunWorktree(ctx context.Context, run pipelinemodel.Run, kind string) (any, error) {
+	w := run.Worktree
+	if run.VersionID != "" && w != nil {
+		if _, statErr := os.Stat(w.Directory); statErr == nil {
+			common, err := git(ctx, w.Directory, "rev-parse", "--path-format=absolute", "--git-common-dir")
+			if err != nil {
+				return nil, err
+			}
+			source, err := git(ctx, w.Repository, "rev-parse", "--path-format=absolute", "--git-common-dir")
+			if err != nil || common != source {
+				return nil, constant.ErrWorkspaceWorktreeInvalid
+			}
+			branch, err := git(ctx, w.Directory, "symbolic-ref", "--short", "HEAD")
+			if err != nil || branch != w.Branch {
+				return nil, constant.ErrPipelineWorktreeBranchChanged
+			}
+		} else if !os.IsNotExist(statErr) {
+			return nil, statErr
 		}
 	}
-	w := run.Worktree
 	if kind == constant.PipelineActionCreateWorktree {
 		if w == nil {
 			branch, err := git(ctx, run.Directory, "symbolic-ref", "--short", "HEAD")
@@ -33,7 +45,7 @@ func (s *Service) performWorktree(ctx context.Context, run pipelinemodel.Run, ki
 				return nil, err
 			}
 			w = &pipelinemodel.Worktree{Repository: run.Directory, SourceBranch: branch, SourceCommit: commit, Branch: "codex/pipeline-" + run.ID, Directory: filepath.Join(s.root, "worktrees", run.ID)}
-			if err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Worktree = w }); err != nil {
+			if err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Worktree = clone(w) }); err != nil {
 				return nil, err
 			}
 		}
@@ -91,7 +103,7 @@ func (s *Service) performWorktree(ctx context.Context, run pipelinemodel.Run, ki
 			return nil, err
 		}
 		w.MergedCommit = commit
-		if err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Worktree = w }); err != nil {
+		if err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Worktree = clone(w) }); err != nil {
 			return nil, err
 		}
 		return w, nil

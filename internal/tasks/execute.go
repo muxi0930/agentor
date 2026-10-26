@@ -178,6 +178,19 @@ func (s *Service) execute(ctx context.Context, execution tasksmodel.Execution) (
 	if err != nil {
 		return constant.TasksStatusError, "", err
 	}
+	release, err := s.work.AcquireVersion(current.ProjectID, current.VersionID, false)
+	if err != nil {
+		return constant.TasksStatusError, "", err
+	}
+	defer release()
+	resolved, err := s.work.ResolveStepContext(execution.StepID)
+	if err != nil {
+		return constant.TasksStatusError, "", err
+	}
+	if execution.Context.VersionID != resolved.VersionID || execution.PipelineRunID == "" && execution.Context.Directory != resolved.Directory {
+		return constant.TasksStatusError, "", constant.ErrWorkspaceWorktreeInvalid
+	}
+	current = resolved
 	threadID := current.Step.ThreadID
 	isolated := execution.Context.Directory != current.Directory
 	if isolated {

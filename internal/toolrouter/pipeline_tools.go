@@ -34,6 +34,7 @@ func (r *Router) pipelineState(projectID string) pipelinemodel.State {
 // controllerPipelineCall 通过宿主接口直接配置和管理流水线，不再转交专用会话
 func (r *Router) controllerPipelineCall(request tasksmodel.Request, call codexmodel.ToolCall) (any, error) {
 	var args struct {
+		VersionID  string            `json:"versionId"`  // 目标版本
 		Model      string            `json:"model"`      // 执行模型
 		Effort     string            `json:"effort"`     // 推理强度
 		TaskID     string            `json:"taskId"`     // 实例标识
@@ -61,7 +62,7 @@ func (r *Router) controllerPipelineCall(request tasksmodel.Request, call codexmo
 	}
 	state := r.pipelineState(request.ProjectID)
 	model, effort := request.Model, request.Effort
-	if call.Tool == constant.ToolRouterToolRunPipeline || call.Tool == constant.ToolRouterToolTriggerSchedule {
+	if call.Tool == constant.ToolRouterToolRunPipeline || call.Tool == constant.ToolRouterToolTriggerSchedule || call.Tool == constant.ToolRouterToolMergeVersionWorktree {
 		var err error
 		model, effort, err = r.tasks.SelectExecutor(request, args.Model, args.Effort)
 		if err != nil {
@@ -69,6 +70,15 @@ func (r *Router) controllerPipelineCall(request tasksmodel.Request, call codexmo
 		}
 	}
 	switch call.Tool {
+	case constant.ToolRouterToolGetVersionWorktree:
+		_, version, err := r.work.GetVersion(projectID, args.VersionID)
+		return version.Worktree, err
+	case constant.ToolRouterToolPrepareVersionWorktree, constant.ToolRouterToolMergeVersionWorktree:
+		operation := constant.PipelineSystemPrepare
+		if call.Tool == constant.ToolRouterToolMergeVersionWorktree {
+			operation = constant.PipelineSystemMerge
+		}
+		return r.pipeline.RunVersion(pipelinemodel.VersionRunInput{ProjectID: projectID, VersionID: args.VersionID, Operation: operation, Model: model, Effort: effort, Source: request.Source, RequestID: request.ID})
 	case constant.ToolRouterToolListActions:
 		return r.pipeline.GetActions(), nil
 	case constant.ToolRouterToolListPipelineTasks:

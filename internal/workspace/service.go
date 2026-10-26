@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -17,6 +18,11 @@ import (
 
 // API 按职责列出服务的全部公开方法
 type API interface {
+	AcquireVersion(projectID, versionID string, exclusive bool) (func(), error)                     // 获取版本操作范围，普通任务允许并发
+	GetVersion(projectID, versionID string) (workspacemodel.Project, workspacemodel.Version, error) // 获取版本与所属项目
+	SetVersionWorktree(projectID, versionID string, value *workspacemodel.VersionWorktree) error    // 保存宿主管理的版本工作区
+	ResolveStepContext(stepID string) (workspacemodel.StepContext, error)                           // 解析并验证实际步骤执行目录
+
 	SetDeleteGuard(guard func([]string) (func(), error))                                                     // 设置删除节点前的关联任务检查
 	GetState() workspacemodel.State                                                                          // 返回与内部状态隔离的工作区快照
 	Select(id string) (workspacemodel.State, error)                                                          // 保存当前选中的工作区节点
@@ -48,10 +54,12 @@ type API interface {
 var _ API = (*Service)(nil)
 
 type Service struct {
-	mu          sync.Mutex                     // 工作区状态读写锁
-	root        string                         // 应用数据目录
-	state       workspacemodel.State           // 当前工作区状态
-	deleteGuard func([]string) (func(), error) // 删除前核验关联任务并返回释放函数
+	versionUses       map[string]int                 // 普通任务共享的版本使用计数
+	versionOperations map[string]bool                // 工作区准备及合并期间的独占操作
+	mu                sync.Mutex                     // 工作区状态读写锁
+	root              string                         // 应用数据目录
+	state             workspacemodel.State           // 当前工作区状态
+	deleteGuard       func([]string) (func(), error) // 删除前核验关联任务并返回释放函数
 }
 
 // SetDeleteGuard 设置删除节点前的关联任务检查
@@ -272,6 +280,22 @@ func (s *Service) mutate(change func(*workspacemodel.State) error) (workspacemod
 		return workspacemodel.State{}, err
 	}
 	summarizeCompletion(&next)
+	for _, project := range s.state.Projects {
+		for _, version := range project.Versions {
+			if s.versionOperations[version.ID] {
+				updated := findProject(&next, project.ID)
+				if updated == nil || updated.Directory != project.Directory || !reflect.DeepEqual(findVersion(updated, version.ID), &version) {
+					return workspacemodel.State{}, constant.ErrWorkspaceVersionBusy
+				}
+			}
+			if version.Worktree != nil && version.Worktree.Directory != "" {
+				updated := findProject(&next, project.ID)
+				if updated == nil || findVersion(updated, version.ID) == nil || updated.Directory != project.Directory {
+					return workspacemodel.State{}, constant.ErrWorkspaceVersionWorktreeBound
+				}
+			}
+		}
+	}
 	if err := appdata.WriteJSON(filepath.Join(s.root, constant.WorkspaceStateFilename), next); err != nil {
 		return workspacemodel.State{}, err
 	}

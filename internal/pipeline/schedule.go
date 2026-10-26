@@ -82,6 +82,9 @@ func (s *Service) SaveSchedule(input pipelinemodel.Schedule) (pipelinemodel.Sche
 		}
 	}
 
+	if task.System != "" {
+		return pipelinemodel.Schedule{}, constant.ErrPipelineSystemReadOnly
+	}
 	if task.ID == "" {
 		return pipelinemodel.Schedule{}, constant.ErrPipelineTaskOutsideProject
 	}

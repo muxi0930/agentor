@@ -16,11 +16,16 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 	defer s.workerGroup.Done()
 	defer func() {
 		s.mu.Lock()
+		release := s.versionReleases[run.ID]
+		delete(s.versionReleases, run.ID)
 		if cancel := s.cancellations[run.ID]; cancel != nil {
 			cancel()
 			delete(s.cancellations, run.ID)
 		}
 		s.mu.Unlock()
+		if release != nil {
+			release()
+		}
 		s.changed()
 	}()
 	err := s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Status = constant.TasksStatusRunning })
@@ -66,7 +71,10 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 			}
 		}
 		record := pipelinemodel.ActionResult{ID: node.ID, Kind: node.Kind, Type: node.Type, Attempt: attempt, Inputs: params, Status: constant.TasksStatusRunning, StartedAt: now()}
-		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) { value.Actions = append(value.Actions, record); run = clone(*value) })
+		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) {
+			value.Actions = append(value.Actions, clone(record))
+			run = clone(*value)
+		})
 		if err != nil {
 			break
 		}
@@ -134,7 +142,7 @@ func (s *Service) execute(ctx context.Context, run pipelinemodel.Run) {
 		err = s.updateRun(run.ID, func(value *pipelinemodel.Run) {
 			previous := value.Actions[len(value.Actions)-1]
 			record.ThreadID, record.TurnID, record.Report, record.ExecutionID = previous.ThreadID, previous.TurnID, previous.Report, previous.ExecutionID
-			value.Actions[len(value.Actions)-1] = record
+			value.Actions[len(value.Actions)-1] = clone(record)
 			if target != "" {
 				value.CurrentNode = target
 			}
@@ -215,10 +223,11 @@ func (s *Service) performStatic(ctx context.Context, run pipelinemodel.Run, node
 	if err != nil {
 		return pipelinemodel.NodeReport{}, err
 	}
-	if err = json.Unmarshal(raw, &output); err != nil {
+	var value any
+	if err = json.Unmarshal(raw, &value); err != nil {
 		return pipelinemodel.NodeReport{}, err
 	}
-	return pipelinemodel.NodeReport{Outcome: constant.PipelineBranchSuccess, Branch: constant.PipelineBranchSuccess, Output: output}, nil
+	return pipelinemodel.NodeReport{Outcome: constant.PipelineBranchSuccess, Branch: constant.PipelineBranchSuccess, Output: value}, nil
 }
 
 // performValue 调用当前固定动作并返回其结果

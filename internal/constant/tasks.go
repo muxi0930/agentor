@@ -61,3 +61,5 @@ const (
 )
 
 const TasksPipelineOutcomeInstructions = "这是流水线步骤。完成工作与验证后，必须调用 report_step_outcome 汇报 success 和 summary；失败时明确汇报 false。只有轮次正常结束且结构化汇报成功，Go 才会推进后续节点。若在独立 worktree 中执行，请将所有需要合并的变更提交到当前分支，保持工作区干净，不得自行合并、切换来源分支或删除 worktree。"
+
+const TasksVersionWorktreeInstructions = "\n\n版本工作区：用户要求版本使用 worktree 开发时，调用 prepare_version_worktree；查询使用 get_version_worktree；用户明确要求检查并合并时调用 merge_version_worktree。两条系统流水线不可编辑，不要改写普通流水线模拟它们。步骤工作目录由 Go 根据版本绑定决定，不得自行覆盖。未绑定版本仍使用项目目录。合并遇到未提交改动必须提示用户处理，不得自行清理；成功合并会自动移除工作区和工作分支。"

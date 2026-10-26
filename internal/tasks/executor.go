@@ -43,7 +43,7 @@ func (s *Service) executorSettings(model, effort string) appdatamodel.Controller
 // controllerPrompt 组合控制中心指令、派发提示词与末尾安全提示词
 func controllerPrompt(config appdatamodel.ControllerSettings) string {
 	prompt := config.Prompt + "\n\n" + fmt.Sprintf(constant.TasksExecutorChoiceTemplate, strings.Join(config.Models, ","), strings.Join(config.Efforts, ",")) + "\n" + config.DecisionPrompt + constant.TasksExecutorSelectionInstructions
-	prompt += constant.TasksVersionCreationInstructions
+	prompt += constant.TasksVersionCreationInstructions + constant.TasksVersionWorktreeInstructions
 	securityPrompt := constant.AppDataDefaultControllerSecurityPrompt
 	if config.SecurityPrompt != nil {
 		securityPrompt = *config.SecurityPrompt

@@ -22,13 +22,14 @@ type Project struct {
 }
 
 type Version struct {
-	CreatedAt   string    `json:"createdAt,omitempty"` // 创建时间
-	DocumentIDs []string  `json:"documentIds"`         // 绑定的知识文档
-	ID          string    `json:"id"`                  // 稳定标识
-	Name        string    `json:"name"`                // 显示名称
-	Description string    `json:"description"`         // 描述
-	TagIDs      []string  `json:"tagIds"`              // 关联的项目标签
-	Features    []Feature `json:"features"`            // 版本内的功能
+	Worktree    *VersionWorktree `json:"worktree,omitempty"`  // 版本专属工作区及历史合并记录
+	CreatedAt   string           `json:"createdAt,omitempty"` // 创建时间
+	DocumentIDs []string         `json:"documentIds"`         // 绑定的知识文档
+	ID          string           `json:"id"`                  // 稳定标识
+	Name        string           `json:"name"`                // 显示名称
+	Description string           `json:"description"`         // 描述
+	TagIDs      []string         `json:"tagIds"`              // 关联的项目标签
+	Features    []Feature        `json:"features"`            // 版本内的功能
 }
 
 type Feature struct {
@@ -87,4 +88,15 @@ type StepContext struct {
 	FeaturePrompt      string     `json:"featurePrompt"`      // 功能提示词
 	Step               Step       `json:"step"`               // 当前步骤
 	Documents          []Document `json:"documents"`          // 知识文档
+}
+
+type VersionWorktree struct {
+	Directory    string `json:"directory"`    // 活动工作区目录，清理后为空
+	Repository   string `json:"repository"`   // 来源仓库目录
+	SourceBranch string `json:"sourceBranch"` // 创建时的来源及合并目标分支
+	SourceCommit string `json:"sourceCommit"` // 创建时的来源提交
+	Branch       string `json:"branch"`       // 工作分支
+	MergedCommit string `json:"mergedCommit"` // 已合入的提交
+	Status       string `json:"status"`       // 准备、可用、已合并或已清理
+	RunID        string `json:"runId"`        // 最近一次系统流水线运行
 }

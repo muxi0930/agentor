@@ -82,3 +82,24 @@ const (
 	PipelineBranchDirtyDescription    = "工作区有未提交变更"
 	PipelineBranchDivergedDescription = "来源分支已分歧，不能快进合并"
 )
+
+const (
+	PipelineSystemPrepare         = "prepare"
+	PipelineSystemMerge           = "merge"
+	PipelineSystemPrefix          = "system.version."
+	PipelineSystemPrepareName     = "准备版本工作区"
+	PipelineSystemMergeName       = "检查并合并版本"
+	PipelineSystemResolvePrompt   = "仅在给定版本 worktree 内，将记录的 sourceBranch 合并进当前工作分支，解决冲突并提交整合结果。不得修改来源工作区或清理 worktree，不得回滚已有业务改动。按仓库说明执行已有测试与构建；如无法确认验证通过，汇报 failure 并说明。完成后工作区必须干净，来源分支提交必须已包含在当前工作分支中。由宿主执行最终快进合并。"
+	PipelineSystemResolveCriteria = "冲突全部解决，已有相关测试与构建通过，整合提交已完成，工作区干净；汇报实际验证命令和结果"
+)
+
+const (
+	PipelineSystemDoneName         = "完成"
+	PipelineSystemCreateName       = "创建或复用版本工作区"
+	PipelineSystemCheckMergeName   = "检查完成条件与合并"
+	PipelineSystemResolveName      = "整合分支并解决冲突"
+	PipelineSystemCleanupName      = "清理已合并工作区"
+	PipelineSystemResolveTimeout   = 1800
+	PipelineVersionBranchPrefix    = "codex/version-"
+	PipelineVersionDirectoryPrefix = "version-"
+)

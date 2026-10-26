@@ -34,6 +34,9 @@ func (s *Service) SyncCompletion(latest map[string]workspacemodel.StepCompletion
 	next := clone(s.state)
 	for p := range next.Projects {
 		for v := range next.Projects[p].Versions {
+			if s.versionOperations[next.Projects[p].Versions[v].ID] {
+				continue
+			}
 			for f := range next.Projects[p].Versions[v].Features {
 				feature := &next.Projects[p].Versions[v].Features[f]
 				for i := range feature.Steps {

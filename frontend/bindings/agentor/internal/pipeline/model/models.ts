@@ -311,6 +311,11 @@ export interface Position {
 
 export interface Run {
     /**
+     * 本次系统运行所属版本
+     */
+    "versionId"?: string;
+
+    /**
      * 已持久化的下一执行位置
      */
     "currentNode": string;
@@ -554,6 +559,16 @@ export interface State {
 
 export interface Task {
     /**
+     * 内置系统流程标识
+     */
+    "system"?: string;
+
+    /**
+     * 系统流程所属版本
+     */
+    "versionId"?: string;
+
+    /**
      * 流水线或模板标识
      */
     "id": string;
@@ -592,6 +607,43 @@ export interface Task {
      * 节点图，执行顺序由分支连线决定
      */
     "actions": Action[] | null;
+}
+
+export interface VersionRunInput {
+    /**
+     * 目标项目
+     */
+    "projectId": string;
+
+    /**
+     * 目标版本
+     */
+    "versionId": string;
+
+    /**
+     * prepare 或 merge
+     */
+    "operation": string;
+
+    /**
+     * 冲突处理模型
+     */
+    "model": string;
+
+    /**
+     * 推理强度
+     */
+    "effort": string;
+
+    /**
+     * 请求来源
+     */
+    "source": model$1.Source;
+
+    /**
+     * 控制中心请求
+     */
+    "requestId": string;
 }
 
 export interface Worktree {

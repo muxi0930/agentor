@@ -47,6 +47,7 @@ export function VersionDetails({header,version,busy,onSelect,onCreateFeature}:Pa
   return <>
     <PageHeader {...header}/>
     <PageContent>
+      {version.worktree && <Card><CardHeader><CardTitle className="text-sm">版本 Worktree</CardTitle></CardHeader><CardContent className="space-y-2 break-all text-sm"><p>状态：{{preparing:"准备中",ready:"可用",merged:"已合并，待清理",cleaned:"已合并并清理"}[version.worktree.status] || version.worktree.status}</p><p>目录：{version.worktree.directory || "已清理"}</p><p>工作分支：{version.worktree.branch} → {version.worktree.sourceBranch}</p>{version.worktree.mergedCommit && <p>合并提交：{version.worktree.mergedCommit}</p>}<p>关联运行：{version.worktree.runId}</p></CardContent></Card>}
       <Button disabled={busy} onClick={onCreateFeature}><Plus/>新建功能</Button>
       <Table aria-label="功能列表">
         <TableHeader><TableRow><TableHead>名称</TableHead><TableHead>说明</TableHead><TableHead>创建时间</TableHead><TableHead>状态</TableHead><TableHead>完成时间</TableHead><TableHead className="text-right">步骤数</TableHead></TableRow></TableHeader>

@@ -86,8 +86,13 @@ func stringField(description string) map[string]any {
 // controllerPipelineTools 声明控制中心可用的配置能力，全部经过 Go 校验
 func controllerPipelineTools() []toolDefinition {
 	group := constant.ToolRouterGroupControllerPipeline
+	version := map[string]any{"projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "versionId": stringField(constant.ToolRouterVersionIDDescription)}
+	versionRun := map[string]any{"projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "versionId": stringField(constant.ToolRouterVersionIDDescription), "model": stringField(constant.ToolRouterExecutorModelDescription), "effort": stringField(constant.ToolRouterExecutorEffortDescription)}
 	config := map[string]any{"projectId": stringField(constant.ToolRouterScopedProjectIDDescription), "json": stringField(constant.ToolRouterTaskJSONDescription)}
 	return []toolDefinition{
+		defineTool(false, group, constant.ToolRouterToolPrepareVersionWorktree, constant.ToolRouterPrepareVersionWorktreeDescription, version, "versionId"),
+		defineTool(false, group, constant.ToolRouterToolMergeVersionWorktree, constant.ToolRouterMergeVersionWorktreeDescription, versionRun, "versionId", "model", "effort"),
+		defineTool(true, group, constant.ToolRouterToolGetVersionWorktree, constant.ToolRouterGetVersionWorktreeDescription, version, "versionId"),
 		defineTool(true, group, constant.ToolRouterToolListActions, constant.ToolRouterListActionsDescription, map[string]any{}),
 		defineTool(true, group, constant.ToolRouterToolValidatePipelineTask, constant.ToolRouterValidateTaskDescription, config, "json"),
 		defineTool(false, group, constant.ToolRouterToolSavePipelineTask, constant.ToolRouterSaveTaskDescription, config, "json"),

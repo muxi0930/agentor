@@ -1,3 +1,4 @@
+import { VersionPreview } from "./version-preview";
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../../src/index.css";
@@ -16,4 +17,4 @@ function InputPreview() {
  const task = { ...newTask(""), inputs: [{ name: "payload", type: "any", required: true }] };
  return <main className="p-4"><RunInputs task={task} values={values} onChange={setValues} onValidityChange={setValid} /><button disabled={!valid}>运行流水线</button><output data-testid="input-value">{JSON.stringify(values)}</output></main>;
 }
-createRoot(document.getElementById("root")!).render(location.search === "?inputs" ? <InputPreview /> : <Preview />);
+createRoot(document.getElementById("root")!).render(location.search === "?version" ? <VersionPreview /> : location.search === "?inputs" ? <InputPreview /> : <Preview />);

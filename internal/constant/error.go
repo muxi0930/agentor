@@ -316,3 +316,15 @@ var (
 	ErrPipelineWorktreeAdvanced       = errors.New("工作区在合并后出现新提交，不能清理")
 	ErrPipelineWorktreeBranchAdvanced = errors.New("分支在合并后出现新提交，不能删除")
 )
+
+var (
+	ErrWorkspaceVersionBusy          = errors.New("版本正在准备或合并工作区，或仍有任务使用工作区")
+	ErrWorkspaceVersionWorktreeBound = errors.New("版本仍绑定工作区，不能删除版本或修改项目目录")
+	ErrWorkspaceWorktreeInvalid      = errors.New("版本工作区不存在、分支不匹配或尚未准备完成")
+	ErrPipelineSystemReadOnly        = errors.New("系统流水线只读，请通过版本工作区入口运行")
+	ErrPipelineVersionIncomplete     = errors.New("版本必须包含功能和步骤，且所有功能及步骤均已完成")
+	ErrPipelineVersionActive         = errors.New("版本仍有排队、运行或暂停的任务")
+	ErrPipelineVersionDirty          = errors.New("工作区有未提交改动，请提交或处理后重试")
+)
+
+var ErrPipelineVersionCleanupPending = errors.New("版本已合并，请再次执行检查并合并以完成工作区清理")

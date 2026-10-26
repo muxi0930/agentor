@@ -204,10 +204,26 @@ func (s *Service) Dispatch(input tasksmodel.DispatchInput) (tasksmodel.Execution
 	if err != nil {
 		return tasksmodel.Execution{}, err
 	}
+	release, err := s.work.AcquireVersion(context.ProjectID, context.VersionID, false)
+	if err != nil {
+		return tasksmodel.Execution{}, err
+	}
+	defer release()
+	context, err = s.work.ResolveStepContext(input.StepID)
+	if err != nil {
+		return tasksmodel.Execution{}, err
+	}
 	if strings.TrimSpace(input.Instruction) == "" && strings.TrimSpace(context.Step.Prompt) == "" {
 		return tasksmodel.Execution{}, constant.ErrTasksInstructionRequired
 	}
 	if input.ExecutionDirectory != "" && input.PipelineRunID != "" {
+		original, err := s.work.GetStepContext(input.StepID)
+		if err != nil {
+			return tasksmodel.Execution{}, err
+		}
+		if context.Directory != original.Directory && context.Directory != input.ExecutionDirectory {
+			return tasksmodel.Execution{}, constant.ErrWorkspaceWorktreeInvalid
+		}
 		context.Directory, context.Step.ThreadID = input.ExecutionDirectory, ""
 	}
 	if input.TimeoutSeconds < 0 {

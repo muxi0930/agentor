@@ -46,7 +46,7 @@ export function WorkspacePage({active,settings,status,focusExecutionId,focusPipe
   const [removing,setRemoving]=useState<Selection>();
   async function run(action:()=>Promise<State>){setBusy(true);setError("");try{setState(await action());}catch(error){setError(errorText(error));}finally{setBusy(false);}}
   useEffect(()=>{void run(()=>Work.GetState());},[]);
-  useEffect(()=>Events.On("tasks:changed",()=>{void Work.GetState().then(setState).catch(error=>setError(errorText(error)));}),[]);
+  useEffect(()=>{const refresh=()=>{void Work.GetState().then(setState).catch(error=>setError(errorText(error)));};const offTasks=Events.On("tasks:changed",refresh);const offPipeline=Events.On("pipeline:changed",refresh);return()=>{offTasks();offPipeline();};},[]);
   const selected=state&&(locate(state,state.selectedId)||(state.projects?.[0]?{kind:"project" as const,project:state.projects[0]}:undefined));
   const identity=selected&&nodeIdentity(selected);
   const project=selected?.project;

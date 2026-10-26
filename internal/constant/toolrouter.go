@@ -124,3 +124,12 @@ const (
 	ToolRouterSaveTemplateDescription  = "保存独立流水线模板，模板中的 stepSlot 在实例化时绑定项目步骤。"
 	ToolRouterInstantiateDescription   = "复制模板为独立实例，绑定步骤插槽；后续模板修改不会影响实例。"
 )
+
+const (
+	ToolRouterToolPrepareVersionWorktree        = "prepare_version_worktree"
+	ToolRouterToolMergeVersionWorktree          = "merge_version_worktree"
+	ToolRouterToolGetVersionWorktree            = "get_version_worktree"
+	ToolRouterPrepareVersionWorktreeDescription = "运行只读系统流水线，为版本创建或复用专属 worktree。自动以项目当前分支作为来源和后续合并目标；后续步骤由 Go 路由到版本工作区。"
+	ToolRouterMergeVersionWorktreeDescription   = "运行只读系统流水线，检查版本全部功能步骤完成且无活动任务后合并。未提交改动会停止；分叉由 Agent 整合验证；成功后自动移除 worktree 和工作分支。清理失败可再次调用重试。"
+	ToolRouterGetVersionWorktreeDescription     = "读取版本的 worktree 目录、分支、状态、合并提交及关联运行。"
+)

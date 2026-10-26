@@ -21,7 +21,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-var version string = "0.2.7" // 应用版本
+var version string = "0.2.8" // 应用版本
 
 //go:embed all:frontend/dist
 var assets embed.FS

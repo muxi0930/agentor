@@ -25,6 +25,9 @@ func (s *Service) ControlRun(projectID, id, operation string) (pipelinemodel.Run
 			continue
 		}
 
+		if run.Task.System != "" && operation != constant.PipelineControlStop {
+			return pipelinemodel.Run{}, constant.ErrPipelineSystemReadOnly
+		}
 		launch := false
 		switch operation {
 		case constant.PipelineControlPause:

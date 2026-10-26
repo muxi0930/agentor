@@ -11,5 +11,6 @@ export type {
     Step,
     StepContext,
     Tag,
-    Version
+    Version,
+    VersionWorktree
 } from "./models.js";

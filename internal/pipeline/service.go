@@ -26,6 +26,8 @@ import (
 
 // API 按职责列出服务的全部公开方法
 type API interface {
+	RunVersion(input pipelinemodel.VersionRunInput) (pipelinemodel.Run, error) // 运行内置版本工作区流程
+
 	GetState() pipelinemodel.State                                                // 读取流水线状态副本
 	SaveTemplate(text string) (pipelinemodel.Task, error)                         // 保存独立模板
 	DeleteTemplate(id string) error                                               // 删除模板，实例不受影响
@@ -55,37 +57,39 @@ type API interface {
 var _ API = (*Service)(nil)
 
 type Service struct {
-	nodeContexts  map[string]context.Context                                                                                       // 活动尝试的取消与超时范围
-	mu            sync.Mutex                                                                                                       // 保护流水线状态与工作记录的互斥锁
-	workerGroup   sync.WaitGroup                                                                                                   // 退出时等待运行与调度结束
-	data          *appdata.Service                                                                                                 // 应用配置服务
-	work          *workspace.Service                                                                                               // 工作区项目与知识服务
-	tasks         *tasks.Service                                                                                                   // 步骤执行与通知服务
-	files         *artifact.Service                                                                                                // 流水线产物服务
-	runtime       *codex.Service                                                                                                   // 原生 Codex 会话服务
-	root          string                                                                                                           // 流水线状态保存目录
-	state         pipelinemodel.State                                                                                              // 当前流水线状态
-	ctx           context.Context                                                                                                  // 服务生命周期上下文
-	cancel        context.CancelFunc                                                                                               // 取消服务生命周期
-	cancellations map[string]context.CancelFunc                                                                                    // 按运行标识保存的取消入口
-	runAgent      func(context.Context, pipelinemodel.Run, pipelinemodel.Action, map[string]any) (pipelinemodel.NodeReport, error) // Agent 执行入口
-	toolSpecs     func(string) []codexmodel.DynamicToolSpec                                                                        // 按会话角色提供的宿主工具目录
+	versionReleases map[string]func()                                                                                                // 系统流程持有的版本独占范围
+	nodeContexts    map[string]context.Context                                                                                       // 活动尝试的取消与超时范围
+	mu              sync.Mutex                                                                                                       // 保护流水线状态与工作记录的互斥锁
+	workerGroup     sync.WaitGroup                                                                                                   // 退出时等待运行与调度结束
+	data            *appdata.Service                                                                                                 // 应用配置服务
+	work            *workspace.Service                                                                                               // 工作区项目与知识服务
+	tasks           *tasks.Service                                                                                                   // 步骤执行与通知服务
+	files           *artifact.Service                                                                                                // 流水线产物服务
+	runtime         *codex.Service                                                                                                   // 原生 Codex 会话服务
+	root            string                                                                                                           // 流水线状态保存目录
+	state           pipelinemodel.State                                                                                              // 当前流水线状态
+	ctx             context.Context                                                                                                  // 服务生命周期上下文
+	cancel          context.CancelFunc                                                                                               // 取消服务生命周期
+	cancellations   map[string]context.CancelFunc                                                                                    // 按运行标识保存的取消入口
+	runAgent        func(context.Context, pipelinemodel.Run, pipelinemodel.Action, map[string]any) (pipelinemodel.NodeReport, error) // Agent 执行入口
+	toolSpecs       func(string) []codexmodel.DynamicToolSpec                                                                        // 按会话角色提供的宿主工具目录
 }
 
 // NewService 初始化流水线服务并恢复已保存状态
 func NewService(data *appdata.Service, work *workspace.Service, executions *tasks.Service, files *artifact.Service, runtime *codex.Service) (*Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		data:          data,
-		work:          work,
-		tasks:         executions,
-		files:         files,
-		runtime:       runtime,
-		root:          filepath.Join(data.GetInfo().DataDirectory, constant.PipelineDirectoryName),
-		ctx:           ctx,
-		cancel:        cancel,
-		cancellations: map[string]context.CancelFunc{},
-		nodeContexts:  map[string]context.Context{},
+		data:            data,
+		work:            work,
+		tasks:           executions,
+		files:           files,
+		runtime:         runtime,
+		root:            filepath.Join(data.GetInfo().DataDirectory, constant.PipelineDirectoryName),
+		ctx:             ctx,
+		cancel:          cancel,
+		cancellations:   map[string]context.CancelFunc{},
+		nodeContexts:    map[string]context.Context{},
+		versionReleases: map[string]func(){},
 	}
 
 	s.runAgent = s.performAgent
@@ -124,7 +128,9 @@ func (s *Service) GetState() pipelinemodel.State {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return clone(s.state)
+	state := clone(s.state)
+	state.Templates = append(state.Templates, systemTask(constant.PipelineSystemPrepare), systemTask(constant.PipelineSystemMerge))
+	return state
 }
 
 // SaveTask 校验并保存当前项目的流水线任务
@@ -134,6 +140,9 @@ func (s *Service) SaveTask(projectID, text string) (pipelinemodel.Task, error) {
 		return task, err
 	}
 
+	if task.System != "" || task.VersionID != "" || strings.HasPrefix(task.ID, constant.PipelineSystemPrefix) {
+		return pipelinemodel.Task{}, constant.ErrPipelineSystemReadOnly
+	}
 	if task.ID == "" {
 		task.ID = rand.Text()
 	}
@@ -170,6 +179,9 @@ func (s *Service) SaveTask(projectID, text string) (pipelinemodel.Task, error) {
 
 // DeleteTask 移除没有调度或活动运行的任务
 func (s *Service) DeleteTask(projectID, id string) error {
+	if strings.HasPrefix(id, constant.PipelineSystemPrefix) {
+		return constant.ErrPipelineSystemReadOnly
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -340,7 +352,7 @@ func (s *Service) project(id string) (workspacemodel.Project, error) {
 }
 
 // startRun 冻结任务参数并登记流水线运行
-func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pipelinemodel.Run, error) {
+func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string, versionRelease ...func()) (pipelinemodel.Run, error) {
 	s.mu.Lock()
 	var task pipelinemodel.Task
 	for _, item := range s.state.Tasks {
@@ -355,6 +367,9 @@ func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pip
 		return pipelinemodel.Run{}, constant.ErrPipelinePipelineTaskNotFound
 	}
 
+	if task.System != "" && len(versionRelease) == 0 {
+		return pipelinemodel.Run{}, constant.ErrPipelineSystemReadOnly
+	}
 	if err := s.validateTask(task); err != nil {
 		return pipelinemodel.Run{}, err
 	}
@@ -373,7 +388,16 @@ func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pip
 				return pipelinemodel.Run{}, err
 			}
 			if node.StepID != "" {
-				contexts[node.ID], err = s.work.GetStepContext(node.StepID)
+				raw, lookupErr := s.work.GetStepContext(node.StepID)
+				if lookupErr != nil {
+					return pipelinemodel.Run{}, lookupErr
+				}
+				release, acquireErr := s.work.AcquireVersion(raw.ProjectID, raw.VersionID, false)
+				if acquireErr != nil {
+					return pipelinemodel.Run{}, acquireErr
+				}
+				defer release()
+				contexts[node.ID], err = s.work.ResolveStepContext(node.StepID)
 				if err != nil {
 					return pipelinemodel.Run{}, err
 				}
@@ -387,6 +411,7 @@ func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pip
 
 	run := pipelinemodel.Run{
 		ID:          rand.Text(),
+		VersionID:   task.VersionID,
 		CurrentNode: task.Entry, StepContexts: contexts,
 		ProjectID:   task.ProjectID,
 		TaskID:      task.ID,
@@ -460,8 +485,10 @@ func (s *Service) startRun(input pipelinemodel.RunInput, scheduleID string) (pip
 
 	if err == nil {
 		s.workerGroup.Add(1)
+		if len(versionRelease) > 0 {
+			s.versionReleases[run.ID] = versionRelease[0]
+		}
 	}
-
 	s.mu.Unlock()
 	if err != nil {
 		return pipelinemodel.Run{}, err
